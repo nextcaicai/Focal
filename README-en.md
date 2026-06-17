@@ -75,6 +75,20 @@ Focal currently defaults to local RSS mode: feeds, entries, unread state, AI-enh
 - UI: Tailwind CSS + Apple UIKit color tokens
 - i18n: i18next
 
+## Usage
+
+### For End Users (Recommended)
+
+Download the latest release directly from [GitHub Releases](https://github.com/nextcaicai/Focal/releases) (currently macOS only):
+
+- **macOS**: Download the `.dmg` file and drag to install
+
+Ready to use out of the box — no development environment setup required.
+
+### For Developers
+
+If you want to contribute or customize features, please refer to the "Local Development" section below.
+
 ## Local Development
 
 Install dependencies:
@@ -114,6 +128,16 @@ pnpm run test
 ## Contributing
 
 Contributions are welcome around local RSS, BYOK AI, reading preference recommendations, Actions automation, knowledge base integrations, and the macOS desktop reading experience. Before contributing, please read the [Contributing Guide](./CONTRIBUTING.md) and follow the `AGENTS.md` conventions in each directory.
+
+## Acknowledgments
+
+Focal would not exist without the contributions of these excellent open-source projects:
+
+- **[RSSNext/Folo](https://github.com/RSSNext/Folo)** — Focal is forked from Folo, inheriting its mature subscription management, timeline architecture, and cross-platform reader foundation.
+- **[NetNewsWire](https://github.com/Ranchero-Software/NetNewsWire)** — The classic RSS reader for macOS, which deeply inspired Focal's local RSS processing and desktop reading experience design.
+- **[Defuddle](https://github.com/kevinburke/defuddle)** — YouTube video transcript content extraction, providing technical support for Focal's clean reading mode.
+- **[Simple Icons](https://github.com/simple-icons/simple-icons)** — High-quality brand icons used for feed and integration icon display.
+- **[Lobehub](https://github.com/lobehub/lobe-chat)** — High-quality LLM brand icons used for model provider icon display.
 
 ## License
 
