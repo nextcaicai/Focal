@@ -24,36 +24,59 @@ import {
 interface ByokProviderModalContentProps {
   provider: UserByokProviderConfig | null
   configuredProviders?: ByokProviderName[]
+  existingProviders?: UserByokProviderConfig[]
   onSave: (provider: UserByokProviderConfig) => void
   onCancel: () => void
 }
 
 const EMPTY_CONFIGURED_PROVIDERS: ByokProviderName[] = []
+const EMPTY_EXISTING_PROVIDERS: UserByokProviderConfig[] = []
 
 export const ByokProviderModalContent = ({
   provider,
-  configuredProviders = EMPTY_CONFIGURED_PROVIDERS,
+  configuredProviders: _configuredProviders = EMPTY_CONFIGURED_PROVIDERS,
+  existingProviders = EMPTY_EXISTING_PROVIDERS,
   onSave,
   onCancel,
 }: ByokProviderModalContentProps) => {
   const { t } = useTranslation("ai")
 
-  // Filter out already configured providers, but keep the current one if editing
-  const availableProviders = PROVIDER_OPTIONS.filter(
-    (option) => !configuredProviders.includes(option.value) || option.value === provider?.provider,
-  )
+  // Build a lookup of previously saved configs (for restoring keys when switching providers in the form)
+  const existingConfigMap = useMemo(() => {
+    const map = new Map<ByokProviderName, UserByokProviderConfig>()
+    // Seed with the provider being edited (has its current key etc.)
+    if (provider) {
+      map.set(provider.provider, provider)
+    }
+    // Include any other existing providers passed from the caller (legacy multi or previous saves)
+    existingProviders.forEach((p) => {
+      if (!map.has(p.provider)) {
+        map.set(p.provider, p)
+      }
+    })
+    return map
+  }, [provider, existingProviders])
+
+  // Always allow selecting any provider. The edit/add save will result in a single active provider.
+  const availableProviders = PROVIDER_OPTIONS
 
   // Get the first available provider or fallback to the current one
   const defaultProvider = availableProviders[0]?.value ?? provider?.provider ?? "openai"
 
   const initialProvider = provider?.provider ?? defaultProvider
 
+  // Seed initial form from the passed editing provider (preferred), or lookup if somehow initial is different
+  const initialSaved = existingConfigMap.get(initialProvider)
   const [formData, setFormData] = useState<UserByokProviderConfig>(() => ({
     provider: initialProvider,
-    baseURL: provider?.baseURL ?? (getProviderDefaultBaseURL(initialProvider) || null),
-    apiKey: provider?.apiKey ?? null,
-    model: provider?.model ?? (getProviderDefaultModel(initialProvider) || null),
-    headers: provider?.headers ?? {},
+    baseURL:
+      provider?.baseURL ??
+      initialSaved?.baseURL ??
+      (getProviderDefaultBaseURL(initialProvider) || null),
+    apiKey: provider?.apiKey ?? initialSaved?.apiKey ?? null,
+    model:
+      provider?.model ?? initialSaved?.model ?? (getProviderDefaultModel(initialProvider) || null),
+    headers: provider?.headers ?? initialSaved?.headers ?? {},
   }))
 
   const selectedProviderOption = useMemo(
@@ -68,12 +91,30 @@ export const ByokProviderModalContent = ({
 
   const handleProviderChange = (value: string) => {
     const nextProvider = value as ByokProviderName
-    setFormData((prev) => ({
-      ...prev,
-      provider: nextProvider,
-      baseURL: getProviderDefaultBaseURL(nextProvider) || null,
-      model: getProviderDefaultModel(nextProvider) || null,
-    }))
+    const savedConfig = existingConfigMap.get(nextProvider)
+
+    setFormData((prev) => {
+      if (savedConfig) {
+        // Restore the previously saved values (including API key) for this provider
+        return {
+          ...prev,
+          provider: nextProvider,
+          baseURL: savedConfig.baseURL ?? (getProviderDefaultBaseURL(nextProvider) || null),
+          apiKey: savedConfig.apiKey ?? null,
+          model: savedConfig.model ?? (getProviderDefaultModel(nextProvider) || null),
+          headers: savedConfig.headers ?? {},
+        }
+      }
+      // Fresh provider: reset to defaults, no key
+      return {
+        ...prev,
+        provider: nextProvider,
+        baseURL: getProviderDefaultBaseURL(nextProvider) || null,
+        model: getProviderDefaultModel(nextProvider) || null,
+        apiKey: null,
+        headers: {},
+      }
+    })
   }
 
   const handleSubmit = (e: FormEvent) => {

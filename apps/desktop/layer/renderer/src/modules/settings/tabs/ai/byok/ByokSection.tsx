@@ -11,7 +11,6 @@ import { useDialog, useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { ByokProcessingSection } from "../background-processing"
 import { ByokProviderItem } from "./ByokProviderItem"
 import { ByokProviderModalContent } from "./ByokProviderModalContent"
-import { PROVIDER_OPTIONS } from "./constants"
 
 export const ByokSection = () => {
   const { t } = useTranslation("ai")
@@ -37,11 +36,12 @@ export const ByokSection = () => {
         <ByokProviderModalContent
           provider={null}
           configuredProviders={configuredProviders}
+          existingProviders={currentByok.providers}
           onSave={(provider) => {
             const updatedByok = getAISettings().byok ?? { enabled: false, providers: [] }
             setAISetting("byok", {
               ...updatedByok,
-              providers: [...updatedByok.providers, provider],
+              providers: [provider],
             })
             toast.success(t("byok.providers.added"))
             dismiss()
@@ -54,7 +54,7 @@ export const ByokSection = () => {
 
   const handleEditProvider = (index: number, provider: UserByokProviderConfig) => {
     const currentByok = getAISettings().byok ?? { enabled: false, providers: [] }
-    // Exclude the current provider being edited from configured list
+    // Exclude the current provider being edited from configured list (for any legacy filtering)
     const configuredProviders = currentByok.providers
       .filter((_, i) => i !== index)
       .map((p) => p.provider)
@@ -65,13 +65,14 @@ export const ByokSection = () => {
         <ByokProviderModalContent
           provider={provider}
           configuredProviders={configuredProviders}
+          existingProviders={currentByok.providers}
           onSave={(updatedProvider) => {
             const updatedByok = getAISettings().byok ?? { enabled: false, providers: [] }
-            const updatedProviders = [...updatedByok.providers]
-            updatedProviders[index] = updatedProvider
+            // Always result in a single active provider after edit (supports "switch via edit" UX)
+            // Previous other providers' keys were already available for restore inside the modal via existingProviders.
             setAISetting("byok", {
               ...updatedByok,
-              providers: updatedProviders,
+              providers: [updatedProvider],
             })
             toast.success(t("byok.providers.updated"))
             dismiss()
@@ -118,12 +119,6 @@ export const ByokSection = () => {
         <>
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium text-text">{t("byok.providers.title")}</Label>
-            {byok.providers.length < PROVIDER_OPTIONS.length && (
-              <Button variant="outline" size="sm" onClick={handleAddProvider}>
-                <i className="i-focal-add mr-2 size-4" />
-                {t("byok.providers.add")}
-              </Button>
-            )}
           </div>
 
           {byok.providers.length === 0 && (
@@ -135,6 +130,15 @@ export const ByokSection = () => {
                 {t("byok.providers.empty.title")}
               </h4>
               <p className="text-xs text-text-secondary">{t("byok.providers.empty.description")}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                buttonClassName="mt-4"
+                onClick={handleAddProvider}
+              >
+                <i className="i-focal-add mr-2 size-4" />
+                {t("byok.providers.add")}
+              </Button>
             </div>
           )}
 
