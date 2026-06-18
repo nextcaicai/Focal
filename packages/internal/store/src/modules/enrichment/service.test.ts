@@ -112,6 +112,22 @@ describe("entryEnrichmentService", () => {
     })
   })
 
+  test("retryEntry requeues a single entry", async () => {
+    useEntryStore.setState({
+      data: {
+        "entry-retry": createEntry("entry-retry"),
+      },
+    })
+
+    const result = entryEnrichmentService.retryEntry({
+      entryId: "entry-retry",
+      actionLanguage: "en",
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(entryEnrichmentService.isEntryInPipeline("entry-retry")).toBe(true)
+  })
+
   test("enqueues missing summaries from ingest and drains the queue", async () => {
     entryEnrichmentService.enqueueFromIngest({
       entryIds: ["entry-1", "entry-2"],
@@ -245,6 +261,14 @@ describe("entryEnrichmentService", () => {
     })
 
     await vi.advanceTimersByTimeAsync(90_000)
+
+    const { lastError } = useEnrichmentStatusStore.getState().snapshot
+    expect(lastError).toMatchObject({
+      entryId: "entry-1",
+      phase: "summary",
+      errorCode: "enrichment_timeout",
+      errorKey: "entry-1:enrichment_timeout",
+    })
 
     entryEnrichmentService.enqueueFromIngest({
       entryIds: ["entry-1"],

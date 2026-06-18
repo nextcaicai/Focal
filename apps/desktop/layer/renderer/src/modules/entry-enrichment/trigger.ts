@@ -8,7 +8,7 @@ import { entryRankScoreSyncService } from "@follow/store/entry-rank-score/store"
 import { getAISettings } from "~/atoms/settings/ai"
 import { getActionLanguage, getGeneralSettings } from "~/atoms/settings/general"
 
-const getByokPhases = (): EnrichmentPhase[] => {
+export const getByokPhases = (): EnrichmentPhase[] => {
   const { summary, translation, autoTag, qualityScore } = getGeneralSettings()
   const phases: EnrichmentPhase[] = []
 

@@ -17,10 +17,15 @@ import { SummaryGeneratingStatus } from "../summary/enum"
 import { summaryActions, summarySyncService, useSummaryStore } from "../summary/store"
 import { getGenerateSummaryStatusId } from "../summary/utils"
 import { translationActions, translationSyncService } from "../translation/store"
-import type { EnrichmentActiveJob } from "./store"
+import { buildEnrichmentErrorKey, getEnrichmentErrorCode } from "./error-utils"
+import type { EnrichmentActiveJob, EnrichmentStatusSnapshot } from "./store"
 import { enrichmentStatusActions } from "./store"
 import type { EnrichmentEnqueueOptions, EnrichmentJob, EnrichmentPhase } from "./types"
 import { DEFAULT_ENRICHMENT_PHASES } from "./types"
+
+export type EnrichmentRetryResult =
+  | { ok: true }
+  | { ok: false; reason: "missing_entry" | "unsubscribed" | "in_pipeline" | "nothing_to_do" }
 
 const BATCH_SIZE = 6
 const CONCURRENCY = 2
@@ -33,7 +38,7 @@ class EntryEnrichmentService {
   private activeJobs = new Map<string, EnrichmentActiveJob>()
   private cancelledActiveEntryIds = new Set<string>()
   private isDraining = false
-  private lastError: { entryId: string; message: string; at: string } | null = null
+  private lastError: EnrichmentStatusSnapshot["lastError"] = null
 
   enqueueFromIngest(options: EnrichmentEnqueueOptions) {
     this.enqueueMissing({
@@ -127,6 +132,44 @@ class EntryEnrichmentService {
 
   getQualityScoreCoverageStats() {
     return getQualityScoreCoverageStats((entryId) => this.isEntryInPipeline(entryId))
+  }
+
+  retryEntry({
+    entryId,
+    actionLanguage,
+    phases = DEFAULT_ENRICHMENT_PHASES,
+    translationMode = "bilingual",
+  }: {
+    entryId: string
+    actionLanguage: SupportedActionLanguage
+    phases?: readonly EnrichmentPhase[]
+    translationMode?: EnrichmentJob["translationMode"]
+  }): EnrichmentRetryResult {
+    if (!getEntry(entryId)) {
+      return { ok: false, reason: "missing_entry" }
+    }
+
+    if (!this.isEntryStillSubscribed(entryId)) {
+      return { ok: false, reason: "unsubscribed" }
+    }
+
+    if (this.isEntryInPipeline(entryId)) {
+      return { ok: false, reason: "in_pipeline" }
+    }
+
+    const jobs = this.buildJobs([entryId], actionLanguage, phases, translationMode)
+    if (jobs.length === 0) {
+      return { ok: false, reason: "nothing_to_do" }
+    }
+
+    this.enqueueMissing({
+      entryIds: [entryId],
+      actionLanguage,
+      phases,
+      translationMode,
+      prepend: true,
+    })
+    return { ok: true }
   }
 
   private enqueueMissing({
@@ -354,11 +397,17 @@ class EntryEnrichmentService {
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown enrichment error"
+      const activeJob = this.activeJobs.get(job.entryId)
+      const phase = activeJob?.phase ?? job.phases[0] ?? null
+      const errorCode = getEnrichmentErrorCode(message)
       console.warn("[enrichment] Failed to enrich entry:", job.entryId, error)
       this.lastError = {
         entryId: job.entryId,
         message,
         at: new Date().toISOString(),
+        phase,
+        errorCode,
+        errorKey: buildEnrichmentErrorKey(job.entryId, errorCode),
       }
     } finally {
       this.activeJobs.delete(job.entryId)

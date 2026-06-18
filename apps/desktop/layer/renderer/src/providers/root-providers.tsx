@@ -17,6 +17,7 @@ import { ModalStackProvider } from "~/components/ui/modal"
 import { jotaiStore } from "~/lib/jotai"
 import { persistConfig, queryClient } from "~/lib/query-client"
 import { FollowCommandManager } from "~/modules/command/command-manager"
+import { ByokProcessingErrorNotifier } from "~/modules/entry-enrichment/ByokProcessingErrorNotifier"
 import { LocalRssAutoRefreshProvider } from "~/modules/local-rss/LocalRssAutoRefreshProvider"
 import { ReviewPromptProvider } from "~/modules/review-prompt/provider"
 
@@ -75,6 +76,7 @@ export const RootProviders: FC<PropsWithChildren> = ({ children }) => (
 
           <InvalidateQueryProvider />
           {LOCAL_RSS_MODE && <LocalRssAutoRefreshProvider />}
+          {LOCAL_RSS_MODE && <ByokProcessingErrorNotifier />}
         </PersistQueryClientProvider>
       </MotionProvider>
     </RecaptchaProvider>

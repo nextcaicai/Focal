@@ -23,6 +23,7 @@ import { getActionLanguage, useGeneralSettingKey } from "~/atoms/settings/genera
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 
 import { RescoreFeedsModalContent } from "./RescoreFeedsModal"
+import { useByokProcessingErrorAlert } from "./useByokProcessingErrorAlert"
 
 const formatRelativeUpdatedAt = (iso: string) => {
   const deltaMs = Date.now() - new Date(iso).getTime()
@@ -85,6 +86,7 @@ const ProcessingPanel = ({
   relativeUpdatedAt,
   activeJobs,
   lastError,
+  errorAlert,
   renderActiveJob,
   summaryGeneratingCount,
   stats,
@@ -97,7 +99,8 @@ const ProcessingPanel = ({
   isBusy: boolean
   relativeUpdatedAt: string
   activeJobs: Array<{ entryId: string }>
-  lastError: { entryId: string; message: string } | null
+  lastError?: { entryId: string; message: string } | null
+  errorAlert?: ReactNode
   renderActiveJob: (entryId: string) => ReactNode
   summaryGeneratingCount?: number
   stats: ReactNode
@@ -151,13 +154,14 @@ const ProcessingPanel = ({
             </div>
           ) : null}
 
-          {lastError ? (
-            <div className="mt-4 rounded-md border border-red/20 bg-red/10 px-3 py-2 text-xs text-red">
-              <div className="font-medium">{t(`${namespace}.last_error`)}</div>
-              <div className="mt-1 break-all text-text-secondary">{lastError.entryId}</div>
-              <div className="mt-1">{lastError.message}</div>
-            </div>
-          ) : null}
+          {errorAlert ??
+            (lastError ? (
+              <div className="mt-4 rounded-md border border-red/20 bg-red/10 px-3 py-2 text-xs text-red">
+                <div className="font-medium">{t(`${namespace}.last_error`)}</div>
+                <div className="mt-1 break-all text-text-secondary">{lastError.entryId}</div>
+                <div className="mt-1">{lastError.message}</div>
+              </div>
+            ) : null)}
 
           {footer}
 
@@ -218,6 +222,60 @@ const EmbeddingActiveJobRow = ({ entryId }: { entryId: string }) => {
   )
 }
 
+const ByokProcessingErrorAlert = ({
+  entryTitle,
+  entryId,
+  phaseLabel,
+  relativeAt,
+  description,
+  onDismiss,
+  onRetry,
+}: {
+  entryTitle: string
+  entryId: string
+  phaseLabel: string
+  relativeAt: string
+  description: string
+  onDismiss: () => void
+  onRetry: () => void
+}) => {
+  const { t } = useTranslation("ai")
+
+  return (
+    <div className="mt-4 min-w-0 overflow-hidden rounded-md border border-red/20 bg-red/10 px-3 py-3 text-xs text-red">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-red">{t("byok_processing.last_error")}</div>
+          <div className="mt-1 text-text-secondary">{relativeAt}</div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          buttonClassName="h-7 shrink-0 px-2 text-text-tertiary hover:text-text"
+          onClick={onDismiss}
+        >
+          {t("byok_processing.error.dismiss")}
+        </Button>
+      </div>
+
+      <div className="mt-2 truncate text-sm font-medium text-text" title={entryTitle}>
+        {entryTitle}
+      </div>
+      <div className="mt-1 text-text-secondary">
+        {t("byok_processing.error.phase_label", { phase: phaseLabel })}
+      </div>
+      <p className="mt-2 leading-relaxed text-text-secondary">{description}</p>
+      <div className="mt-1 break-all text-text-tertiary">{entryId}</div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          {t("byok_processing.error.retry")}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export const ByokProcessingSection = () => {
   const { t } = useTranslation("ai")
   const { present } = useModalStack()
@@ -227,6 +285,15 @@ export const ByokProcessingSection = () => {
   const qualityScoreCoverage = useQualityScoreCoverageStats()
   const qualityScoreEnabled = useGeneralSettingKey("qualityScore")
   const [isRescoring, setIsRescoring] = useState(false)
+  const {
+    visibleError,
+    dismissError,
+    retryErrorEntry,
+    getPhaseLabel,
+    getErrorDescription,
+    formatRelativeErrorAt,
+    getEntryTitle,
+  } = useByokProcessingErrorAlert()
 
   const handleRescoreAll = async () => {
     if (qualityScoreCoverage.eligibleCount === 0) {
@@ -260,7 +327,19 @@ export const ByokProcessingSection = () => {
       isBusy={isBusy}
       relativeUpdatedAt={formatRelativeUpdatedAt(status.updatedAt)}
       activeJobs={status.activeJobs}
-      lastError={status.lastError}
+      errorAlert={
+        visibleError ? (
+          <ByokProcessingErrorAlert
+            entryTitle={getEntryTitle(visibleError.entryId)}
+            entryId={visibleError.entryId}
+            phaseLabel={getPhaseLabel(visibleError.phase)}
+            relativeAt={formatRelativeErrorAt(visibleError.at)}
+            description={getErrorDescription(visibleError)}
+            onDismiss={dismissError}
+            onRetry={retryErrorEntry}
+          />
+        ) : null
+      }
       summaryGeneratingCount={summaryGeneratingCount}
       stats={
         <div

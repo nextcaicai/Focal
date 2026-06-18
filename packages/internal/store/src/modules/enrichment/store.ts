@@ -1,4 +1,5 @@
 import { createZustandStore } from "../../lib/helper"
+import type { EnrichmentErrorCode } from "./error-utils"
 import type { EnrichmentPhase } from "./types"
 
 export type EnrichmentActiveJob = {
@@ -17,6 +18,9 @@ export type EnrichmentStatusSnapshot = {
     entryId: string
     message: string
     at: string
+    phase: EnrichmentPhase | null
+    errorCode: EnrichmentErrorCode
+    errorKey: string
   } | null
   updatedAt: string
 }
