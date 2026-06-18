@@ -13,7 +13,7 @@ import type {
   UserEmbeddingProviderConfig,
 } from "@follow/shared/settings/interface"
 import type { FormEvent } from "react"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -36,9 +36,26 @@ export const EmbeddingProviderModalContent = ({
   const { t } = useTranslation("ai")
   const initialPreset = provider?.preset ?? "siliconflow"
 
+  // Remember per-preset configuration (especially API keys) during the lifetime of this modal.
+  // This allows switching presets and coming back to a previously configured one (or one the user
+  // just typed a key for) without losing the API key — exactly like the BYOK provider switch fix.
+  const configMemory = useRef<
+    Partial<Record<EmbeddingProviderPreset, Partial<UserEmbeddingProviderConfig>>>
+  >({})
+
+  // Seed memory with the currently saved provider (if any) so we can restore its key when switching back
+  if (provider && !configMemory.current[provider.preset]) {
+    configMemory.current[provider.preset] = { ...provider }
+  }
+
   const [formData, setFormData] = useState<UserEmbeddingProviderConfig>(() => ({
     ...(provider ?? getEmbeddingDefaultConfig(initialPreset)),
   }))
+
+  // Always keep a ref to the absolute latest form values so preset switching can capture
+  // the most recently typed API key / baseURL etc without stale closure issues.
+  const latestFormRef = useRef(formData)
+  latestFormRef.current = formData
 
   const selectedPreset = useMemo(
     () => getEmbeddingProviderPreset(formData.preset),
@@ -48,16 +65,26 @@ export const EmbeddingProviderModalContent = ({
   const handlePresetChange = (value: string) => {
     const preset = value as EmbeddingProviderPreset
     const defaults = getEmbeddingDefaultConfig(preset)
-    setFormData((prev) => ({
-      ...prev,
+
+    // Capture the absolute latest values the user has typed for the *previous* preset
+    const latest = latestFormRef.current
+    configMemory.current[latest.preset] = {
+      ...configMemory.current[latest.preset],
+      apiKey: latest.apiKey,
+      baseURL: latest.baseURL,
+      model: latest.model,
+      dimension: latest.dimension,
+    }
+
+    const remembered = configMemory.current[preset] || {}
+
+    setFormData({
       preset,
-      baseURL: defaults.baseURL,
-      model: defaults.model,
-      dimension: defaults.dimension,
-      // Preserve the existing API key when switching presets
-      // so users don't have to re-enter it when switching between providers
-      apiKey: prev.apiKey,
-    }))
+      baseURL: remembered.baseURL ?? defaults.baseURL,
+      model: remembered.model ?? defaults.model,
+      dimension: remembered.dimension ?? defaults.dimension,
+      apiKey: remembered.apiKey ?? null,
+    })
   }
 
   const handleSubmit = (event: FormEvent) => {
