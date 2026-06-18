@@ -63,7 +63,7 @@
   "byok.providers.empty.description": "Add your own API keys for AI providers to use your own infrastructure.",
   "byok.providers.empty.title": "No Providers Configured",
   "byok.providers.form.api_key": "API Key",
-  "byok.providers.form.api_key_help": "Your API key will be stored securely and encrypted.",
+  "byok.providers.form.api_key_help": "Your API key is stored locally on this device.",
   "byok.providers.form.api_key_placeholder": "Enter your API key",
   "byok.providers.form.base_url": "Base URL",
   "byok.providers.form.base_url_help": "Selecting a provider fills its default API Base URL. You can edit it to use a compatible proxy endpoint.",
