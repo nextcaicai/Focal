@@ -30,6 +30,7 @@ import { useCommandBinding } from "~/modules/command/hooks/use-command-binding"
 import { CornerPlayer } from "~/modules/player/corner-player"
 import { SubscriptionColumn } from "~/modules/subscription-column"
 import { removeEmptyFeedCategory, resetSelectedFeedIds } from "~/modules/subscription-column/atom"
+import { SUBSCRIPTION_COLUMN_SCROLL_VIEWPORT_CLASS } from "~/modules/subscription-column/dnd"
 import { UpdateNotice } from "~/modules/update-notice/UpdateNotice"
 import { AppLayoutGridContainerProvider } from "~/providers/app-grid-layout-container-provider"
 
@@ -82,7 +83,11 @@ export const SubscriptionColumnContainer = () => {
     <AppLayoutGridContainerProvider>
       <FeedResponsiveResizerContainer>
         <DndContext
-          autoScroll={{ threshold: { x: 0, y: 0.2 } }}
+          autoScroll={{
+            threshold: { x: 0, y: 0.2 },
+            canScroll: (element) =>
+              element.classList.contains(SUBSCRIPTION_COLUMN_SCROLL_VIEWPORT_CLASS),
+          }}
           sensors={sensors}
           collisionDetection={pointerWithin}
           onDragEnd={handleDragEnd}

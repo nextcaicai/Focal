@@ -44,6 +44,7 @@ import {
   useEmptyFeedCategories,
   useSelectedFeedIdsState,
 } from "../atom"
+import { SUBSCRIPTION_COLUMN_SCROLL_VIEWPORT_CLASS } from "../dnd"
 import { FeedItem, ListItemAutoHideUnread } from "../FeedItem"
 import { useShouldFreeUpSpace } from "../hook"
 import { SortableFeedList, SortByAlphabeticalInbox, SortByAlphabeticalList } from "../sort-by"
@@ -250,7 +251,11 @@ const SubscriptionImpl = ({ ref, className, view, isSubscriptionLoading }: Subsc
         }}
         mask={false}
         flex
-        viewportClassName={cn("!px-1", shouldFreeUpSpace && "!overflow-visible")}
+        viewportClassName={cn(
+          SUBSCRIPTION_COLUMN_SCROLL_VIEWPORT_CLASS,
+          "!px-1",
+          shouldFreeUpSpace && "!overflow-visible",
+        )}
         rootClassName={cn("h-full", shouldFreeUpSpace && "overflow-visible")}
       >
         <TimelineScopeItems />

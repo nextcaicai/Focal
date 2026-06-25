@@ -13,7 +13,7 @@ export const SubscriptionColumnFooter = memo(() => {
 
   return (
     <div
-      className="shrink-0 px-3 pb-2 pt-2"
+      className="relative z-20 shrink-0 bg-[rgb(247,247,247)] px-3 pb-2 pt-2 dark:bg-sidebar"
       onClick={(event) => {
         event.stopPropagation()
       }}
