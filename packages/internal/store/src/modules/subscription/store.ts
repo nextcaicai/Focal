@@ -11,6 +11,7 @@ import { apiMorph } from "../../morph/api"
 import { dbStoreMorph } from "../../morph/db-store"
 import { buildSubscriptionDbId, storeDbMorph } from "../../morph/store-db"
 import { invalidateEntriesQuery } from "../entry/hooks"
+import { entryActions } from "../entry/store"
 import { getFeedById } from "../feed/getter"
 import { feedActions } from "../feed/store"
 import { inboxActions } from "../inbox/store"
@@ -489,6 +490,8 @@ class SubscriptionSyncService {
       .map((subscription) => subscription.feedId)
       .filter((feedId): feedId is string => typeof feedId === "string")
     if (unsubscribedFeedIds.length > 0) {
+      entryActions.removeFeedEntriesFromSubscriptionIndexesInSession(unsubscribedFeedIds)
+
       const [{ entryEnrichmentService }, { entryEmbeddingJobService }] = await Promise.all([
         import("../enrichment/service"),
         import("../entry-embedding/job-service"),

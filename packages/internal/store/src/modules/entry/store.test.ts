@@ -6,7 +6,8 @@ import type { FollowAPI } from "../../types"
 import { useActionStore } from "../action/store"
 import { useCollectionStore } from "../collection/store"
 import { useFeedStore } from "../feed/store"
-import { entrySyncServices, useEntryStore } from "./store"
+import { entryActions, entrySyncServices, useEntryStore } from "./store"
+import type { EntryModel } from "./types"
 
 const {
   collectionDeleteManyMock,
@@ -84,6 +85,32 @@ const createCollectionResponseItem = (index: number) => ({
   collections: {
     createdAt: `2026-03-${String(index).padStart(2, "0")}T00:00:00.000Z`,
   },
+})
+
+const createEntry = (id: string, feedId: string): EntryModel => ({
+  id,
+  feedId,
+  title: id,
+  url: `https://example.com/${id}`,
+  content: null,
+  readabilityContent: null,
+  readabilityUpdatedAt: null,
+  description: null,
+  guid: id,
+  author: null,
+  authorUrl: null,
+  authorAvatar: null,
+  insertedAt: new Date("2026-03-01T00:00:00.000Z"),
+  publishedAt: new Date("2026-02-01T00:00:00.000Z"),
+  media: null,
+  categories: null,
+  attachments: null,
+  extra: null,
+  language: null,
+  inboxHandle: null,
+  read: false,
+  sources: null,
+  settings: null,
 })
 
 describe("entrySyncServices.fetchEntries", () => {
@@ -354,5 +381,55 @@ describe("entrySyncServices.fetchEntries", () => {
 
     await expect(entrySyncServices.fetchEntryReadabilityContent("entry-empty")).resolves.toBeNull()
     expect(useEntryStore.getState().data["entry-empty"]?.readabilityContent).toBeNull()
+  })
+})
+
+describe("entryActions.removeFeedEntriesFromSubscriptionIndexesInSession", () => {
+  beforeEach(() => {
+    useEntryStore.setState({
+      data: {
+        "entry-1": createEntry("entry-1", "feed-1"),
+        "entry-2": createEntry("entry-2", "feed-2"),
+      },
+      entryIdByView: {
+        [FeedViewType.All]: new Set(["entry-1", "entry-2"]),
+        [FeedViewType.Articles]: new Set(["entry-1", "entry-2"]),
+        [FeedViewType.Audios]: new Set(),
+        [FeedViewType.Notifications]: new Set(),
+        [FeedViewType.Pictures]: new Set(),
+        [FeedViewType.SocialMedia]: new Set(),
+        [FeedViewType.Videos]: new Set(),
+      },
+      entryIdByCategory: {
+        News: new Set(["entry-1", "entry-2"]),
+      },
+      entryIdByFeed: {
+        "feed-1": new Set(["entry-1"]),
+        "feed-2": new Set(["entry-2"]),
+      },
+      entryIdByInbox: {},
+      entryIdByList: {
+        "list-1": new Set(["entry-1"]),
+      },
+      entryIdSet: new Set(["entry-1", "entry-2"]),
+    })
+  })
+
+  it("removes unsubscribed feed entries from subscription-driven indexes without deleting history", () => {
+    entryActions.removeFeedEntriesFromSubscriptionIndexesInSession(["feed-1"])
+
+    const state = useEntryStore.getState()
+
+    expect(state.data["entry-1"]).toBeDefined()
+    expect(state.entryIdSet.has("entry-1")).toBe(true)
+    expect(state.entryIdByFeed["feed-1"]).toBeUndefined()
+    expect(state.entryIdByView[FeedViewType.All]!.has("entry-1")).toBe(false)
+    expect(state.entryIdByView[FeedViewType.Articles]!.has("entry-1")).toBe(false)
+    expect(state.entryIdByCategory.News!.has("entry-1")).toBe(false)
+    expect(state.entryIdByList["list-1"]!.has("entry-1")).toBe(true)
+
+    expect(state.data["entry-2"]).toBeDefined()
+    expect(state.entryIdByFeed["feed-2"]!.has("entry-2")).toBe(true)
+    expect(state.entryIdByView[FeedViewType.All]!.has("entry-2")).toBe(true)
   })
 })

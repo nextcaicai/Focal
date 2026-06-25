@@ -571,6 +571,35 @@ class EntryActions implements Hydratable, Resetable {
     })
   }
 
+  removeFeedEntriesFromSubscriptionIndexesInSession(feedIds: FeedId[]) {
+    const feedIdSet = new Set(feedIds.filter(Boolean))
+    if (feedIdSet.size === 0) return
+
+    immerSet((draft) => {
+      for (const feedId of feedIdSet) {
+        delete draft.entryIdByFeed[feedId]
+      }
+
+      for (const entry of Object.values(draft.data)) {
+        if (!entry.feedId || !feedIdSet.has(entry.feedId)) continue
+
+        const stillVisibleFromSource = entry.sources?.some((source) => {
+          const subscription = getSubscriptionById(source)
+          return Boolean(subscription && !subscription.hideFromTimeline)
+        })
+        if (stillVisibleFromSource) continue
+
+        draft.entryIdByView[FeedViewType.All]!.delete(entry.id)
+        for (const entryIds of Object.values(draft.entryIdByView)) {
+          entryIds.delete(entry.id)
+        }
+        for (const entryIds of Object.values(draft.entryIdByCategory)) {
+          entryIds.delete(entry.id)
+        }
+      }
+    })
+  }
+
   deleteInboxEntryById(entryId: EntryId) {
     const entry = get().data[entryId]
     if (!entry || !entry.inboxHandle) return
