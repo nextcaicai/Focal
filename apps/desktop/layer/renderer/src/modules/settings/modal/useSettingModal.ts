@@ -38,6 +38,7 @@ export const useSettingModal = () => {
             initialSection: section,
           }),
         CustomModalComponent: PlainModal,
+        clickOutsideToDismiss: true,
         modalContainerClassName: "overflow-hidden",
       })
     },

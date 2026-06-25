@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next"
 import { useUISettingSelector } from "~/atoms/settings/ui"
 import { m } from "~/components/common/Motion"
 import { resizableOnly } from "~/components/ui/modal"
+import { useCurrentModal } from "~/components/ui/modal/stacked/hooks"
 import { useModalResizeAndDrag } from "~/components/ui/modal/stacked/internal/use-drag"
 import { ElECTRON_CUSTOM_TITLEBAR_HEIGHT } from "~/constants"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
@@ -31,6 +32,7 @@ import { defaultCtx, SettingContext } from "./hooks"
 export function SettingModalLayout(props: PropsWithChildren) {
   const { children } = props
   const { t } = useTranslation("settings")
+  const { dismiss } = useCurrentModal()
 
   const elementRef = useRef<HTMLDivElement>(null)
   const edgeElementRef = useRef<HTMLDivElement>(null)
@@ -67,11 +69,21 @@ export function SettingModalLayout(props: PropsWithChildren) {
     return atom(null as any)
   }, [])
 
+  const handlePointerDownOutside = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        dismiss()
+      }
+    },
+    [dismiss],
+  )
+
   return (
     <div
       id={SETTING_MODAL_ID}
       className={cn("h-full", !isResizeable && "center")}
       ref={edgeElementRef}
+      onPointerDown={handlePointerDownOutside}
     >
       <m.div
         exit={{
