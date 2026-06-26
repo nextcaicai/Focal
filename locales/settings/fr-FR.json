@@ -280,7 +280,7 @@
   "general.action.summary.description": "Générer un résumé de l'entrée en utilisant l'IA.",
   "general.action.summary.label": "Résumé IA",
   "general.action.title": "Actions IA",
-  "general.action.translation.description": "Traduire l'entrée dans la langue sélectionnée.",
+  "general.action.translation.description": "Traduire automatiquement les titres des entrées. Pour économiser l'utilisation BYOK, le contenu n'est pas traduit automatiquement ; activez-le manuellement depuis l'action « Traduction IA » de la barre d'outils sur la page de l'entrée si nécessaire.",
   "general.action.translation.label": "Traduction IA",
   "general.action_language.default": "Défaut (Langue UI)",
   "general.action_language.description": "Choisissez la langue pour les actions IA, ex. Résumé IA, Traduction IA.",

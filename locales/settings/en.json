@@ -284,7 +284,7 @@
   "general.action.summary.description": "Generate a summary of the entry using AI.",
   "general.action.summary.label": "AI Summary",
   "general.action.title": "AI Actions",
-  "general.action.translation.description": "Translate the entry into the selected language.",
+  "general.action.translation.description": "Automatically translate entry titles. To save BYOK usage, content is not translated automatically; enable it manually from the \"AI Translation\" toolbar action on the entry page when needed.",
   "general.action.translation.label": "AI Translation",
   "general.action_language.default": "Default (UI Language)",
   "general.action_language.description": "Choose the language for the AI actions, e.g. AI Summary, AI Translation.",

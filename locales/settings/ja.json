@@ -284,7 +284,7 @@
   "general.action.summary.description": "AIを使用してエントリの要約を生成します。",
   "general.action.summary.label": "AI要約",
   "general.action.title": "AIアクション",
-  "general.action.translation.description": "エントリを選択した言語に翻訳します。",
+  "general.action.translation.description": "エントリのタイトルを自動翻訳します。BYOK の使用量を節約するため、本文は自動翻訳されません。必要な場合は、本文ページのツールバーにある「AI翻訳」から手動で有効にできます。",
   "general.action.translation.label": "AI翻訳",
   "general.action_language.default": "デフォルト（UI言語）",
   "general.action_language.description": "AI アクションの言語を選択します。",

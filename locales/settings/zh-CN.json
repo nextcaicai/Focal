@@ -284,7 +284,7 @@
   "general.action.summary.description": "使用 AI 生成条目总结。",
   "general.action.summary.label": "AI 总结",
   "general.action.title": "自动化",
-  "general.action.translation.description": "将条目翻译成所选语言。",
+  "general.action.translation.description": "自动翻译条目的标题。为节省 BYOK 用量，正文不会自动翻译，需要时可在正文页通过工具栏的「AI 翻译」手动开启。",
   "general.action.translation.label": "AI 翻译",
   "general.action_language.default": "默认（界面语言）",
   "general.action_language.description": "选择 AI 操作的语言，例如 AI 总结、AI 翻译。",

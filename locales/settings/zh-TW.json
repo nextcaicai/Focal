@@ -280,7 +280,7 @@
   "general.action.summary.description": "使用 AI 生成條目摘要。",
   "general.action.summary.label": "AI 總結",
   "general.action.title": "自動化操作",
-  "general.action.translation.description": "將條目翻譯成選定的語言。",
+  "general.action.translation.description": "自動翻譯條目的標題。為節省 BYOK 用量，正文不會自動翻譯，需要時可在正文頁透過工具列的「AI 翻譯」手動開啟。",
   "general.action.translation.label": "AI 翻譯",
   "general.action_language.default": "預設（介面語言）",
   "general.action_language.description": "選擇 AI 操作的語言，例如 AI 總結、AI 翻譯。",
