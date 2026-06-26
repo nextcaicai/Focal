@@ -153,8 +153,6 @@ export interface IntegrationSettings {
   qbittorrentUsername: string
   qbittorrentPassword: string
 
-  saveSummaryAsDescription: boolean
-
   // custom actions
   enableCustomIntegration: boolean
   customIntegration: CustomIntegration[]

@@ -152,8 +152,6 @@ export const defaultIntegrationSettings: IntegrationSettings = {
   qbittorrentUsername: "",
   qbittorrentPassword: "",
 
-  saveSummaryAsDescription: false,
-
   // custom actions
   enableCustomIntegration: false,
   customIntegration: [],

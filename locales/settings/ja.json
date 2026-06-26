@@ -540,7 +540,7 @@
   "integration.readwise.title": "Readwise",
   "integration.readwise.token.description": "こちらで取得できます：",
   "integration.readwise.token.label": "Readwise アクセス トークン",
-  "integration.save_ai_summary_as_description.label": "AI要約を説明として保存",
+
   "integration.search.placeholder": "統合を検索...",
   "integration.sidebar_title": "統合",
   "integration.status.configured": "設定済み",

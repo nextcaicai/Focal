@@ -526,7 +526,7 @@
   "integration.readwise.title": "Readwise",
   "integration.readwise.token.description": "Vous pouvez l'obtenir ici :",
   "integration.readwise.token.label": "Jeton d'accès Readwise",
-  "integration.save_ai_summary_as_description.label": "Enregistrer le résumé IA comme description",
+
   "integration.search.placeholder": "Rechercher des intégrations...",
   "integration.sidebar_title": "Intégration",
   "integration.status.configured": "Configuré",

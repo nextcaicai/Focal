@@ -544,7 +544,7 @@
   "integration.readwise.title": "Readwise",
   "integration.readwise.token.description": "You can get it here:",
   "integration.readwise.token.label": "Readwise Access Token",
-  "integration.save_ai_summary_as_description.label": "Save AI Summary as description",
+
   "integration.search.placeholder": "Search integrations...",
   "integration.sidebar_title": "Integration",
   "integration.status.configured": "Configured",

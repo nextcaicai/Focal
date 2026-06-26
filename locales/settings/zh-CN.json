@@ -544,7 +544,7 @@
   "integration.readwise.title": "Readwise",
   "integration.readwise.token.description": "在这里获取令牌",
   "integration.readwise.token.label": "Readwise 访问令牌",
-  "integration.save_ai_summary_as_description.label": "将 AI 总结保存为描述",
+
   "integration.search.placeholder": "搜索集成...",
   "integration.sidebar_title": "第三方接入",
   "integration.status.configured": "已配置",

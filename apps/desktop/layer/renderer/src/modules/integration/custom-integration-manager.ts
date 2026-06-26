@@ -4,16 +4,14 @@ import type {
   URLSchemeTemplate,
 } from "@follow/shared/settings/interface"
 import type { EntryModel } from "@follow/store/entry/types"
-import { getSummary } from "@follow/store/summary/getters"
 import { tracker } from "@follow/tracker"
 import { toast } from "sonner"
 
-import { getActionLanguage } from "~/atoms/settings/general"
-import { getIntegrationSettings } from "~/atoms/settings/integration"
 import { getI18n } from "~/i18n"
 
 import { convertHtmlToIntegrationMarkdown } from "./entry-content-markdown"
 import { getFetchAdapter } from "./fetch-adapter"
+import { getIntegrationEntryDescription } from "./integration-entry-description"
 import { URLSchemeHandler } from "./url-scheme-handler"
 
 /**
@@ -44,20 +42,6 @@ export class CustomIntegrationManager {
   }
 
   /**
-   * Get description with optional summary
-   */
-  private static getDescription(entry: EntryModel): string {
-    const { saveSummaryAsDescription } = getIntegrationSettings()
-    const actionLanguage = getActionLanguage()
-
-    if (!saveSummaryAsDescription) {
-      return entry.description || ""
-    }
-    const summary = getSummary(entry.id, actionLanguage)
-    return summary?.readabilitySummary || summary?.summary || entry.description || ""
-  }
-
-  /**
    * Build placeholder context from entry
    */
   static async buildPlaceholderContext(entry: EntryModel): Promise<PlaceholderContext> {
@@ -68,7 +52,7 @@ export class CustomIntegrationManager {
       url: entry.url || "",
       contentHtml: entry.content || "",
       contentMarkdown: markdownContent,
-      summary: this.getDescription(entry),
+      summary: getIntegrationEntryDescription(entry),
       author: entry.author || "",
       publishedAt: entry.publishedAt?.toISOString() || "",
       description: entry.description || "",

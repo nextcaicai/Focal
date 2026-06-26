@@ -427,35 +427,30 @@ export const SettingIntegration = () => {
         />
       </div>
 
-      {/* General Section */}
-      <SettingSectionGroup>
-        <SettingSectionTitle title={t("integration.general")} />
-        <SettingBuilder
-          settings={[
-            defineSettingItem("saveSummaryAsDescription", {
-              label: t("integration.save_ai_summary_as_description.label"),
-            }),
-            // Only show browser fetch setting in Electron environment
-            ...(IN_ELECTRON
-              ? [
-                  defineSettingItem("useBrowserFetch", {
-                    label: t("integration.use_browser_fetch.label"),
-                    description: t("integration.use_browser_fetch.description"),
-                    onAfterChange: (value) => {
-                      if (value) {
-                        getFetchAdapter().preferClientFetch()
-                      } else {
-                        getFetchAdapter().preferElectronFetch()
-                      }
-                    },
-                  }),
-                ]
-              : []),
-          ]}
-        />
-      </SettingSectionGroup>
+      {IN_ELECTRON ? (
+        <>
+          <SettingSectionGroup>
+            <SettingSectionTitle title={t("integration.general")} />
+            <SettingBuilder
+              settings={[
+                defineSettingItem("useBrowserFetch", {
+                  label: t("integration.use_browser_fetch.label"),
+                  description: t("integration.use_browser_fetch.description"),
+                  onAfterChange: (value) => {
+                    if (value) {
+                      getFetchAdapter().preferClientFetch()
+                    } else {
+                      getFetchAdapter().preferElectronFetch()
+                    }
+                  },
+                }),
+              ]}
+            />
+          </SettingSectionGroup>
 
-      <Divider />
+          <Divider />
+        </>
+      ) : null}
 
       {/* Built-in Integration Section */}
       {filteredIntegrations.length > 0 ? (

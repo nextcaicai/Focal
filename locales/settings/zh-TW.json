@@ -526,7 +526,7 @@
   "integration.readwise.title": "Readwise",
   "integration.readwise.token.description": "您可以在這裡獲取：",
   "integration.readwise.token.label": "Readwise 存取密鑰",
-  "integration.save_ai_summary_as_description.label": "將 AI 總結儲存為描述",
+
   "integration.search.placeholder": "搜尋整合功能....",
   "integration.sidebar_title": "第三方整合",
   "integration.status.configured": "已配置",

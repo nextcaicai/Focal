@@ -12,7 +12,6 @@ import { IN_ELECTRON } from "@follow/shared/constants"
 import { getEntry } from "@follow/store/entry/getter"
 import type { EntryModel } from "@follow/store/entry/types"
 import { getFeedById } from "@follow/store/feed/getter"
-import { getSummary } from "@follow/store/summary/getters"
 import { tracker } from "@follow/tracker"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FetchError } from "ofetch"
@@ -21,12 +20,12 @@ import { useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { getActionLanguage } from "~/atoms/settings/general"
-import { getIntegrationSettings, useIntegrationSettingKey } from "~/atoms/settings/integration"
+import { useIntegrationSettingKey } from "~/atoms/settings/integration"
 import { useRouteParams } from "~/hooks/biz/useRouteParams"
 import { ipcServices } from "~/lib/client"
 import { CustomIntegrationManager } from "~/modules/integration/custom-integration-manager"
 import { getEntryContentAsMarkdown } from "~/modules/integration/entry-content-markdown"
+import { getIntegrationEntryDescription } from "~/modules/integration/integration-entry-description"
 
 import { useRegisterCommandEffect } from "../hooks/use-register-command"
 import { defineFollowCommand } from "../registry/command"
@@ -343,7 +342,7 @@ const useRegisterObsidianCommands = () => {
               author: entry.author || feed?.title || "",
               publishedAt: entry.publishedAt.toISOString() || "",
               vaultPath: obsidianVaultPath,
-              description: getDescription(entry),
+              description: getIntegrationEntryDescription(entry),
               feedTitle: feed?.title || "",
               feedUrl: feed?.url || "",
             })
@@ -712,23 +711,12 @@ const useRegisterZoteroCommands = () => {
   )
 }
 
-const getDescription = (entry: EntryModel) => {
-  const { saveSummaryAsDescription } = getIntegrationSettings()
-  const actionLanguage = getActionLanguage()
-
-  if (!saveSummaryAsDescription) {
-    return entry.description || ""
-  }
-  const summary = getSummary(entry.id, actionLanguage)
-  return summary?.readabilitySummary || summary?.summary || entry.description || ""
-}
-
 const buildUrlRequestBody = (entry: EntryModel) => {
   return {
     type: "url",
     content: entry.url || "",
     title: entry.title || "",
-    description: getDescription(entry),
+    description: getIntegrationEntryDescription(entry),
     tags: [],
     folder: "",
   }
@@ -739,7 +727,7 @@ const buildMemoRequestBody = (entry: EntryModel, selectedText: string) => {
     type: "memo",
     content: selectedText,
     title: entry.title || "",
-    description: getDescription(entry),
+    description: getIntegrationEntryDescription(entry),
     tags: [],
     folder: "",
     source_url: entry.url,
