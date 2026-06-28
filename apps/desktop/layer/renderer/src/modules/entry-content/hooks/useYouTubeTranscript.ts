@@ -9,7 +9,7 @@ export const useYouTubeTranscript = (entryId: string, url?: string | null) => {
   const actionLanguage = useActionLanguage()
 
   return useQuery({
-    queryKey: ["youtube-transcript", entryId, url, actionLanguage],
+    queryKey: ["youtube-transcript", "v2", entryId, url, actionLanguage],
     enabled: LOCAL_RSS_MODE && !!url && isYouTubeWatchUrl(url),
     queryFn: async () => {
       if (!url || !ipcServices?.reader?.youtubeDefuddle) {
@@ -23,7 +23,11 @@ export const useYouTubeTranscript = (entryId: string, url?: string | null) => {
 
       return result?.content?.trim() || null
     },
-    staleTime: 1000 * 60 * 60 * 24,
-    retry: 1,
+    // Do not cache empty failures for a day — that pins "暂无逐字稿" after one bad fetch.
+    staleTime: (query) => (query.state.data ? 1000 * 60 * 60 * 24 : 0),
+    gcTime: 1000 * 60 * 30,
+    retry: 2,
+    retryDelay: 1500,
+    refetchOnMount: true,
   })
 }

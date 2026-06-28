@@ -33,6 +33,7 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
     data: youtubeTranscript,
     isLoading: isYouTubeTranscriptLoading,
     isFetched: isYouTubeTranscriptFetched,
+    refetch: refetchYouTubeTranscript,
   } = useYouTubeTranscript(entryId, entry?.url)
   const [showTranscript, setShowTranscript] = useState(false)
   const { t } = useTranslation("app")
@@ -106,7 +107,12 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
 
         <TranscriptToggle
           showTranscript={showTranscript}
-          onToggle={setShowTranscript}
+          onToggle={(next) => {
+            setShowTranscript(next)
+            if (next && isYouTubeEntry && !youtubeTranscript && !transcriptionData) {
+              refetchYouTubeTranscript()
+            }
+          }}
           hasTranscript={hasTranscript || isYouTubeEntry}
         />
 
