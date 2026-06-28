@@ -30,9 +30,10 @@ export const FABBase: FC<
     } & HTMLMotionProps<"button">
   >
 > = (props) => {
-  const { t } = useTranslation()
-  const { children, show = true, ref, ...extra } = props
+  const { t } = useTranslation("common")
+  const { children, show = true, ref, "aria-label": ariaLabel, ...extra } = props
   const { className, ...rest } = extra
+  const buttonAriaLabel = ariaLabel ?? t("a11y.floating_action_button")
 
   return (
     <AnimatePresence>
@@ -47,7 +48,7 @@ export const FABBase: FC<
             ease: "easeInOut",
           }}
           ref={ref}
-          aria-label={t("a11y.floating_action_button")}
+          aria-label={buttonAriaLabel}
           className={cn(
             "mt-2 flex items-center justify-center",
             "size-9 text-lg md:text-base",

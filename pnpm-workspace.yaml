@@ -1,5 +1,6 @@
 packages:
   - apps/desktop
+  - apps/ota-worker
   - apps/desktop/layer/*
   - packages/configs
   - packages/readability

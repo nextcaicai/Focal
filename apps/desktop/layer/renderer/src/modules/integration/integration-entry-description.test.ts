@@ -50,7 +50,7 @@ describe("getIntegrationEntryDescription", () => {
   it("falls back to RSS description when no cached summary exists", () => {
     getGeneralSettingsMock.mockReturnValue({ summary: true })
     getActionLanguageMock.mockReturnValue("en")
-    getSummaryMock.mockReturnValue()
+    getSummaryMock.mockImplementation(() => {})
 
     expect(getIntegrationEntryDescription(entry)).toBe("RSS description")
   })

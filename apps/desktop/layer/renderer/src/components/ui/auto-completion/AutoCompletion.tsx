@@ -36,9 +36,11 @@ export const Autocomplete = ({
   value,
   searchKeys = defaultSearchKeys,
   defaultValue,
+  "aria-label": ariaLabel,
   ...inputProps
 }: AutocompleteProps & { ref?: React.Ref<HTMLInputElement | null> }) => {
-  const { t } = useTranslation()
+  const { t } = useTranslation("common")
+  const inputAriaLabel = ariaLabel ?? t("a11y.select_category")
   const [selectedOptions, setSelectedOptions] = useState<NoInfer<Suggestion> | null>(
     () => suggestions.find((suggestion) => suggestion.value === value) || null,
   )
@@ -80,7 +82,7 @@ export const Autocomplete = ({
               ref={forwardedRef}
               as={Input}
               autoComplete="off"
-              aria-label={t("a11y.select_category")}
+              aria-label={inputAriaLabel}
               displayValue={renderSuggestion}
               value={value}
               {...inputProps}

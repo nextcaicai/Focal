@@ -87,6 +87,7 @@ export const CombinedContextBlock: FC<{
   readOnly?: boolean
 }> = memo(({ viewBlock, feedBlock, unreadOnlyBlock, readOnly = false }) => {
   const { t } = useTranslation("common")
+  const { t: tAI } = useTranslation("ai")
   const blockActions = useChatBlockActions()
 
   const viewIcon = viewBlock && getView(Number(viewBlock.value))?.icon.props.className
@@ -158,7 +159,10 @@ export const CombinedContextBlock: FC<{
         />
       )}
       {unreadOnlyBlock && (
-        <i className="i-focal-round-fill size-3 shrink-0" title={t("context_blocks.unread_only")} />
+        <i
+          className="i-focal-round-fill size-3 shrink-0"
+          title={tAI("context_blocks.unread_only")}
+        />
       )}
     </span>
   ) : (
@@ -169,7 +173,7 @@ export const CombinedContextBlock: FC<{
         return viewName ? t(viewName) : viewBlock.value
       })()}
       {unreadOnlyBlock && (
-        <i className="i-focal-round-fill size-3" title={t("context_blocks.unread_only")} />
+        <i className="i-focal-round-fill size-3" title={tAI("context_blocks.unread_only")} />
       )}
     </span>
   )

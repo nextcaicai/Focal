@@ -12,8 +12,8 @@
     "type": "git"
   },
   "scripts": {
-    "build:packages": "turbo run build --filter=\"./packages/**/*\"",
-    "build:web": "turbo run Focal#build:web",
+    "build:packages": "pnpm --filter \"./packages/**\" --if-present run build",
+    "build:web": "pnpm --dir apps/desktop run build:web",
     "dedupe:locales": "eslint --fix locales/**",
     "depcheck": "npx depcheck --quiet",
     "dev:web": "turbo run @follow/web#dev",
@@ -30,7 +30,7 @@
     "prepare": "simple-git-hooks && corepack prepare",
     "reinstall": "rm -rf node_modules && rm -rf apps/**/node_modules && rm -rf packages/**/node_modules && pnpm install",
     "test": "cross-env CI=1 pnpm --recursive run test",
-    "typecheck": "turbo typecheck"
+    "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {
     "@babel/generator": "7.29.1",

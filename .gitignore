@@ -59,3 +59,5 @@ apps/desktop/build/*.pfx
 
 # Mobile local E2E build artifacts
 apps/mobile/build-*.tar.gz
+
+folo-cleanup-plan.md

@@ -17,20 +17,44 @@ import { useI18n } from "~/hooks/common"
 
 import { AISpline } from "../ai-chat/components/3d-models/AISpline"
 import { useMessages } from "../ai-chat/store/hooks"
+import type { BizUIMessagePart, BizUITools } from "../ai-chat/store/types"
 import { SearchResultContent } from "../discover/DiscoverFeedCard"
 import { FeedIcon } from "../feed/feed-icon"
 import type { FeedSelection } from "./store"
 import { feedSelectionAtomsAtom, selectedFeedSelectionAtomsAtom, stepAtom } from "./store"
 
 type FeedToSelect = Omit<FeedSelection, "selected">
+type TrendingFeedsOutputPart = BizUIMessagePart & {
+  type: "tool-onboardingGetTrendingFeeds"
+  state: "output-available"
+  output: BizUITools["onboardingGetTrendingFeeds"]["output"]
+}
+
+const isTrendingFeedsOutputPart = (part: BizUIMessagePart): part is TrendingFeedsOutputPart => {
+  return part.type === "tool-onboardingGetTrendingFeeds" && part.state === "output-available"
+}
+
+const extractFeedsToSelect = (output: unknown): FeedToSelect[] => {
+  if (!output) {
+    return []
+  }
+
+  if (typeof output === "string") {
+    return decode(output) as unknown as FeedToSelect[]
+  }
+
+  if (Array.isArray(output)) {
+    return output as unknown as FeedToSelect[]
+  }
+
+  return []
+}
 
 export function FeedsSelectionList() {
   const chatMessages = useMessages()
   const setStep = useSetAtom(stepAtom)
 
-  const hasFeedsSelection = chatMessages.some((msg) =>
-    msg.parts.some((p) => p.type === "tool-onboardingGetTrendingFeeds" && p.output),
-  )
+  const hasFeedsSelection = chatMessages.some((msg) => msg.parts.some(isTrendingFeedsOutputPart))
 
   useEffect(() => {
     if (hasFeedsSelection) {
@@ -54,10 +78,10 @@ function FeedSelectionOperationScreen() {
   const feedsToSelect: FeedToSelect[] = useMemo(() => {
     // find the last message that has the tool
     const output = chatMessages
-      .findLast((m) => m.parts?.some((p) => p.type === "tool-onboardingGetTrendingFeeds"))
-      ?.parts?.findLast((p) => p.type === "tool-onboardingGetTrendingFeeds")?.output
+      .findLast((m) => m.parts.some(isTrendingFeedsOutputPart))
+      ?.parts.findLast(isTrendingFeedsOutputPart)?.output
 
-    return typeof output === "string" ? (decode(output) as any[]) : (output as any[])
+    return extractFeedsToSelect(output)
   }, [chatMessages])
 
   const store = useStore()

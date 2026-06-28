@@ -1,0 +1,4 @@
+{
+  "files": [],
+  "references": [{ "path": "./layer/main" }, { "path": "./layer/renderer" }]
+}
