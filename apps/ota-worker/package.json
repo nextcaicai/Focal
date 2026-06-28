@@ -1,0 +1,10 @@
+{
+  "name": "focal-ota-worker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test src/*.test.js",
+    "worker:deploy": "pnpm dlx wrangler@4.105.0 deploy",
+    "worker:dev": "pnpm dlx wrangler@4.105.0 dev"
+  }
+}
