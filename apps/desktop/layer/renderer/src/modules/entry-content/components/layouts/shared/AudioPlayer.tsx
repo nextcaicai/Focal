@@ -8,6 +8,16 @@ import { useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { AudioPlayer, useAudioPlayerAtomSelector } from "~/atoms/player"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu/dropdown-menu"
+
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+const formatPlaybackRate = (rate: number) => `${rate}×`
 
 interface AudioPlayerProps {
   entryId: string
@@ -289,6 +299,8 @@ export const ArticleAudioPlayer: React.FC<AudioPlayerProps> = ({ entryId, classN
                 }}
               />
 
+              <PlaybackRateDropdown />
+
               {/* Download Button */}
               <button
                 type="button"
@@ -303,5 +315,39 @@ export const ArticleAudioPlayer: React.FC<AudioPlayerProps> = ({ entryId, classN
         </div>
       </m.div>
     </AnimatePresence>
+  )
+}
+
+const PlaybackRateDropdown = () => {
+  const playbackRate = useAudioPlayerAtomSelector((v) => v.playbackRate)
+  const currentRate = playbackRate || 1
+  const currentRateText = formatPlaybackRate(currentRate)
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Playback speed"
+          className="group relative flex h-8 min-w-10 items-center justify-center rounded-full bg-transparent px-1.5 transition-all duration-300 hover:[background:linear-gradient(to_right,hsl(var(--fo-a)/0.08),hsl(var(--fo-a)/0.05))] hover:[border-color:hsl(var(--fo-a)/0.25)]"
+        >
+          <span className="block min-w-8 text-center font-mono text-xs leading-none text-text-secondary transition-colors group-hover:text-text">
+            {currentRateText}
+          </span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-20">
+        {PLAYBACK_RATES.map((rate) => (
+          <DropdownMenuItem
+            key={rate}
+            checked={currentRate === rate}
+            className="font-mono"
+            onClick={() => AudioPlayer.setPlaybackRate(rate)}
+          >
+            {formatPlaybackRate(rate)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
