@@ -66,13 +66,13 @@ export function ErrorElement() {
 
   const handleReload = () => {
     sessionStorage.removeItem("reload")
-    navigate("/")
     window.location.reload()
   }
 
   const handleBackToHome = () => {
     sessionStorage.removeItem("reload")
-    window.location.href = "/"
+    navigate("/")
+    window.location.reload()
   }
 
   const handleExportAndReset = async () => {
@@ -97,7 +97,8 @@ export function ErrorElement() {
     }
 
     await clearLocalPersistStoreData()
-    window.location.href = "/"
+    navigate("/")
+    window.location.reload()
   }
 
   return (
