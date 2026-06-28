@@ -57,7 +57,7 @@ export const CornerPlayer = ({ className, ...rest }: ControlButtonProps) => {
       {show && entry && feed && (
         <m.div
           key="corner-player"
-          className={cn("group relative z-10 !my-0 w-full pr-px", className)}
+          className={cn("group relative z-30 !my-0 w-full pr-px", className)}
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 50, opacity: 0 }}
@@ -273,10 +273,10 @@ const CornerPlayerImpl = ({ hideControls, rounded }: ControlButtonProps) => {
       {!hideControls && (
         <div
           className={cn(
-            "absolute inset-x-0 top-0 z-[-1] flex justify-between border-t bg-theme-background p-1 opacity-0 transition-all duration-200 ease-in-out",
+            "pointer-events-none absolute inset-x-0 bottom-full z-20 flex justify-between border-t bg-theme-background p-1 opacity-0 transition-all duration-200 ease-in-out",
             isMobile
-              ? "-translate-y-full opacity-100"
-              : "group-hover:-translate-y-full group-hover:opacity-100",
+              ? "pointer-events-auto opacity-100"
+              : "group-hover:pointer-events-auto group-hover:opacity-100",
           )}
         >
           <div className="flex items-center">
