@@ -46,9 +46,10 @@ class AppManagerStatic {
     this.registerMenuAndContextMenu()
 
     updateProxy()
+    registerUpdater()
+
     if (!LOCAL_RSS_MODE) {
       this.registerPushNotifications()
-      registerUpdater()
     }
     registerAppTray()
   }

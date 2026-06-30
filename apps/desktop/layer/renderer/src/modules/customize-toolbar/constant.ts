@@ -8,13 +8,13 @@ export interface ToolbarActionOrder {
 }
 
 export const ENTRY_ITEM_HIDE_IN_HEADER = new Set<UniqueIdentifier>([
+  COMMAND_ID.global.quickSearch,
   COMMAND_ID.entry.readAbove,
   COMMAND_ID.entry.readBelow,
   COMMAND_ID.settings.customizeToolbar,
 ])
 
 const MAIN_ACTIONS = [
-  COMMAND_ID.global.quickSearch,
   COMMAND_ID.entry.read,
   COMMAND_ID.entry.star,
   COMMAND_ID.entry.notInterested,

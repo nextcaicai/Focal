@@ -2,7 +2,7 @@ import fsp from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 
 import { callWindowExpose } from "@follow/shared/bridge"
-import { DEV, LOCAL_RSS_MODE } from "@follow/shared/constants"
+import { DEV } from "@follow/shared/constants"
 import { app, BrowserWindow, clipboard, dialog, shell } from "electron"
 import type { IpcContext } from "electron-ipc-decorator"
 import { IpcMethod, IpcService } from "electron-ipc-decorator"
@@ -52,10 +52,6 @@ export class AppService extends IpcService {
 
   @IpcMethod()
   async checkForUpdates(): Promise<{ hasUpdate: boolean; error?: string }> {
-    if (LOCAL_RSS_MODE) {
-      return { hasUpdate: false }
-    }
-
     return checkForAppUpdates()
   }
 

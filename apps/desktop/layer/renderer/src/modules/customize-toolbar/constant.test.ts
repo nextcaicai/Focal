@@ -1,12 +1,15 @@
 import { describe, expect, test } from "vitest"
 
 import { COMMAND_ID } from "../command/commands/id"
-import { DEFAULT_ACTION_ORDER, mergeToolbarActionOrder } from "./constant"
+import {
+  DEFAULT_ACTION_ORDER,
+  ENTRY_ITEM_HIDE_IN_HEADER,
+  mergeToolbarActionOrder,
+} from "./constant"
 
 describe("DEFAULT_ACTION_ORDER", () => {
   test("uses the product default quick actions in order", () => {
     expect(DEFAULT_ACTION_ORDER.main).toEqual([
-      COMMAND_ID.global.quickSearch,
       COMMAND_ID.entry.read,
       COMMAND_ID.entry.star,
       COMMAND_ID.entry.notInterested,
@@ -30,5 +33,11 @@ describe("DEFAULT_ACTION_ORDER", () => {
     })
 
     expect(merged.main).toEqual(DEFAULT_ACTION_ORDER.main)
+  })
+
+  test("keeps quick search as a fixed entry header action", () => {
+    expect(DEFAULT_ACTION_ORDER.main).not.toContain(COMMAND_ID.global.quickSearch)
+    expect(DEFAULT_ACTION_ORDER.more).not.toContain(COMMAND_ID.global.quickSearch)
+    expect(ENTRY_ITEM_HIDE_IN_HEADER.has(COMMAND_ID.global.quickSearch)).toBe(true)
   })
 })

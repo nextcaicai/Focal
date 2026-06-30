@@ -56,7 +56,7 @@ describe("EntryContentPlaceholder", () => {
   test("uses the same empty-state text scale as the entry list", async () => {
     ;({ container, root } = await renderPlaceholder())
 
-    const placeholder = container.firstElementChild
+    const placeholder = container.querySelector(".center")
 
     expect(placeholder?.textContent).toBe("entry_content.no_selection")
     expect(placeholder?.classList.contains("text-base")).toBe(true)

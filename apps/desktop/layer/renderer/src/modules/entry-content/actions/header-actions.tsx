@@ -1,5 +1,6 @@
 import { RootPortal } from "@follow/components/ui/portal/index.js"
 import type { FeedViewType } from "@follow/constants"
+import { cn } from "@follow/utils/utils"
 import { memo, useCallback } from "react"
 
 import { MenuItemText } from "~/atoms/context-menu"
@@ -13,8 +14,25 @@ import {
 import { EntryActionDropdownItem, useSortedEntryActions } from "~/hooks/biz/useEntryActions"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
 import { COMMAND_ID } from "~/modules/command/commands/id"
-import { useCommand } from "~/modules/command/hooks/use-command"
+import { useCommand, useRunCommandFn } from "~/modules/command/hooks/use-command"
+import { useCommandShortcuts } from "~/modules/command/hooks/use-command-binding"
 import type { FollowCommandId } from "~/modules/command/types"
+
+export const EntryQuickSearchActionButton = ({ className }: { className?: string }) => {
+  const runCmdFn = useRunCommandFn()
+  const shortcuts = useCommandShortcuts()
+
+  return (
+    <div className={cn("text-text-secondary", className)}>
+      <CommandActionButton
+        commandId={COMMAND_ID.global.quickSearch}
+        disableTriggerShortcut
+        onClick={runCmdFn(COMMAND_ID.global.quickSearch, [])}
+        shortcut={shortcuts[COMMAND_ID.global.quickSearch]}
+      />
+    </div>
+  )
+}
 
 export const EntryHeaderActions = ({ entryId, view }: { entryId: string; view: FeedViewType }) => {
   const { mainAction: actionConfigs } = useSortedEntryActions({ entryId, view })

@@ -1,10 +1,4 @@
-import {
-  DEV,
-  LOCAL_RSS_MODE,
-  MICROSOFT_STORE_BUILD,
-  MODE,
-  ModeEnum,
-} from "@follow/shared/constants"
+import { DEV, MICROSOFT_STORE_BUILD, MODE, ModeEnum } from "@follow/shared/constants"
 
 const isStoreDistribution = Boolean(process.mas || MICROSOFT_STORE_BUILD)
 
@@ -14,12 +8,12 @@ export const appUpdaterConfig = {
   enableCoreUpdate: !isStoreDistribution,
 
   // Disable app update will also disable renderer hot update and core update
-  enableAppUpdate: !LOCAL_RSS_MODE,
-  enableDistributionStoreUpdate: isStoreDistribution && !LOCAL_RSS_MODE,
+  enableAppUpdate: true,
+  enableDistributionStoreUpdate: isStoreDistribution,
 
   app: {
-    autoCheckUpdate: !LOCAL_RSS_MODE,
-    autoDownloadUpdate: !LOCAL_RSS_MODE,
+    autoCheckUpdate: true,
+    autoDownloadUpdate: true,
     checkUpdateInterval: 15 * 60 * 1000,
   },
 }
