@@ -19,6 +19,7 @@ import { useCurrentModal } from "~/components/ui/modal/stacked/hooks"
 import { useModalResizeAndDrag } from "~/components/ui/modal/stacked/internal/use-drag"
 import { ElECTRON_CUSTOM_TITLEBAR_HEIGHT } from "~/constants"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
+import { useAvailableUpdate } from "~/modules/upgrade/use-available-update"
 
 import { isGuestAccessibleSettingTab, SETTING_MODAL_ID } from "../constants"
 import { EnhancedSettingsIndicator } from "../helper/EnhancedIndicator"
@@ -184,13 +185,15 @@ const SettingItemButtonImpl = (props: {
   ]
   const disabled = guestLocked || disabledByConfig
   const why = disabledByConfig ? whyFromConfig : DisableWhy.Noop
+  const availableUpdate = useAvailableUpdate()
+  const showUpdateDot = IN_ELECTRON && path === "about" && availableUpdate !== null
 
   return (
     <button
       data-testid={`settings-tab-${path}`}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "group/settings-tab flex w-full items-center rounded-lg px-3 py-2 text-text-secondary transition-[background-color,color,box-shadow] duration-150",
+        "group/settings-tab relative flex w-full items-center rounded-lg px-3 py-2 text-text-secondary transition-[background-color,color,box-shadow] duration-150",
         isActive && "!bg-fill-secondary !text-text shadow-[0_1px_0_rgba(0,0,0,0.03)]",
         !IN_ELECTRON && "hover:bg-fill-quaternary hover:text-text",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray/30",
@@ -218,6 +221,12 @@ const SettingItemButtonImpl = (props: {
       }, [disabled, ensureLogin, guestLocked, onChange, path, setTab, why])}
     >
       <SettingsSidebarTitle path={path} active={isActive} />
+      {showUpdateDot ? (
+        <span
+          aria-hidden
+          className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-red"
+        />
+      ) : null}
     </button>
   )
 }

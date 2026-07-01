@@ -31,7 +31,6 @@ import { CornerPlayer } from "~/modules/player/corner-player"
 import { SubscriptionColumn } from "~/modules/subscription-column"
 import { removeEmptyFeedCategory, resetSelectedFeedIds } from "~/modules/subscription-column/atom"
 import { SUBSCRIPTION_COLUMN_SCROLL_VIEWPORT_CLASS } from "~/modules/subscription-column/dnd"
-import { UpdateNotice } from "~/modules/update-notice/UpdateNotice"
 import { AppLayoutGridContainerProvider } from "~/providers/app-grid-layout-container-provider"
 
 const FEED_COLUMN_MIN_WIDTH = 232
@@ -94,8 +93,6 @@ export const SubscriptionColumnContainer = () => {
         >
           <SubscriptionColumn>
             <CornerPlayer />
-
-            <UpdateNotice />
           </SubscriptionColumn>
         </DndContext>
       </FeedResponsiveResizerContainer>

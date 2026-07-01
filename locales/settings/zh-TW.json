@@ -14,6 +14,7 @@
   "about.legal": "法律資訊",
   "about.legalUnavailableInLocalMode": "本地 RSS 模式下不開啟官方法律頁面。",
   "about.licenseInfo": "版權所有 © {{currentYear}} {{appName}}。保留所有權利。",
+  "about.newVersion": "新版本",
   "about.noUpdateAvailable": "已是最新版本",
   "about.privacyPolicy": "隱私政策",
   "about.projectLicense": "{{appName}} 採用 GNU Affero 通用公共授權條款第3版授權，並附有額外的例外條款。",

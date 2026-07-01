@@ -1,15 +1,19 @@
-import { LOCAL_RSS_MODE } from "@follow/shared/constants"
+import { IN_ELECTRON, LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { cn } from "@follow/utils/utils"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useLocalRssRefreshState } from "~/modules/local-rss/refresh-scheduler"
 import { useSettingModal } from "~/modules/settings/modal/use-setting-modal-hack"
+import { openAvailableUpdate } from "~/modules/upgrade/open-available-update"
+import { UpdateVersionBadge } from "~/modules/upgrade/UpdateVersionBadge"
+import { useAvailableUpdate } from "~/modules/upgrade/use-available-update"
 
 export const SubscriptionColumnFooter = memo(() => {
   const showSettings = useSettingModal()
   const { t } = useTranslation()
   const { isRefreshing } = useLocalRssRefreshState()
+  const availableUpdate = useAvailableUpdate()
 
   return (
     <div
@@ -24,14 +28,22 @@ export const SubscriptionColumnFooter = memo(() => {
           <span>{t("sidebar.local_rss_status_refreshing")}</span>
         </div>
       ) : null}
-      <div className="grid grid-cols-1 gap-2">
+      <div className="flex items-center gap-2">
         <FooterAction
           data-testid="subscription-settings-trigger"
           icon="i-focal-settings-7"
           label={t("user_button.preferences")}
           align="left"
+          className="min-w-0 flex-1"
           onClick={() => showSettings()}
         />
+        {IN_ELECTRON && availableUpdate ? (
+          <UpdateVersionBadge
+            label={availableUpdate.version ? undefined : t("about.newVersion", { ns: "settings" })}
+            version={availableUpdate.version}
+            onClick={openAvailableUpdate}
+          />
+        ) : null}
       </div>
     </div>
   )
@@ -44,6 +56,7 @@ const FooterAction = ({
   label,
   active,
   align = "center",
+  className,
   onClick,
   "data-testid": dataTestId,
 }: {
@@ -51,6 +64,7 @@ const FooterAction = ({
   label: string
   active?: boolean
   align?: "left" | "center" | "right"
+  className?: string
   onClick: () => void
   "data-testid": string
 }) => (
@@ -66,6 +80,7 @@ const FooterAction = ({
       align === "center" && "justify-center",
       align === "right" && "justify-end",
       active && "bg-theme-item-active text-text",
+      className,
     )}
     onClick={onClick}
   >

@@ -13,6 +13,9 @@ import {
   persistDesktopReviewOutcome,
   readDesktopReviewPromptState,
 } from "~/modules/review-prompt/utils"
+import { openAvailableUpdate } from "~/modules/upgrade/open-available-update"
+import { UpdateVersionBadge } from "~/modules/upgrade/UpdateVersionBadge"
+import { useAvailableUpdate } from "~/modules/upgrade/use-available-update"
 
 import { SettingRow, settingRowDescriptionClass, settingRowLabelClass } from "../control"
 import { SettingItemGroup, SettingSection, SettingSectionGroup } from "../section"
@@ -20,10 +23,15 @@ import { SettingItemGroup, SettingSection, SettingSectionGroup } from "../sectio
 export const SettingAbout = () => {
   const { t } = useTranslation("settings")
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+  const availableUpdate = useAvailableUpdate()
   const { distribution, platform, rateTarget, storageKey, userId } = useDesktopReviewPromptState()
 
   const handleCheckForUpdates = async () => {
     if (isCheckingUpdate) return
+
+    if (availableUpdate && openAvailableUpdate()) {
+      return
+    }
 
     setIsCheckingUpdate(true)
     const toastId = toast.loading(t("about.checkingForUpdates"))
@@ -102,6 +110,15 @@ export const SettingAbout = () => {
               description={t("about.updateDescription")}
               disabled={isCheckingUpdate}
               onAction={handleCheckForUpdates}
+              trailing={
+                availableUpdate ? (
+                  <UpdateVersionBadge
+                    label={t("about.newVersion")}
+                    version={availableUpdate.version}
+                    onClick={openAvailableUpdate}
+                  />
+                ) : null
+              }
               actionIcon={
                 isCheckingUpdate ? (
                   <i className="i-focal-loading-3 animate-spin text-base" />
@@ -173,24 +190,29 @@ const AboutActionRow = ({
   disabled,
   label,
   onAction,
+  trailing,
 }: {
   actionIcon: ReactNode
   description: ReactNode
   disabled?: boolean
   label: string
   onAction: () => void
+  trailing?: ReactNode
 }) => (
   <SettingItemGroup>
     <SettingRow label={label} description={description}>
-      <button
-        type="button"
-        onClick={onAction}
-        disabled={disabled}
-        aria-label={label}
-        className="group flex size-8 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-fill-secondary hover:text-accent disabled:pointer-events-none disabled:opacity-60"
-      >
-        {actionIcon}
-      </button>
+      <div className="flex items-center gap-2">
+        {trailing}
+        <button
+          type="button"
+          onClick={onAction}
+          disabled={disabled}
+          aria-label={label}
+          className="group flex size-8 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-fill-secondary hover:text-accent disabled:pointer-events-none disabled:opacity-60"
+        >
+          {actionIcon}
+        </button>
+      </div>
     </SettingRow>
   </SettingItemGroup>
 )

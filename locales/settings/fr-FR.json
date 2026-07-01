@@ -14,6 +14,7 @@
   "about.legal": "Légal",
   "about.legalUnavailableInLocalMode": "Les pages juridiques officielles ne sont pas ouvertes en mode RSS local.",
   "about.licenseInfo": "Copyright © {{currentYear}} {{appName}}. Tous droits réservés.",
+  "about.newVersion": "Nouvelle version",
   "about.noUpdateAvailable": "Vous avez la dernière version",
   "about.privacyPolicy": "Politique de confidentialité",
   "about.projectLicense": "{{appName}} est sous licence GNU General Public License version 3 avec des exceptions supplémentaires.",
