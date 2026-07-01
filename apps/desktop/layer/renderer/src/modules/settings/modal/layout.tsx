@@ -224,7 +224,7 @@ const SettingItemButtonImpl = (props: {
       {showUpdateDot ? (
         <span
           aria-hidden
-          className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-red"
+          className="absolute right-3 top-1/2 size-2 -translate-y-1/2 rounded-full bg-accent"
         />
       ) : null}
     </button>
