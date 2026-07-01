@@ -8,6 +8,7 @@
 ## Improvements
 
 - Replaced legacy Follow changelog files with Focal-owned release notes.
+- Improved update prompts: brand-colored dot on the About tab, version badge on Check for Updates, and a compact version label beside the sidebar Settings button—tap to open the download page.
 
 ## Bug Fixes
 
