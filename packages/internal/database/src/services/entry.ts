@@ -79,41 +79,19 @@ class EntryServiceStatic implements Resetable {
       db.query.subscriptionsTable.findMany(),
     ])
 
-    const entryIdCountMap = new Map<string, number>(
-      subscriptions.map((s) => [s.listId || s.inboxId || s.feedId || "", 0] as const),
+    const subscriptionIds = new Set(
+      subscriptions.map((s) => s.listId || s.inboxId || s.feedId || "").filter(Boolean),
     )
 
-    const result: typeof entries = []
-    const idsToClear = new Set<string>()
-
-    for (const entry of entries) {
+    return entries.filter((entry) => {
       const possibleIdList = [
         ...(entry.sources?.filter((s) => s !== "feed") ?? []),
         entry.inboxHandle,
         entry.feedId,
       ].filter(Boolean) as string[]
 
-      if (possibleIdList.length === 0) continue
-
-      for (const id of possibleIdList) {
-        const count = entryIdCountMap.get(id)
-        if (count === undefined) continue
-
-        if (count >= 20) {
-          idsToClear.add(entry.id)
-        } else {
-          result.push(entry)
-          entryIdCountMap.set(id, count + 1)
-        }
-      }
-    }
-
-    await db
-      .delete(entriesTable)
-      .where(inArray(entriesTable.id, Array.from(idsToClear)))
-      .execute()
-
-    return result
+      return possibleIdList.some((id) => subscriptionIds.has(id))
+    })
   }
 
   async deleteMany(entryIds: string[]) {

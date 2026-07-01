@@ -1,5 +1,6 @@
 import { FeedViewType } from "@follow/constants"
 import type { CollectionSchema, EntrySchema, FeedSchema } from "@follow/database/schemas/types"
+import { EntryService } from "@follow/database/services/entry"
 import { applyLocalActionRulesToEntry, runLocalActionSideEffects } from "@follow/store/action/local"
 import { useActionStore } from "@follow/store/action/store"
 import { collectionActions } from "@follow/store/collection/store"
@@ -84,6 +85,35 @@ const normalizeEntry = (entry: RssPreviewEntry): EntrySchema => {
     readabilityUpdatedAt: toDate(entry.readabilityUpdatedAt),
     read: existingEntry?.read ?? entry.read,
   }
+}
+
+const mergeStoredEntryState = async (entries: EntrySchema[]) => {
+  if (entries.length === 0) return entries
+
+  const storeData = useEntryStore.getState().data
+  const entryIdsMissingFromStore = entries
+    .filter((entry) => !storeData[entry.id])
+    .map((entry) => entry.id)
+  const persistedEntries =
+    entryIdsMissingFromStore.length > 0
+      ? await EntryService.getEntryMany(entryIdsMissingFromStore)
+      : []
+  const persistedEntryById = new Map(persistedEntries.map((entry) => [entry.id, entry]))
+
+  return entries.map((entry) => {
+    const storedEntry = storeData[entry.id] ?? persistedEntryById.get(entry.id)
+    if (!storedEntry) return entry
+
+    return {
+      ...entry,
+      insertedAt: storedEntry.insertedAt ?? entry.insertedAt,
+      content: entry.content ?? storedEntry.content,
+      readabilityContent: storedEntry.readabilityContent ?? entry.readabilityContent,
+      readabilityUpdatedAt: storedEntry.readabilityUpdatedAt ?? entry.readabilityUpdatedAt,
+      read: storedEntry.read ?? entry.read,
+      settings: entry.settings ?? storedEntry.settings,
+    }
+  })
 }
 
 const toPreviewEntry = (entry: EntrySchema): ParsedEntry => {
@@ -233,8 +263,8 @@ export async function refreshLocalRssFeed(
 
   let initialUnreadIds: Set<string> | undefined
   if (isInitialSubscription) {
-    // Keep only the N newest entries. Historical backlog is intentionally NOT saved to the
-    // DB so it cannot be evicted by the DB cap and then resurface as unread on future refreshes.
+    // Keep only the N newest entries. Historical backlog is intentionally NOT saved to the DB
+    // so a first-time subscription does not flood the timeline or trigger unnecessary BYOK work.
     const sorted = [...entries].sort(
       (a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0),
     )
@@ -249,7 +279,7 @@ export async function refreshLocalRssFeed(
     }
   } else {
     // On regular refreshes, entries predating the historical cutoff are discarded entirely
-    // (not saved to DB) to prevent the cap-eviction → re-appear-as-unread cycle.
+    // (not saved to DB) because they predate the user's subscription baseline.
     const historicalCutoff = readHistoricalCutoff(feed.id)
 
     if (historicalCutoff) {
@@ -274,7 +304,9 @@ export async function refreshLocalRssFeed(
   }
 
   await feedActions.upsertMany([nextFeedWithIdentity])
-  const entriesWithFeedId = entries.map((entry) => ({ ...entry, feedId: feed.id }))
+  const entriesWithFeedId = await mergeStoredEntryState(
+    entries.map((entry) => ({ ...entry, feedId: feed.id })),
+  )
   const actionResult = await applyLocalActionsToEntries({
     entries: entriesWithFeedId,
     feed: {

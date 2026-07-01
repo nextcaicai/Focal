@@ -41,12 +41,8 @@ const hydrates: Hydratable[] = [
 ]
 
 /**
- * After hydration, `getEntriesToHydrate` deletes entries beyond the 20-per-feed cap from
- * `entriesTable` without updating `unreadTable`. This leaves stale aggregate counts in
- * `unreadTable` (e.g. badge shows 55 unread but "All Unread" entry list is empty).
- *
- * This function reconciles the two by recomputing per-feed unread counts from the actual
- * in-memory entry state and persisting the corrected values back to `unreadTable`.
+ * Recompute local RSS unread aggregates from the hydrated entry state so badges reflect
+ * the same data that local timelines render.
  */
 const reconcileLocalRssUnreadCounts = async () => {
   const entryData = useEntryStore.getState().data
