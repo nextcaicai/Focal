@@ -15,6 +15,8 @@ import type { TocRef } from "~/components/ui/markdown/components/Toc"
 import { useInPeekModal } from "~/components/ui/modal/inspire/InPeekModal"
 import { readableContentMaxWidthClassName } from "~/constants/ui"
 import { useRenderStyle } from "~/hooks/biz/useRenderStyle"
+import { useSelectedTextIntegrationContextMenu } from "~/modules/entry-content/hooks/useSelectedTextIntegrationContextMenu"
+import { getSelectedTextFromShadowHost } from "~/modules/entry-content/utils/selected-text-context-menu"
 import { EntryContentHTMLRenderer } from "~/modules/renderer/html"
 import { EntryContentMarkdownRenderer } from "~/modules/renderer/markdown"
 import { WrappedElementProvider } from "~/providers/wrapped-element-provider"
@@ -51,6 +53,7 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
 
   const aiChatPanelStyle = useAIChatPanelStyle()
   const isAIPanelVisible = useAIPanelVisibility()
+  const showSelectedTextIntegrationContextMenu = useSelectedTextIntegrationContextMenu({ entryId })
 
   const shouldShowAISummary = aiChatPanelStyle === AIChatPanelStyle.Floating || !isAIPanelVisible
 
@@ -82,7 +85,18 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
                 type="transcription"
               />
             ) : (
-              <ShadowDOM injectHostStyles={!isInbox}>
+              <ShadowDOM
+                injectHostStyles={!isInbox}
+                onContextMenu={(event) => {
+                  const handled = showSelectedTextIntegrationContextMenu(
+                    event,
+                    getSelectedTextFromShadowHost(event.currentTarget),
+                  )
+                  if (!handled) {
+                    event.stopPropagation()
+                  }
+                }}
+              >
                 {!!customCSS && <MemoedDangerousHTMLStyle>{customCSS}</MemoedDangerousHTMLStyle>}
 
                 <Renderer

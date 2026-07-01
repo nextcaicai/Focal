@@ -15,6 +15,11 @@ import { ErrorBoundary } from "~/components/common/ErrorBoundary"
 import { ShadowDOM } from "~/components/common/ShadowDOM"
 import { useRenderStyle } from "~/hooks/biz/useRenderStyle"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
+import { useSelectedTextIntegrationContextMenu } from "~/modules/entry-content/hooks/useSelectedTextIntegrationContextMenu"
+import {
+  getSelectedTextFromDocumentSelection,
+  getSelectedTextFromShadowHost,
+} from "~/modules/entry-content/utils/selected-text-context-menu"
 import { EntryContentHTMLRenderer } from "~/modules/renderer/html"
 import { WrappedElementProvider } from "~/providers/wrapped-element-provider"
 
@@ -49,11 +54,24 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   const { error, content, isPending } = useEntryContent(entryId)
 
   const view = useRouteParamsSelector((route) => route.view)
+  const showSelectedTextIntegrationContextMenu = useSelectedTextIntegrationContextMenu({ entryId })
+  const handleEntryContentContextMenu = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      const handled = showSelectedTextIntegrationContextMenu(
+        event,
+        getSelectedTextFromDocumentSelection(event.currentTarget),
+      )
+      if (!handled) {
+        stopPropagation(event)
+      }
+    },
+    [showSelectedTextIntegrationContextMenu],
+  )
 
   return (
     <div className="relative flex size-full flex-col @container print:size-auto print:overflow-visible">
       <article
-        onContextMenu={stopPropagation}
+        onContextMenu={handleEntryContentContextMenu}
         className={clsx("relative m-auto min-w-0 select-text", "w-full max-w-full")}
       >
         <EntryTitle entryId={entryId} compact={compact} noRecentReader />
@@ -61,7 +79,18 @@ const EntryContentImpl: Component<EntryContentProps> = ({
         <WrappedElementProvider boundingDetection>
           <div className="mx-auto my-8 max-w-full cursor-auto">
             <ErrorBoundary fallback={EntryRenderError}>
-              <ShadowDOM injectHostStyles={!isInbox}>
+              <ShadowDOM
+                injectHostStyles={!isInbox}
+                onContextMenu={(event) => {
+                  const handled = showSelectedTextIntegrationContextMenu(
+                    event,
+                    getSelectedTextFromShadowHost(event.currentTarget),
+                  )
+                  if (!handled) {
+                    event.stopPropagation()
+                  }
+                }}
+              >
                 <Renderer
                   entryId={entryId}
                   view={view}

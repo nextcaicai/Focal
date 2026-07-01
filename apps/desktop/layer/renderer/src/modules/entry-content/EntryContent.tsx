@@ -49,6 +49,8 @@ import { getEntryContentLayout } from "./components/layouts"
 import type { EntryLayoutProps } from "./components/layouts/types"
 import { SourceContentPanel } from "./components/SourceContentView"
 import { useEntryContent } from "./hooks"
+import { useSelectedTextIntegrationContextMenu } from "./hooks/useSelectedTextIntegrationContextMenu"
+import { getSelectedTextFromDocumentSelection } from "./utils/selected-text-context-menu"
 
 const contentVariants = {
   initial: { opacity: 0, y: 30 },
@@ -123,6 +125,20 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   const animationController = useAnimationControls()
 
   const focusableRef = useRef<HTMLDivElement>(null)
+  const showSelectedTextIntegrationContextMenu = useSelectedTextIntegrationContextMenu({ entryId })
+  const handleEntryContentContextMenu = React.useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      const handled = showSelectedTextIntegrationContextMenu(
+        event,
+        getSelectedTextFromDocumentSelection(event.currentTarget),
+      )
+      if (!handled) {
+        stopPropagation(event)
+      }
+    },
+    [showSelectedTextIntegrationContextMenu],
+  )
+
   useEffect(() => {
     animationController.set(contentVariants.exit)
     animationController.start(contentVariants.animate)
@@ -221,7 +237,7 @@ const EntryContentImpl: Component<EntryContentProps> = ({
           >
             <article
               data-testid="entry-render"
-              onContextMenu={stopPropagation}
+              onContextMenu={handleEntryContentContextMenu}
               className={"relative w-full min-w-0 pb-10 pt-12 print:pt-0"}
             >
               <ApplyEntryActions entryId={entryId} key={entryId} />

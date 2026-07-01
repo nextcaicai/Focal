@@ -318,7 +318,7 @@ const useRegisterObsidianCommands = () => {
           label: t("entry_actions.save_to_obsidian"),
           icon: <SimpleIconsObsidian />,
           category,
-          run: async ({ entryId }) => {
+          run: async ({ entryId, selectedText }) => {
             const entry = getEntry(entryId)
             if (!entry) {
               toast.error(
@@ -329,7 +329,7 @@ const useRegisterObsidianCommands = () => {
               )
               return
             }
-            const markdownContent = await getEntryContentAsMarkdown(entry)
+            const markdownContent = await getSelectedOrEntryMarkdownContent(entry, selectedText)
             const feed = getFeedById(entry.feedId)
             tracker.integration({
               type: "obsidian",
@@ -354,6 +354,15 @@ const useRegisterObsidianCommands = () => {
   )
 }
 
+const getSelectedOrEntryMarkdownContent = async (entry: EntryModel, selectedText?: string) => {
+  const normalizedSelectedText = selectedText?.trim()
+  if (normalizedSelectedText) {
+    return normalizedSelectedText
+  }
+
+  return getEntryContentAsMarkdown(entry)
+}
+
 const useRegisterOutlineCommands = () => {
   const { t } = useTranslation()
 
@@ -372,7 +381,7 @@ const useRegisterOutlineCommands = () => {
           label: t("entry_actions.save_to_outline"),
           icon: <SimpleIconsOutline />,
           category,
-          run: async ({ entryId }) => {
+          run: async ({ entryId, selectedText }) => {
             const entry = getEntry(entryId)
             if (!entry) {
               toast.error(
@@ -402,7 +411,7 @@ const useRegisterOutlineCommands = () => {
                 })
                 collectionId = collection.data.id
               }
-              const markdownContent = await getEntryContentAsMarkdown(entry)
+              const markdownContent = await getSelectedOrEntryMarkdownContent(entry, selectedText)
               await request("documents.create", {
                 title: entry.title,
                 text: markdownContent,
@@ -515,7 +524,7 @@ const useRegisterCuboxCommands = () => {
           label: t("entry_actions.save_to_cubox"),
           icon: <SimpleIconsCubox />,
           category,
-          run: async ({ entryId }) => {
+          run: async ({ entryId, selectedText: inputSelectedText }) => {
             const entry = getEntry(entryId)
             if (!entry) {
               toast.error(
@@ -532,7 +541,8 @@ const useRegisterCuboxCommands = () => {
                 event: "save",
               })
 
-              const selectedText = window.getSelection()?.toString() || ""
+              const selectedText =
+                inputSelectedText?.trim() || window.getSelection()?.toString() || ""
 
               const requestBody =
                 selectedText && enableCuboxAutoMemo
@@ -899,12 +909,12 @@ export type SaveToInstapaperCommand = Command<{
 
 export type SaveToObsidianCommand = Command<{
   id: typeof COMMAND_ID.integration.saveToObsidian
-  fn: (payload: { entryId: string }) => void
+  fn: (payload: { entryId: string; selectedText?: string }) => void
 }>
 
 export type SaveToOutlineCommand = Command<{
   id: typeof COMMAND_ID.integration.saveToOutline
-  fn: (payload: { entryId: string }) => void
+  fn: (payload: { entryId: string; selectedText?: string }) => void
 }>
 
 export type SaveToReadeckCommand = Command<{
@@ -914,7 +924,7 @@ export type SaveToReadeckCommand = Command<{
 
 export type SaveToCuboxCommand = Command<{
   id: typeof COMMAND_ID.integration.saveToCubox
-  fn: (payload: { entryId: string }) => void
+  fn: (payload: { entryId: string; selectedText?: string }) => void
 }>
 
 export type SaveToZoteroCommand = Command<{
