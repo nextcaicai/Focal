@@ -3,7 +3,7 @@ import { nextFrame } from "@follow/utils/dom"
 import { getStorageNS } from "@follow/utils/ns"
 import { repository } from "@pkg"
 import type { FC } from "react"
-import { Suspense, use, useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Trans, useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -14,7 +14,35 @@ import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { Paper } from "~/components/ui/paper"
 import { DebugRegistry } from "~/modules/debug/registry"
 
+import { CHANGELOG_LANGUAGES } from "../../../../../changelog/constants"
+import type { ChangelogContents } from "./changelog"
+import { hasChangelogContent, resolveChangelogContent } from "./changelog"
 import { linkifyChangelog } from "./utils"
+
+const devChangelogModules = import.meta.glob("../../../../../changelog/next/*.md", {
+  query: "?raw",
+  import: "default",
+}) as Record<string, () => Promise<string>>
+
+const loadDevChangelogContents = async (): Promise<ChangelogContents> => {
+  const entries = await Promise.all(
+    CHANGELOG_LANGUAGES.map(async (lang) => {
+      const loader = Object.entries(devChangelogModules).find(([path]) =>
+        path.endsWith(`/next/${lang}.md`),
+      )?.[1]
+
+      if (!loader) {
+        return [lang, ""] as const
+      }
+
+      return [lang, await loader()] as const
+    }),
+  )
+
+  return Object.fromEntries(entries)
+}
+
+const bundledChangelogAvailable = hasChangelogContent(CHANGELOG_CONTENT)
 
 const AppNotificationContainer: FC = () => {
   const { present } = useModalStack()
@@ -78,32 +106,29 @@ const AppNotificationContainer: FC = () => {
         ),
         closeButton: true,
         duration: 5000,
-        action: CHANGELOG_CONTENT
-          ? {
-              label: t("upgrade.whats_new"),
-              onClick: () => {
-                nextFrame(() => {
-                  present({
-                    clickOutsideToDismiss: true,
-                    title: t("upgrade.whats_new"),
-                    autoFocus: false,
-                    modalClassName:
-                      "relative mx-auto mt-[10vh] scrollbar-none max-w-full overflow-auto px-2 lg:max-w-[65rem] lg:p-0",
+        action:
+          import.meta.env.DEV || bundledChangelogAvailable
+            ? {
+                label: t("upgrade.whats_new"),
+                onClick: () => {
+                  nextFrame(() => {
+                    present({
+                      clickOutsideToDismiss: true,
+                      title: t("upgrade.whats_new"),
+                      autoFocus: false,
+                      modalClassName:
+                        "relative mx-auto mt-[10vh] scrollbar-none max-w-full overflow-auto px-2 lg:max-w-[65rem] lg:p-0",
 
-                    CustomModalComponent: ({ children }) => {
-                      return <PeekModal>{children}</PeekModal>
-                    },
-                    content: () => (
-                      <Suspense>
-                        <Changelog />
-                      </Suspense>
-                    ),
-                    overlay: true,
+                      CustomModalComponent: ({ children }) => {
+                        return <PeekModal>{children}</PeekModal>
+                      },
+                      content: () => <Changelog />,
+                      overlay: true,
+                    })
                   })
-                })
-              },
-            }
-          : undefined,
+                },
+              }
+            : undefined,
       })
     }
     if (window.__app_is_upgraded__) {
@@ -117,16 +142,35 @@ const AppNotificationContainer: FC = () => {
 }
 export default AppNotificationContainer
 
-const changelogContext = (async () => {
-  const repoUrl = repository.url
-  if (import.meta.env.DEV) {
-    const content = await import("../../../../../changelog/next.md?raw").then((m) => m.default)
-    return linkifyChangelog(content, repoUrl)
-  }
-  return linkifyChangelog(CHANGELOG_CONTENT, repoUrl)
-})()
-const Changelog = () => (
-  <Paper>
-    <Markdown className="mt-8 w-full max-w-full">{use(changelogContext)}</Markdown>
-  </Paper>
-)
+const Changelog: FC = () => {
+  const { i18n } = useTranslation()
+  const [contents, setContents] = useState<ChangelogContents>(
+    import.meta.env.DEV ? {} : CHANGELOG_CONTENT,
+  )
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    let cancelled = false
+    void loadDevChangelogContents().then((loaded) => {
+      if (!cancelled) {
+        setContents(loaded)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const markdown = useMemo(() => {
+    const content = resolveChangelogContent(contents, i18n.language)
+    return linkifyChangelog(content, repository.url)
+  }, [contents, i18n.language])
+
+  return (
+    <Paper>
+      <Markdown className="mt-8 w-full max-w-full">{markdown}</Markdown>
+    </Paper>
+  )
+}

@@ -453,7 +453,7 @@ jobs:
         shell: bash
         run: |
           version="${{ steps.version.outputs.APP_VERSION }}"
-          changelog_file="apps/desktop/changelog/${version}.md"
+          changelog_file="apps/desktop/changelog/${version}/en.md"
           release_notes_file="$RUNNER_TEMP/desktop-release-notes.md"
 
           if [ -f "$changelog_file" ]; then

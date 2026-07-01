@@ -8,6 +8,7 @@ import { prerelease } from "semver"
 import type { UserConfig } from "vite"
 
 import { getGitHash } from "../../../scripts/lib"
+import { CHANGELOG_LANGUAGES } from "../changelog/constants"
 import { astPlugin } from "../plugins/vite/ast"
 import { circularImportRefreshPlugin } from "../plugins/vite/hmr"
 import { customI18nHmrPlugin } from "../plugins/vite/i18n-hmr"
@@ -17,19 +18,25 @@ import i18nCompleteness from "../plugins/vite/utils/i18n-completeness"
 const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const pkg = JSON.parse(readFileSync(resolve(pkgDir, "./package.json"), "utf8"))
 
-const getChangelogFileContent = () => {
+const getChangelogContents = () => {
   const { version: pkgVersion } = pkg
   const isDev = process.env.NODE_ENV === "development"
   // get major-minor-patch, e.g. 0.2.0-beta.2 -> 0.2.0
   const version = pkgVersion.split("-")[0]
-  try {
-    return readFileSync(resolve(pkgDir, "./changelog", `${isDev ? "next" : version}.md`), "utf8")
-  } catch {
-    return ""
-  }
+  const changelogDir = resolve(pkgDir, "./changelog", isDev ? "next" : version)
+
+  return Object.fromEntries(
+    CHANGELOG_LANGUAGES.map((lang) => {
+      try {
+        return [lang, readFileSync(resolve(changelogDir, `${lang}.md`), "utf8")]
+      } catch {
+        return [lang, ""]
+      }
+    }),
+  )
 }
 
-const changelogFile = getChangelogFileContent()
+const changelogContents = getChangelogContents()
 export const viteRenderBaseConfig = {
   worker: {
     format: "es",
@@ -87,7 +94,7 @@ export const viteRenderBaseConfig = {
     DEBUG: process.env.DEBUG === "true",
 
     I18N_COMPLETENESS_MAP: JSON.stringify({ ...i18nCompleteness, en: 100 }),
-    CHANGELOG_CONTENT: JSON.stringify(changelogFile),
+    CHANGELOG_CONTENT: JSON.stringify(changelogContents),
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
   },
 } satisfies UserConfig
