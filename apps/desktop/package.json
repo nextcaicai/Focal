@@ -1,7 +1,7 @@
 {
   "name": "Focal",
   "type": "module",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Local-first RSS reader",
   "author": "Focal",
@@ -95,7 +95,7 @@
     "vite-plugin-route-builder": "0.4.1",
     "vite-tsconfig-paths": "6.1.1"
   },
-  "runtimeVersion": "0.2.1",
+  "runtimeVersion": "0.2.2",
   "productName": "Focal",
-  "mainHash": "ca8b8f0a8cfd0a84715e9d0f5255de08594b2455281ca2ea960fdfc1cbe5ab47"
+  "mainHash": "bed79f5dcc2461eb74684060691e1661863a158fd667c926ad05eb0d5573191c"
 }
