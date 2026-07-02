@@ -108,6 +108,7 @@ const SelectContent = ({
         event.stopPropagation()
       }}
       {...props}
+      data-modal-nested-interaction=""
     >
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport

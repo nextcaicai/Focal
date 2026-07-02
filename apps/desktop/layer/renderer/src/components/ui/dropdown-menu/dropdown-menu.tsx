@@ -99,6 +99,7 @@ const DropdownMenuSubContent = ({
       )}
       style={styles.content}
       {...props}
+      data-modal-nested-interaction=""
     >
       {/* Inner glow layer */}
       <div
@@ -135,6 +136,7 @@ const DropdownMenuContent = ({
         )}
         style={styles.content}
         {...props}
+        data-modal-nested-interaction=""
       >
         {/* Inner glow layer */}
         <div

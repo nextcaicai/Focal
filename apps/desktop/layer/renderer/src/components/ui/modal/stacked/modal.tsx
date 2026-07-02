@@ -11,7 +11,13 @@ import { useAtomValue, useSetAtom } from "jotai"
 import { selectAtom } from "jotai/utils"
 import type { BoundingBox } from "motion/react"
 import { Resizable } from "re-resizable"
-import type { FC, PropsWithChildren, SyntheticEvent } from "react"
+import type {
+  FC,
+  PointerEvent as ReactPointerEvent,
+  PropsWithChildren,
+  Ref,
+  SyntheticEvent,
+} from "react"
 import {
   createElement,
   Fragment,
@@ -47,6 +53,8 @@ import type { ModalOverlayOptions, ModalProps } from "./types"
 const DragBar = ELECTRON_BUILD ? (
   <span className="drag-region fixed left-0 right-36 top-0 h-8" />
 ) : null
+const nestedModalInteractionSelector = "[data-modal-nested-interaction]"
+
 export const ModalInternal = memo(function Modal({
   ref,
   item,
@@ -64,7 +72,7 @@ export const ModalInternal = memo(function Modal({
   isBottom?: boolean
   overlayOptions?: ModalOverlayOptions
   onClose?: (open: boolean) => void
-} & PropsWithChildren & { ref?: React.Ref<HTMLDivElement | null> }) {
+} & PropsWithChildren & { ref?: Ref<HTMLDivElement | null> }) {
   const {
     CustomModalComponent,
     content,
@@ -203,9 +211,24 @@ export const ModalInternal = memo(function Modal({
 
   const modalStyle = resizeableStyle
   const { handleSelectStart, handleDetectSelectEnd, isSelectingRef } = useModalSelect()
+  const ignoreNextOutsideClickRef = useRef(false)
+  const handlePointerDownCapture = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const { target } = event
+    const targetElement =
+      target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+    const startedFromModalContent =
+      target instanceof Node && !!modalElementRef.current?.contains(target)
+    const startedFromNestedPortal = !!targetElement?.closest(nestedModalInteractionSelector)
+
+    ignoreNextOutsideClickRef.current = startedFromModalContent || startedFromNestedPortal
+  }, [])
   const handleClickOutsideToDismiss = useCallback(
     (e: SyntheticEvent) => {
       if (isSelectingRef.current) return
+      if (ignoreNextOutsideClickRef.current) {
+        ignoreNextOutsideClickRef.current = false
+        return
+      }
 
       if (modal && clickOutsideToDismiss && canClose) {
         dismiss(e)
@@ -258,6 +281,8 @@ export const ModalInternal = memo(function Modal({
               ref={setModalContentRef}
               asChild
               aria-describedby={undefined}
+              onFocusOutside={preventDefault}
+              onInteractOutside={preventDefault}
               onPointerDownOutside={preventDefault}
               onOpenAutoFocus={openAutoFocus}
             >
@@ -273,6 +298,7 @@ export const ModalInternal = memo(function Modal({
                 style={{
                   zIndex: currentModalZIndex,
                 }}
+                onPointerDownCapture={handlePointerDownCapture}
                 onPointerUp={handleDetectSelectEnd}
                 onClick={handleClickOutsideToDismiss}
                 onFocus={stopPropagation}
@@ -311,6 +337,8 @@ export const ModalInternal = memo(function Modal({
             ref={setModalContentRef}
             asChild
             aria-describedby={undefined}
+            onFocusOutside={preventDefault}
+            onInteractOutside={preventDefault}
             onPointerDownOutside={preventDefault}
             onOpenAutoFocus={openAutoFocus}
           >
@@ -332,6 +360,7 @@ export const ModalInternal = memo(function Modal({
                 zIndex: currentModalZIndex,
                 perspective: 1200,
               }}
+              onPointerDownCapture={handlePointerDownCapture}
               tabIndex={-1}
             >
               {DragBar}

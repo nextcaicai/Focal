@@ -34,6 +34,7 @@ const PopoverContent = ({
         className,
       )}
       {...props}
+      data-modal-nested-interaction=""
     />
   </RootPortal>
 )

@@ -73,6 +73,7 @@ const ContextMenuSubContent = ({
       )}
       style={styles.content}
       {...props}
+      data-modal-nested-interaction=""
     >
       {/* Inner glow layer */}
       <div
@@ -106,6 +107,7 @@ const ContextMenuContent = ({
       )}
       style={styles.content}
       {...props}
+      data-modal-nested-interaction=""
     >
       {/* Inner glow layer */}
       <div
