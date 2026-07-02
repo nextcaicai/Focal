@@ -1,6 +1,7 @@
 import { useEntry } from "@follow/store/entry/hooks"
 import { isYouTubeWatchUrl } from "@follow/utils/url-for-video"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { cn } from "@follow/utils/utils"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { AIChatPanelStyle, useAIChatPanelStyle, useAIPanelVisibility } from "~/atoms/settings/ai"
@@ -15,11 +16,15 @@ import {
   TranscriptToggle,
   useTranscription,
   YouTubeContentBody,
+  YouTubePlaybackControls,
   YouTubeTranscript,
 } from "./shared"
 import { VideoPlayer } from "./shared/VideoPlayer"
 import { parseYouTubeTranscript } from "./shared/youtube-format"
 import type { EntryLayoutProps } from "./types"
+
+const PLAYER_HEADER_OFFSET = 52 // h-top-header (3.25rem)
+const PLAYER_SAFE_GAP = 12
 
 export const VideosLayout: React.FC<EntryLayoutProps> = ({
   entryId,
@@ -36,7 +41,12 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
     refetch: refetchYouTubeTranscript,
   } = useYouTubeTranscript(entryId, entry?.url)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [isPlayerPinned, setIsPlayerPinned] = useState(true)
+  const [autoScrollActiveCue, setAutoScrollActiveCue] = useState(true)
+  const [highlightActiveCue, setHighlightActiveCue] = useState(true)
   const { t } = useTranslation("app")
+  const isYouTubeEntry = isYouTubeWatchUrl(entry?.url)
+  const shouldPinPlayer = !isYouTubeEntry || isPlayerPinned
 
   const aiChatPanelStyle = useAIChatPanelStyle()
   const isAIPanelVisible = useAIPanelVisibility()
@@ -50,7 +60,11 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
   const { activeCueId, seekTo } = useYouTubeVideoSync({
     playerRef,
     cues: youtubeCues,
-    enabled: showTranscript && !transcriptionData && !!youtubeTranscript,
+    enabled:
+      showTranscript &&
+      !transcriptionData &&
+      !!youtubeTranscript &&
+      (autoScrollActiveCue || highlightActiveCue),
   })
 
   // Measure the pinned player height so auto-scrolled cues land below it
@@ -60,18 +74,22 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
   const stickyPlayerRef = useCallback((node: HTMLDivElement | null) => {
     stickyObserverRef.current?.disconnect()
     if (!node) return
-    const HEADER_OFFSET = 52 // h-top-header (3.25rem)
-    const SAFE_GAP = 12
-    const update = () => setCueScrollMarginTop(HEADER_OFFSET + node.offsetHeight + SAFE_GAP)
+    const update = () =>
+      setCueScrollMarginTop(PLAYER_HEADER_OFFSET + node.offsetHeight + PLAYER_SAFE_GAP)
     update()
     const observer = new ResizeObserver(update)
     observer.observe(node)
     stickyObserverRef.current = observer
   }, [])
 
+  useEffect(() => {
+    if (shouldPinPlayer) return
+    setCueScrollMarginTop(PLAYER_HEADER_OFFSET + PLAYER_SAFE_GAP)
+  }, [shouldPinPlayer])
+
   if (!entry) return null
 
-  const isYouTubeEntry = isYouTubeWatchUrl(entry.url)
+  const showYouTubePlaybackControls = isYouTubeEntry && !noMedia
   const hasTranscript = !!transcriptionData || !!youtubeTranscript
   const showNoTranscriptMessage =
     isYouTubeEntry && isYouTubeTranscriptFetched && !isYouTubeTranscriptLoading && !hasTranscript
@@ -82,8 +100,11 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
       {/* Offset the sticky top by the floating header height (h-top-header: 3.25rem)
           so the pinned player is never tucked under the absolute AIEntryHeader. */}
       <div
-        ref={stickyPlayerRef}
-        className="sticky top-[3.25rem] z-10 mb-4 w-full bg-background pb-2 pt-2"
+        ref={shouldPinPlayer ? stickyPlayerRef : undefined}
+        className={cn(
+          "z-10 mb-4 w-full bg-background pb-2 pt-2",
+          shouldPinPlayer && "sticky top-[3.25rem]",
+        )}
       >
         {!noMedia ? (
           <VideoPlayer
@@ -99,6 +120,21 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
             <i className="i-focal-video-fill mb-2 size-12" />
             Video content not available
           </div>
+        )}
+        {showYouTubePlaybackControls && (
+          <YouTubePlaybackControls
+            isPlayerPinned={isPlayerPinned}
+            autoScrollActiveCue={autoScrollActiveCue}
+            highlightActiveCue={highlightActiveCue}
+            labels={{
+              pinPlayer: t("entry_content.youtube_controls.pin_player"),
+              autoScroll: t("entry_content.youtube_controls.auto_scroll"),
+              highlightCurrentLine: t("entry_content.youtube_controls.highlight_current_line"),
+            }}
+            onPlayerPinnedChange={setIsPlayerPinned}
+            onAutoScrollActiveCueChange={setAutoScrollActiveCue}
+            onHighlightActiveCueChange={setHighlightActiveCue}
+          />
         )}
       </div>
 
@@ -128,6 +164,8 @@ export const VideosLayout: React.FC<EntryLayoutProps> = ({
             <YouTubeTranscript
               content={youtubeTranscript}
               activeCueId={activeCueId}
+              autoScrollActiveCue={autoScrollActiveCue}
+              highlightActiveCue={highlightActiveCue}
               onCueSeek={seekTo}
               cueScrollMarginTop={cueScrollMarginTop}
             />

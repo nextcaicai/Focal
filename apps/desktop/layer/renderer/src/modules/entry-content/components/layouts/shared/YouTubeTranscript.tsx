@@ -19,6 +19,10 @@ interface YouTubeTranscriptProps {
   content: string
   /** Id of the cue currently being played, used for highlight + auto-scroll. */
   activeCueId?: string | null
+  /** Scroll the active cue into view as playback advances. */
+  autoScrollActiveCue?: boolean
+  /** Visually mark the cue currently being played. */
+  highlightActiveCue?: boolean
   /** When provided, cues become clickable and seek the player to their time. */
   onCueSeek?: (seconds: number) => void
   /**
@@ -32,6 +36,8 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
   className,
   content,
   activeCueId,
+  autoScrollActiveCue = true,
+  highlightActiveCue = true,
   onCueSeek,
   cueScrollMarginTop = 0,
 }) => {
@@ -41,6 +47,7 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
   const lastManualScrollRef = useRef(0)
 
   useEffect(() => {
+    if (!autoScrollActiveCue) return
     const markManualScroll = () => {
       lastManualScrollRef.current = Date.now()
     }
@@ -50,9 +57,10 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
       window.removeEventListener("wheel", markManualScroll)
       window.removeEventListener("touchmove", markManualScroll)
     }
-  }, [])
+  }, [autoScrollActiveCue])
 
   useEffect(() => {
+    if (!autoScrollActiveCue) return
     if (!activeCueId) return
     const el = activeCueRef.current
     if (!el) return
@@ -61,7 +69,7 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
     // below the player (with a few past lines as context), advancing one line
     // at a time like a teleprompter.
     el.scrollIntoView({ block: "start", behavior: "smooth" })
-  }, [activeCueId])
+  }, [activeCueId, autoScrollActiveCue])
 
   if (cues.length === 0) {
     return <Markdown className={cn("!max-w-full dark:prose-invert", className)}>{content}</Markdown>
@@ -72,13 +80,18 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
   return (
     <div className={cn("flex flex-col", className)}>
       {cues.map((cue) => {
-        const isActive = cue.id === activeCueId
+        const isCurrentCue = cue.id === activeCueId
+        const isHighlighted = highlightActiveCue && isCurrentCue
 
         return (
           <div
             key={cue.id}
-            ref={isActive ? activeCueRef : undefined}
-            style={isActive ? { scrollMarginTop: cueScrollMarginTop + PAST_CONTEXT_PX } : undefined}
+            ref={isCurrentCue ? activeCueRef : undefined}
+            style={
+              isCurrentCue && autoScrollActiveCue
+                ? { scrollMarginTop: cueScrollMarginTop + PAST_CONTEXT_PX }
+                : undefined
+            }
             role={interactive ? "button" : undefined}
             tabIndex={interactive ? 0 : undefined}
             onClick={interactive ? () => onCueSeek?.(cue.seconds) : undefined}
@@ -95,13 +108,15 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
             className={cn(
               "group grid select-text grid-cols-[3.25rem_1fr] items-baseline gap-4 rounded-lg px-3 py-2 outline-none transition-colors duration-150",
               interactive && "cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/40",
-              isActive ? "bg-fill-secondary" : "hover:bg-fill-secondary/60",
+              isHighlighted ? "bg-fill-secondary" : "hover:bg-fill-secondary/60",
             )}
           >
             <span
               className={cn(
                 "select-none font-mono text-xs tabular-nums transition-colors",
-                isActive ? "text-accent" : "text-text-tertiary group-hover:text-text-secondary",
+                isHighlighted
+                  ? "text-accent"
+                  : "text-text-tertiary group-hover:text-text-secondary",
               )}
             >
               {cue.time}
@@ -109,7 +124,7 @@ export const YouTubeTranscript: React.FC<YouTubeTranscriptProps> = ({
             <p
               className={cn(
                 "m-0 text-[0.95rem] leading-[1.75] transition-colors",
-                isActive ? "text-text" : "text-text-secondary",
+                isHighlighted ? "text-text" : "text-text-secondary",
               )}
             >
               {cue.text}
