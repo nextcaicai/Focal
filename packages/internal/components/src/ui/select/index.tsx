@@ -83,6 +83,8 @@ const SelectContent = ({
   className,
   children,
   position = "popper",
+  onClick,
+  onPointerDown,
   ...props
 }: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
   ref?: React.Ref<React.ElementRef<typeof SelectPrimitive.Content> | null>
@@ -97,6 +99,14 @@ const SelectContent = ({
         className,
       )}
       position={position}
+      onPointerDown={(event) => {
+        onPointerDown?.(event)
+        event.stopPropagation()
+      }}
+      onClick={(event) => {
+        onClick?.(event)
+        event.stopPropagation()
+      }}
       {...props}
     >
       <SelectScrollUpButton />
