@@ -1,4 +1,5 @@
 import { Switch } from "@follow/components/ui/switch/index.jsx"
+import { cn } from "@follow/utils/utils"
 
 interface YouTubePlaybackControlsProps {
   isPlayerPinned: boolean
@@ -48,13 +49,15 @@ const YouTubePlaybackControl: React.FC<{
   onCheckedChange: (checked: boolean) => void
 }> = ({ label, checked, onCheckedChange }) => (
   <div className="flex items-center gap-2 whitespace-nowrap">
-    <span>{label}</span>
+    <span className={cn("transition-colors", checked ? "text-text" : "text-text-tertiary")}>
+      {label}
+    </span>
     <Switch
       aria-label={label}
       size="sm"
       checked={checked}
       onCheckedChange={onCheckedChange}
-      className="!bg-fill-vibrant data-[checked]:!bg-fill-vibrant-secondary [&_[data-slot=switch-thumb]]:!bg-white [&_[data-slot=switch-thumb]]:shadow-sm"
+      className="!bg-fill-quaternary data-[checked]:!bg-fill [&_[data-slot=switch-thumb]]:!bg-white [&_[data-slot=switch-thumb]]:shadow-sm"
     />
   </div>
 )
