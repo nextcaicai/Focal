@@ -242,7 +242,7 @@ const ByokProcessingErrorAlert = ({
   const { t } = useTranslation("ai")
 
   return (
-    <div className="mt-4 min-w-0 overflow-hidden rounded-md border border-red/20 bg-red/10 px-3 py-3 text-xs text-red">
+    <div className="mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-md border border-red/20 bg-red/10 px-3 py-3 text-xs text-red">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium text-red">{t("byok_processing.last_error")}</div>
@@ -258,7 +258,10 @@ const ByokProcessingErrorAlert = ({
         </Button>
       </div>
 
-      <div className="mt-2 truncate text-sm font-medium text-text" title={entryTitle}>
+      <div
+        className="mt-2 min-w-0 max-w-full truncate text-sm font-medium text-text"
+        title={entryTitle}
+      >
         {entryTitle}
       </div>
       <div className="mt-1 text-text-secondary">

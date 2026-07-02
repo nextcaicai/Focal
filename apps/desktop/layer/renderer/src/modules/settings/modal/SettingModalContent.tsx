@@ -186,7 +186,7 @@ const Content: FC<{
         ref={setScroller}
         rootClassName="h-full grow flex-1 shrink-0 overflow-auto"
         viewportClassName={cn(
-          "min-h-full px-8 [&>div]:relative [&>div]:min-h-full [&>div]:w-full [&>div]:max-w-[720px]",
+          "min-h-full px-8 [&>div]:relative [&>div]:!block [&>div]:min-h-full [&>div]:w-full [&>div]:min-w-0 [&>div]:max-w-[720px] [&>div]:overflow-hidden",
           config.viewportClassName,
         )}
       >
