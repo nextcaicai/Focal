@@ -36,55 +36,67 @@ import { generateLocalByokTranslation } from "./modules/ai/local-byok-translatio
 import { generateLocalEmbedding } from "./modules/ai/local-embedding"
 import { router } from "./router"
 
-authClientContext.provide(authClient)
-queryClientContext.provide(queryClient)
-apiContext.provide(followApi)
-readabilityContentFetcherContext.provide(({ entryId, url }) =>
-  fetchEntryReadabilityContentFromSource({ id: entryId, url }),
+const isStorageMigrationMode = new URL(window.location.href).searchParams.has(
+  "__focalStorageMigration",
 )
-if (LOCAL_RSS_MODE) {
-  summaryGeneratorContext.provide(generateLocalByokSummary)
-  translationGeneratorContext.provide(generateLocalByokTranslation)
-  tagGeneratorContext.provide(generateLocalByokTags)
-  qualityScoreGeneratorContext.provide(generateLocalByokQualityScore)
-  embeddingGeneratorContext.provide(generateLocalEmbedding)
-}
 
-initializeApp().finally(() => {
-  if (!LOCAL_RSS_MODE) {
-    import("./push-notification").then(({ registerWebPushNotifications }) => {
-      if (navigator.serviceWorker && WEB_BUILD) {
-        registerWebPushNotifications()
-      }
-    })
-  }
-
-  // eslint-disable-next-line @eslint-react/dom/no-flush-sync
-  flushSync(() => setAppIsReady(true))
-})
-
-const $container = document.querySelector("#root") as HTMLElement
-
-if (IN_ELECTRON) {
-  const os = getOS()
-
-  switch (os) {
-    case "Windows": {
-      document.body.style.cssText += `--fo-window-padding-top: ${ElECTRON_CUSTOM_TITLEBAR_HEIGHT}px;`
-      break
-    }
-    case "macOS": {
-      document.body.style.cssText += `--fo-macos-traffic-light-width: 80px; --fo-macos-traffic-light-height: 30px;`
-      break
-    }
-  }
-  document.documentElement.dataset.os = getOS()
+if (isStorageMigrationMode) {
+  void import("./modules/storage-migration/renderer-runner").then(
+    ({ installStorageMigrationRunner }) => {
+      installStorageMigrationRunner()
+    },
+  )
 } else {
-  registerAppGlobalShortcuts()
-}
+  authClientContext.provide(authClient)
+  queryClientContext.provide(queryClient)
+  apiContext.provide(followApi)
+  readabilityContentFetcherContext.provide(({ entryId, url }) =>
+    fetchEntryReadabilityContentFromSource({ id: entryId, url }),
+  )
+  if (LOCAL_RSS_MODE) {
+    summaryGeneratorContext.provide(generateLocalByokSummary)
+    translationGeneratorContext.provide(generateLocalByokTranslation)
+    tagGeneratorContext.provide(generateLocalByokTags)
+    qualityScoreGeneratorContext.provide(generateLocalByokQualityScore)
+    embeddingGeneratorContext.provide(generateLocalEmbedding)
+  }
 
-ReactDOM.createRoot($container).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
-)
+  initializeApp().finally(() => {
+    if (!LOCAL_RSS_MODE) {
+      import("./push-notification").then(({ registerWebPushNotifications }) => {
+        if (navigator.serviceWorker && WEB_BUILD) {
+          registerWebPushNotifications()
+        }
+      })
+    }
+
+    // eslint-disable-next-line @eslint-react/dom/no-flush-sync
+    flushSync(() => setAppIsReady(true))
+  })
+
+  const $container = document.querySelector("#root") as HTMLElement
+
+  if (IN_ELECTRON) {
+    const os = getOS()
+
+    switch (os) {
+      case "Windows": {
+        document.body.style.cssText += `--fo-window-padding-top: ${ElECTRON_CUSTOM_TITLEBAR_HEIGHT}px;`
+        break
+      }
+      case "macOS": {
+        document.body.style.cssText += `--fo-macos-traffic-light-width: 80px; --fo-macos-traffic-light-height: 30px;`
+        break
+      }
+    }
+    document.documentElement.dataset.os = getOS()
+  } else {
+    registerAppGlobalShortcuts()
+  }
+
+  ReactDOM.createRoot($container).render(
+    <React.StrictMode>
+      <RouterProvider router={router} />
+    </React.StrictMode>,
+  )
+}

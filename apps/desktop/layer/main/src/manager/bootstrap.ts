@@ -16,6 +16,7 @@ import { isMacOS } from "../env"
 import { migrateAuthCookiesToNewApiDomain } from "../lib/auth-cookie-migration"
 import { dedupeManagedAuthCookies } from "../lib/auth-cookies"
 import { handleUrlRouting } from "../lib/router"
+import { prepareStorageOriginMigration } from "../lib/storage-origin-migration"
 import { store } from "../lib/store"
 import { updateNotificationsToken } from "../lib/user"
 import { logger } from "../logger"
@@ -90,6 +91,7 @@ export class BootstrapManager {
       })
 
       await cleanupOldRender()
+      await prepareStorageOriginMigration(WindowManager.getRendererEntryPath())
 
       // Bypass CORS for PostHog analytics
       session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

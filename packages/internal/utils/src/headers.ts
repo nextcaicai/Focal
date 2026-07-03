@@ -2,6 +2,12 @@ import { DEV, MICROSOFT_STORE_BUILD, WEB_BUILD } from "@follow/shared/constants"
 
 import { imageRefererMatches } from "./img-proxy"
 
+const APP_INTERNAL_ORIGINS = new Set(["app://folo.is", "app://focal.local"])
+
+const isExternalHeaderOrigin = (value?: string) => {
+  return !!value && !APP_INTERNAL_ORIGINS.has(value)
+}
+
 export const createBuildSafeHeaders =
   (webUrl: string, selfRefererMatches: string[]) =>
   ({ url, headers = {} }: { url: string; headers?: Record<string, string> }) => {
@@ -29,10 +35,7 @@ export const createBuildSafeHeaders =
       return headers
     }
 
-    if (
-      (headers.Referer && headers.Referer !== "app://folo.is") ||
-      (headers.Origin && headers.Origin !== "app://folo.is")
-    ) {
+    if (isExternalHeaderOrigin(headers.Referer) || isExternalHeaderOrigin(headers.Origin)) {
       return headers
     }
 

@@ -5,6 +5,9 @@ import path from "pathe"
 
 import { isMacOS, isWindows } from "./env"
 
+export const LEGACY_APP_ORIGIN_HOST = "folo.is"
+export const FOCAL_APP_ORIGIN_HOST = "focal.local"
+
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
 const iconMap = {
   [ModeEnum.production]: path.join(__dirname, "../../resources/icon.png"),
@@ -25,6 +28,6 @@ export const getTrayIconPath = () => {
   return getIconPath()
 }
 
-export const filePathToAppUrl = (filePath: string) => {
-  return `app://folo.is${pathToFileURL(filePath).pathname}`
+export const filePathToAppUrl = (filePath: string, host = FOCAL_APP_ORIGIN_HOST) => {
+  return `app://${host}${pathToFileURL(filePath).pathname}`
 }

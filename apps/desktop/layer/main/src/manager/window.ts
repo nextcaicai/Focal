@@ -11,6 +11,7 @@ import path from "pathe"
 import { isMacOS, isWindows, isWindows11 } from "~/env"
 import { filePathToAppUrl, getIconPath } from "~/helper"
 import { t } from "~/lib/i18n"
+import { getActiveStorageOriginHost } from "~/lib/storage-origin-migration"
 import { store } from "~/lib/store"
 import { getTrayConfig } from "~/lib/tray"
 import { refreshBound } from "~/lib/utils"
@@ -310,6 +311,13 @@ class WindowManagerStatic {
     }
   }
 
+  getRendererEntryPath = () => {
+    const dynamicRenderEntry = loadDynamicRenderEntry()
+    if (dynamicRenderEntry) logger.info("load dynamic render entry", dynamicRenderEntry)
+
+    return dynamicRenderEntry || path.resolve(__dirname, "../renderer/index.html")
+  }
+
   createWindow = (
     options: {
       extraPath?: string
@@ -352,12 +360,11 @@ class WindowManagerStatic {
       logger.log(process.env["ELECTRON_RENDERER_URL"] + (options?.extraPath || ""))
     } else {
       // Production entry
-      const dynamicRenderEntry = loadDynamicRenderEntry()
-      if (dynamicRenderEntry) logger.info("load dynamic render entry", dynamicRenderEntry)
-      const appLoadFileEntry =
-        dynamicRenderEntry || path.resolve(__dirname, "../renderer/index.html")
-
-      const appLoadEntry = `${filePathToAppUrl(appLoadFileEntry)}${options?.extraPath || ""}`
+      const appLoadFileEntry = this.getRendererEntryPath()
+      const appLoadEntry = `${filePathToAppUrl(
+        appLoadFileEntry,
+        getActiveStorageOriginHost(),
+      )}${options?.extraPath || ""}`
 
       window.loadURL(appLoadEntry)
       logger.log("load URL", appLoadEntry)

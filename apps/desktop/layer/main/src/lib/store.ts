@@ -11,6 +11,15 @@ type StoreData = {
   minimizeToTray?: boolean | null
   proxy?: string | null
   qbittorrentSID?: string | null
+  storageOrigin?: "focal" | "legacy" | null
+  storageOriginMigration?: {
+    backupPath?: string
+    completedAt?: string
+    failedAt?: string
+    reason?: string
+    restoredAt?: string
+    status: "completed" | "failed" | "restored" | "skipped"
+  } | null
   user?: string | null
   windowState?: {
     height: number

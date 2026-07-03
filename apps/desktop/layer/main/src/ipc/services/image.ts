@@ -9,6 +9,8 @@ import type { IpcContext } from "electron-ipc-decorator"
 import { IpcMethod, IpcService } from "electron-ipc-decorator"
 import path from "pathe"
 
+import { getActiveStorageOriginHost } from "~/lib/storage-origin-migration"
+
 interface ResolveImageInput {
   url: string
   kind?: "icon" | "media"
@@ -29,7 +31,7 @@ const fileUrlToAppUrl = (fileUrl: string): string => {
   try {
     const urlObj = new URL(fileUrl)
     if (urlObj.protocol === "file:") {
-      return `app://folo.is${urlObj.pathname}`
+      return `app://${getActiveStorageOriginHost()}${urlObj.pathname}`
     }
   } catch {
     // 如果不是有效的 URL，返回原值
