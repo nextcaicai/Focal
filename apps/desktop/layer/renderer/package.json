@@ -8,7 +8,7 @@
     "db:generate": "pnpm --filter @follow/database run generate",
     "dev": "cd ../.. && pnpm dev:web",
     "dev:ssl": "cd ../.. && SSL=true pnpm dev:web",
-    "generate-pwa-assets": "pwa-assets-generator public/icon.svg",
+    "generate-pwa-assets": "tsx ../../scripts/generate-logo-assets.ts",
     "test": "vitest --typecheck",
     "typecheck": "tsc --noEmit"
   },

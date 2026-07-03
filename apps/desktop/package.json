@@ -35,6 +35,7 @@
     "e2e:install": "playwright install chromium",
     "e2e:web": "playwright test -c e2e/playwright.config.ts --project=web",
     "e2e:web:prod": "cross-env FOCAL_E2E_PROFILE=prod playwright test -c e2e/playwright.config.ts --project=web",
+    "generate:logo-assets": "tsx scripts/generate-logo-assets.ts",
     "hotfix": "vv -c bump.hotfix.config.js --patch",
     "publish": "electron-vite build && electron-forge publish",
     "start": "electron-vite preview",

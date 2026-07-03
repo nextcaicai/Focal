@@ -1,33 +1,29 @@
 import type { Preset } from "@vite-pwa/assets-generator/config"
 import { defineConfig } from "@vite-pwa/assets-generator/config"
 
+const focalBlue = {
+  r: 0,
+  g: 78,
+  b: 253,
+  alpha: 1,
+}
+
 const minimal2023Preset: Preset = {
   transparent: {
     sizes: [64, 192, 512],
     favicons: [[48, "favicon.ico"]],
     padding: 0.05,
-    // rgba(0, 84, 252, 1)
     resizeOptions: {
       fit: "contain",
-      background: {
-        r: 0,
-        g: 84,
-        b: 252,
-        alpha: 1,
-      },
+      background: focalBlue,
     },
   },
   maskable: {
     sizes: [512],
-    padding: 0,
+    padding: 0.1,
     resizeOptions: {
       fit: "contain",
-      background: {
-        r: 255,
-        g: 92,
-        b: 0,
-        alpha: 1,
-      },
+      background: focalBlue,
     },
   },
   apple: {
@@ -35,12 +31,7 @@ const minimal2023Preset: Preset = {
     padding: 0,
     resizeOptions: {
       fit: "contain",
-      background: {
-        r: 255,
-        g: 92,
-        b: 0,
-        alpha: 1,
-      },
+      background: focalBlue,
     },
   },
 }
@@ -50,5 +41,5 @@ export default defineConfig({
     preset: "2023",
   },
   preset: minimal2023Preset,
-  images: ["public/logo.svg"],
+  images: ["public/icon.svg"],
 })
