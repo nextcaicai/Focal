@@ -17,6 +17,8 @@ import yaml from "js-yaml"
 import path, { resolve } from "pathe"
 import { rimraf, rimrafSync } from "rimraf"
 
+import { getFocalBundleId } from "./layer/main/src/constants/app-identity"
+
 const ResolvedMakerAppImage: typeof MakerAppImage = (MakerAppImage as any).default || MakerAppImage
 const platform = process.argv.find((arg) => arg.startsWith("--platform"))?.split("=")[1]
 const mode = process.argv.find((arg) => arg.startsWith("--mode"))?.split("=")[1]
@@ -126,7 +128,7 @@ const config: ForgeConfig = {
     name: isStaging ? "Focal Staging" : "Focal",
     appCategoryType: "public.app-category.news",
     buildVersion: process.env.BUILD_VERSION || undefined,
-    appBundleId: "is.follow",
+    appBundleId: getFocalBundleId(isStaging),
     icon: isStaging ? "resources/icon-staging" : "resources/icon",
     extraResource: ["./resources/app-update.yml"],
     protocols: [
@@ -247,8 +249,8 @@ const config: ForgeConfig = {
             // @ts-ignore
             publisherDisplayName: "Natural Selection Labs",
             identityName: "NaturalSelectionLabs.Follow-Yourfavoritesinoneinbo",
-            packageBackgroundColor: "#FF5C00",
-            protocol: "folo",
+            packageBackgroundColor: "#0066FF",
+            protocol: "focal",
           }),
         ]
       : [
@@ -314,7 +316,7 @@ const config: ForgeConfig = {
         files: [],
       }
       let basePath = ""
-      makeResults = makeResults.map((result) => {
+      const processedResults = makeResults.map((result) => {
         result.artifacts = result.artifacts
           .map((artifact) => {
             if (artifactRegex.test(artifact)) {
@@ -353,23 +355,23 @@ const config: ForgeConfig = {
       })
       yml.releaseDate = new Date().toISOString()
 
-      if (makeResults[0]?.platform && ymlMapsMap[makeResults[0].platform] && basePath) {
-        const ymlPath = path.join(basePath, ymlMapsMap[makeResults[0].platform])
+      if (processedResults[0]?.platform && ymlMapsMap[processedResults[0].platform] && basePath) {
+        const ymlPath = path.join(basePath, ymlMapsMap[processedResults[0].platform])
 
         const ymlStr = yaml.dump(yml, {
           lineWidth: -1,
         })
         fs.writeFileSync(ymlPath, ymlStr)
 
-        makeResults.push({
+        processedResults.push({
           artifacts: [ymlPath],
-          platform: makeResults[0]!.platform,
-          arch: makeResults[0]!.arch,
-          packageJSON: makeResults[0]!.packageJSON,
+          platform: processedResults[0]!.platform,
+          arch: processedResults[0]!.arch,
+          packageJSON: processedResults[0]!.packageJSON,
         })
       }
 
-      return makeResults
+      return processedResults
     },
   },
 }

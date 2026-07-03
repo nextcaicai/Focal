@@ -1,11 +1,19 @@
 import { PushReceiver } from "@eneris/push-receiver"
 import { callWindowExpose } from "@follow/shared/bridge"
-import { APP_PROTOCOL, DEV, LEGACY_APP_PROTOCOL, LOCAL_RSS_MODE } from "@follow/shared/constants"
+import {
+  APP_PROTOCOL,
+  DEV,
+  LEGACY_APP_PROTOCOL,
+  LOCAL_RSS_MODE,
+  MODE,
+  ModeEnum,
+} from "@follow/shared/constants"
 import { env } from "@follow/shared/env.desktop"
 import { app, nativeTheme, Notification, shell } from "electron"
 import contextMenu from "electron-context-menu"
 import path from "pathe"
 
+import { getFocalBundleId } from "~/constants/app-identity"
 import { WindowManager } from "~/manager/window"
 
 import { isMacOS } from "../env"
@@ -99,14 +107,15 @@ class AppManagerStatic {
     const persistentIdsKey = "notifications-persistent-ids"
     const credentials = store.get(credentialsKey)
     const persistentIds = store.get(persistentIdsKey)
+    const bundleId = getFocalBundleId(MODE === ModeEnum.staging)
 
     const instance = new PushReceiver({
       debug: true,
       firebase: JSON.parse(env.VITE_FIREBASE_CONFIG),
       persistentIds: persistentIds || [],
       credentials: credentials || undefined,
-      bundleId: "is.follow",
-      chromeId: "is.follow",
+      bundleId,
+      chromeId: bundleId,
     })
     logger.info(
       `PushReceiver initialized with credentials ${JSON.stringify(credentials)} and firebase config ${

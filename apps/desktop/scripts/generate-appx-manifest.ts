@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 
 import fs from "node:fs"
+import { fileURLToPath } from "node:url"
 
 import path from "pathe"
 
@@ -14,7 +15,6 @@ interface AppXManifestConfig {
   packageBackgroundColor: string
   protocols: string[]
   description: string
-  appBundleId: string
 }
 
 function generateAppXManifest(config: AppXManifestConfig, templatePath: string): string {
@@ -76,9 +76,8 @@ async function main() {
       version: appxVersion,
       publisher: "CN=7CBBEB6A-9B0E-4387-BAE3-576D0ACA279E",
       packageBackgroundColor: "#0066FF",
-      protocols: ["folo", "follow"],
+      protocols: ["focal", "folo", "follow"],
       description: "Local-first RSS reader.",
-      appBundleId: "is.follow",
     }
 
     // Template file path
@@ -105,6 +104,13 @@ async function main() {
   }
 }
 
-main()
+const isDirectRun = () => {
+  const scriptPath = process.argv[1]
+  return Boolean(scriptPath && path.resolve(scriptPath) === fileURLToPath(import.meta.url))
+}
+
+if (isDirectRun()) {
+  void main()
+}
 
 export { type AppXManifestConfig, generateAppXManifest }

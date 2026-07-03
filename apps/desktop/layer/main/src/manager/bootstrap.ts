@@ -2,13 +2,14 @@ import { rmSync } from "node:fs"
 
 import { electronApp, optimizer } from "@electron-toolkit/utils"
 import { callWindowExpose } from "@follow/shared/bridge"
-import { DEV, LEGACY_APP_PROTOCOL } from "@follow/shared/constants"
+import { DEV, MODE, ModeEnum } from "@follow/shared/constants"
 import { env } from "@follow/shared/env.desktop"
 import { createBuildSafeHeaders } from "@follow/utils/headers"
 import { parse } from "cookie-es"
 import { app, BrowserWindow, net, protocol, session } from "electron"
 import { join } from "pathe"
 
+import { getFocalAppUserModelId } from "~/constants/app-identity"
 import { WindowManager } from "~/manager/window"
 
 import { isMacOS } from "../env"
@@ -69,7 +70,7 @@ export class BootstrapManager {
         optimizer.watchWindowShortcuts(window)
       })
 
-      electronApp.setAppUserModelId(`re.${LEGACY_APP_PROTOCOL}`)
+      electronApp.setAppUserModelId(getFocalAppUserModelId(MODE === ModeEnum.staging))
 
       session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
         details.requestHeaders = buildSafeHeaders({
