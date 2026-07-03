@@ -1,8 +1,5 @@
 import { Button } from "@follow/components/ui/button/index.js"
-import { APP_STORE_URLS } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
-import { getMobilePlatform, isMobileDevice } from "@follow/utils"
-import { useEffect } from "react"
 
 import { FOCAL_TAGLINE, FocalLogo, FocalWordmark } from "~/modules/brand/FocalLogo"
 
@@ -11,27 +8,10 @@ export function DownloadPage() {
     // Standalone builds do not use an official cloud download page.
   }
 
-  const mobilePlatform = getMobilePlatform()
-  const isMobile = isMobileDevice()
-
-  useEffect(() => {
-    if (LOCAL_RSS_MODE) {
-      return
-    }
-
-    if (isMobile && mobilePlatform && APP_STORE_URLS[mobilePlatform]) {
-      window.location.href = APP_STORE_URLS[mobilePlatform]
-    }
-  }, [isMobile, mobilePlatform])
-
   const handleMobileDownload = () => {
     if (LOCAL_RSS_MODE) return
 
-    if (mobilePlatform && APP_STORE_URLS[mobilePlatform]) {
-      window.location.href = APP_STORE_URLS[mobilePlatform]
-    } else {
-      openDownloadPage()
-    }
+    openDownloadPage()
   }
 
   return (
@@ -54,37 +34,18 @@ export function DownloadPage() {
           <p className="text-sm text-text-secondary">
             {LOCAL_RSS_MODE
               ? "This standalone build does not use official cloud download services."
-              : isMobile
-                ? mobilePlatform
-                  ? `Get the ${mobilePlatform} app for the best experience`
-                  : "Get the mobile app for the best experience"
-                : "Get the mobile app for the best experience"}
+              : "Focal is currently available as a macOS desktop app."}
           </p>
         </div>
 
         {/* Download Button */}
-        <Button
-          disabled={LOCAL_RSS_MODE}
-          onClick={isMobile ? handleMobileDownload : openDownloadPage}
-        >
+        <Button disabled={LOCAL_RSS_MODE} onClick={handleMobileDownload}>
           <i className="i-focal-download-2 mr-2 text-lg" />
-          <span>
-            {LOCAL_RSS_MODE
-              ? "Download service disabled"
-              : isMobile && mobilePlatform
-                ? `Download for ${mobilePlatform}`
-                : "Go to Download Page"}
-          </span>
+          <span>{LOCAL_RSS_MODE ? "Download service disabled" : "Go to Download Page"}</span>
         </Button>
 
         {/* Hint */}
-        <p className="text-xs text-text-tertiary">
-          {isMobile
-            ? mobilePlatform
-              ? `Redirecting to ${mobilePlatform === "iOS" ? "App Store" : "Google Play"}...`
-              : "Available for iOS, Android, Windows, macOS & Linux"
-            : "Available for iOS, Android, Windows, macOS & Linux"}
-        </p>
+        <p className="text-xs text-text-tertiary">Available for macOS</p>
       </div>
     </div>
   )

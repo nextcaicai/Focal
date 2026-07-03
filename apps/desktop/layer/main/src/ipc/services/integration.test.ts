@@ -49,7 +49,7 @@ describe("IntegrationService", () => {
   })
 
   it("saves Obsidian titles with path separators as one markdown file", async () => {
-    vaultPath = await fsp.mkdtemp(path.join(os.tmpdir(), "folo-obsidian-"))
+    vaultPath = await fsp.mkdtemp(path.join(os.tmpdir(), "focal-obsidian-"))
     const service = new IntegrationService()
     const context = {} as IpcContext
 

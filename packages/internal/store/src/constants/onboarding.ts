@@ -1,6 +1,6 @@
 import { getEntry } from "../modules/entry/getter"
 
-const ONBOARDING_ENTRY_URL_PREFIXES = ["focal://onboarding", "folo://onboarding"] as const
+const ONBOARDING_ENTRY_URL_PREFIXES = ["focal://onboarding"] as const
 
 export const isOnboardingEntryUrl = (url?: string | null) => {
   return (

@@ -181,7 +181,6 @@ const ActionShareButton = ({ variant = "button" }: { variant?: "button" | "heade
   }
 
   const focalPrefix = "focal:actions#"
-  const legacyFoloPrefix = "folo:actions#"
   const handleCopyToClipboard = useCallback(async () => {
     try {
       const jsonData = actionActions.exportRules()
@@ -201,8 +200,6 @@ const ActionShareButton = ({ variant = "button" }: { variant?: "button" | "heade
 
       if (clipboardData.startsWith(focalPrefix)) {
         codecData = clipboardData.slice(focalPrefix.length)
-      } else if (clipboardData.startsWith(legacyFoloPrefix)) {
-        codecData = clipboardData.slice(legacyFoloPrefix.length)
       } else {
         toast.error(t("actions.action_card.summary.invalid_clipboard"))
         return
@@ -224,7 +221,7 @@ const ActionShareButton = ({ variant = "button" }: { variant?: "button" | "heade
       }
       console.error(error)
     }
-  }, [focalPrefix, legacyFoloPrefix])
+  }, [focalPrefix])
 
   const openShareRules = () => {
     present({

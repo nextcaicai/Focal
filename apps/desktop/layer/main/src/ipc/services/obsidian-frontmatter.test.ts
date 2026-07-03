@@ -14,7 +14,7 @@ describe("createObsidianFrontmatter", () => {
         "",
         "On May 10, PJ Ace shared an AI short film.",
       ].join("\n"),
-      tags: ["folo"],
+      tags: ["focal"],
       feedTitle: "TechFlow",
       feedUrl: "https://www.techflowpost.com/feed",
     })
@@ -28,7 +28,7 @@ description: |-
 
   On May 10, PJ Ace shared an AI short film.
 tags:
-  - folo
+  - focal
 feedTitle: "TechFlow"
 feedUrl: "https://www.techflowpost.com/feed"
 ---`)
@@ -41,7 +41,7 @@ feedUrl: "https://www.techflowpost.com/feed"
         "",
         "On May 10, PJ Ace shared an AI short film.",
       ].join("\n"),
-      tags: ["folo"],
+      tags: ["focal"],
       feedTitle: "TechFlow",
       feedUrl: "https://www.techflowpost.com/feed",
     })
@@ -53,14 +53,14 @@ feedUrl: "https://www.techflowpost.com/feed"
         url: "",
         author: "",
         publishedAt: "2026-05-14T04:20:44.405Z",
-        tags: ["folo"],
+        tags: ["focal"],
       }),
     ).toBe(`---
 url: ""
 author: ""
 publishedAt: 2026-05-14T04:20:44
 tags:
-  - folo
+  - focal
 ---`)
   })
 })
