@@ -16,7 +16,7 @@ afterEach(async () => {
 })
 
 describe("generateAppXManifest", () => {
-  it("registers the focal protocol while keeping legacy protocols", async () => {
+  it("registers only the focal protocol", async () => {
     const projectDir = await mkdtemp(join(tmpdir(), "focal-appx-manifest-"))
     tempDirs.push(projectDir)
 
@@ -42,15 +42,15 @@ describe("generateAppXManifest", () => {
       version: "0.2.2.0",
       publisher: "CN=test",
       packageBackgroundColor: "#0066FF",
-      protocols: ["focal", "folo", "follow"],
+      protocols: ["focal"],
       description: "Local-first RSS reader.",
     }
 
     const manifest = generateAppXManifest(config, templatePath)
 
     expect(manifest).toContain('<uap:Protocol Name="focal" />')
-    expect(manifest).toContain('<uap:Protocol Name="folo" />')
-    expect(manifest).toContain('<uap:Protocol Name="follow" />')
+    expect(manifest).not.toContain('<uap:Protocol Name="folo" />')
+    expect(manifest).not.toContain('<uap:Protocol Name="follow" />')
     expect(manifest).not.toContain("is.follow")
   })
 })

@@ -1,9 +1,12 @@
 import { getEntry } from "../modules/entry/getter"
 
-const ONBOARDING_ENTRY_URL_PREFIX = "folo://onboarding"
+const ONBOARDING_ENTRY_URL_PREFIXES = ["focal://onboarding", "folo://onboarding"] as const
 
 export const isOnboardingEntryUrl = (url?: string | null) => {
-  return typeof url === "string" && url.startsWith(ONBOARDING_ENTRY_URL_PREFIX)
+  return (
+    typeof url === "string" &&
+    ONBOARDING_ENTRY_URL_PREFIXES.some((prefix) => url.startsWith(prefix))
+  )
 }
 
 export const isOnboardingEntry = (entryId: string) => {
@@ -11,5 +14,5 @@ export const isOnboardingEntry = (entryId: string) => {
 }
 
 export const isOnboardingFeedUrl = (url?: string | null) => {
-  return typeof url === "string" && url.startsWith(ONBOARDING_ENTRY_URL_PREFIX)
+  return isOnboardingEntryUrl(url)
 }

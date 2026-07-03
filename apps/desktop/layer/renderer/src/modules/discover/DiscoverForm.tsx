@@ -30,8 +30,7 @@ import { followClient } from "~/lib/api-client"
 import { DiscoverFeedCard } from "./DiscoverFeedCard"
 import { FeedForm } from "./FeedForm"
 
-const isFeedLikeUrl = (value: string) =>
-  /^(?:https?:\/\/|focal:\/\/|folo:\/\/|follow:\/\/)/.test(value.trim())
+const isFeedLikeUrl = (value: string) => /^(?:https?:\/\/|focal:\/\/)/.test(value.trim())
 
 const searchSchema = z.object({
   keyword: z.string().min(1),

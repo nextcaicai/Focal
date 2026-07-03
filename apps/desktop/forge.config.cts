@@ -136,14 +136,6 @@ const config: ForgeConfig = {
         name: "Focal",
         schemes: ["focal"],
       },
-      {
-        name: "Focal Legacy",
-        schemes: ["folo"],
-      },
-      {
-        name: "Focal Legacy",
-        schemes: ["follow"],
-      },
     ],
 
     afterCopy: [

@@ -76,7 +76,7 @@ async function main() {
       version: appxVersion,
       publisher: "CN=7CBBEB6A-9B0E-4387-BAE3-576D0ACA279E",
       packageBackgroundColor: "#0066FF",
-      protocols: ["focal", "folo", "follow"],
+      protocols: ["focal"],
       description: "Local-first RSS reader.",
     }
 

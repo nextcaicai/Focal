@@ -1,7 +1,6 @@
 import { fileURLToPath } from "node:url"
 
 import { is } from "@electron-toolkit/utils"
-import { LEGACY_APP_PROTOCOL } from "@follow/shared"
 import { callWindowExpose, WindowState } from "@follow/shared/bridge"
 import { APP_PROTOCOL } from "@follow/shared/constants"
 import type { BrowserWindowConstructorOptions } from "electron"
@@ -47,16 +46,7 @@ class WindowManagerStatic {
         'consolas, operator mono, Cascadia Code, OperatorMonoSSmLig Nerd Font, "Agave Nerd Font", "Cascadia Code PL", monospace',
       size: "13px",
     },
-    ignoreProtocols: [
-      "http",
-      "https",
-      LEGACY_APP_PROTOCOL,
-      APP_PROTOCOL,
-      "file",
-      "code",
-      "cursor",
-      "app",
-    ] as const,
+    ignoreProtocols: ["http", "https", APP_PROTOCOL, "file", "code", "cursor", "app"] as const,
     vibrancy: {
       macOS: {
         type: "sidebar" as const,

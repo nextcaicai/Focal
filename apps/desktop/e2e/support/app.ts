@@ -5,7 +5,7 @@ import type { TestAccount } from "./account"
 import type { DesktopE2EEnv } from "./env"
 import { buildWebAppURL } from "./env"
 
-const ONBOARDING_FEED_URL = "folo://onboarding"
+const ONBOARDING_FEED_URL = "focal://onboarding"
 
 const isVisible = async (locator: Locator) => locator.isVisible().catch(() => false)
 const visibleByTestId = (page: Page, testId: string) =>

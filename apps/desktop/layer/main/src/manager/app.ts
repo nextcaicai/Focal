@@ -1,13 +1,6 @@
 import { PushReceiver } from "@eneris/push-receiver"
 import { callWindowExpose } from "@follow/shared/bridge"
-import {
-  APP_PROTOCOL,
-  DEV,
-  LEGACY_APP_PROTOCOL,
-  LOCAL_RSS_MODE,
-  MODE,
-  ModeEnum,
-} from "@follow/shared/constants"
+import { APP_PROTOCOL, DEV, LOCAL_RSS_MODE, MODE, ModeEnum } from "@follow/shared/constants"
 import { env } from "@follow/shared/env.desktop"
 import { app, nativeTheme, Notification, shell } from "electron"
 import contextMenu from "electron-context-menu"
@@ -63,7 +56,7 @@ class AppManagerStatic {
   }
 
   private registerProtocols() {
-    const protocols = [LEGACY_APP_PROTOCOL, APP_PROTOCOL]
+    const protocols = [APP_PROTOCOL]
 
     for (const protocolName of protocols) {
       if (process.defaultApp) {

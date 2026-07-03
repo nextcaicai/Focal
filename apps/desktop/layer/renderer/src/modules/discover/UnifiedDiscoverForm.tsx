@@ -45,7 +45,7 @@ import { FeedForm } from "./FeedForm"
 
 const isFeedLikeUrl = (value: string) => {
   const trimmed = value.trim()
-  return /^(?:https?:\/\/|rsshub:\/\/|focal:\/\/|folo:\/\/|follow:\/\/)/.test(trimmed)
+  return /^(?:https?:\/\/|rsshub:\/\/|focal:\/\/)/.test(trimmed)
 }
 
 // Auto-detect input type

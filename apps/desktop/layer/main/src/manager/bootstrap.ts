@@ -2,7 +2,7 @@ import { rmSync } from "node:fs"
 
 import { electronApp, optimizer } from "@electron-toolkit/utils"
 import { callWindowExpose } from "@follow/shared/bridge"
-import { DEV, MODE, ModeEnum } from "@follow/shared/constants"
+import { APP_PROTOCOL, DEV, MODE, ModeEnum } from "@follow/shared/constants"
 import { env } from "@follow/shared/env.desktop"
 import { createBuildSafeHeaders } from "@follow/utils/headers"
 import { parse } from "cookie-es"
@@ -198,6 +198,15 @@ export class BootstrapManager {
     const isValid = URL.canParse(url)
     if (!isValid) return
     const urlObj = new URL(url)
+    const protocol = urlObj.protocol.slice(0, -1)
+
+    if (protocol !== APP_PROTOCOL) {
+      logger.warn("Ignored unsupported app protocol URL", {
+        protocol,
+        url,
+      })
+      return
+    }
 
     if (urlObj.hostname === "auth" || urlObj.pathname === "//auth") {
       const token = urlObj.searchParams.get("token")
