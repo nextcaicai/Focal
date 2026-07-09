@@ -147,20 +147,6 @@ class TranslationActions implements Hydratable, Resetable {
 export const translationActions = new TranslationActions()
 
 class TranslationSyncService {
-  private currentMode?: TranslationMode
-
-  private async ensureMode(mode: TranslationMode) {
-    if (!this.currentMode) {
-      this.currentMode = mode
-      return
-    }
-
-    if (this.currentMode === mode) return
-
-    this.currentMode = mode
-    await translationActions.reset()
-  }
-
   private translationBatcher = create({
     fetcher: async (keys: string[]) => {
       // key format: `${entryId}|${language}|${target}|${fields}|${mode}`
@@ -185,7 +171,7 @@ class TranslationSyncService {
 
       const requests = keys.map(parseKey)
 
-      // Group by language + fields + mode to minimize stream calls
+      // Group by language + fields + mode to minimize stream calls.
       const groupKey = (r: KeyParts) => `${r.language}#${r.fields}#${r.mode}`
       const grouped = new Map<
         string,
@@ -216,16 +202,8 @@ class TranslationSyncService {
 
       const results: Record<string, TranslationModel | null> = {}
 
-      // Execute each group sequentially to keep memory small; groups are already windowed by scheduler
+      // Execute each group sequentially to keep memory small; groups are already windowed by scheduler.
       for (const [, group] of grouped) {
-        if (this.currentMode && this.currentMode !== group.mode) {
-          for (const id of group.ids) {
-            if (!group.keyById[id]) continue
-            results[group.keyById[id]] = null
-          }
-          continue
-        }
-
         try {
           const request: TranslationBatchRequest & { mode?: TranslationMode } = {
             ids: group.ids,
@@ -241,8 +219,6 @@ class TranslationSyncService {
           }>(response, async (json) => {
             const key = group.keyById[json.id]
             if (!key) return
-
-            if (this.currentMode && this.currentMode !== group.mode) return
 
             const translation: TranslationModel = {
               entryId: json.id,
@@ -379,7 +355,6 @@ class TranslationSyncService {
     fields?: TranslationFieldArray
   }) {
     const translationMode = mode ?? "bilingual"
-    await this.ensureMode(translationMode)
 
     const fieldsToTranslate = this.resolveFieldsToTranslate({
       entryId,

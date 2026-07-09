@@ -1,7 +1,7 @@
 import type { SupportedActionLanguage } from "@follow/shared"
 import type { SupportedLanguages } from "@follow-app/client-sdk"
-import { useQueries, useQueryClient } from "@tanstack/react-query"
-import { useCallback, useEffect } from "react"
+import { useQueries } from "@tanstack/react-query"
+import { useCallback } from "react"
 
 import { useEntry, useEntryList } from "../entry/hooks"
 import type { EntryModel } from "../entry/types"
@@ -10,8 +10,6 @@ import { translationSyncService, useTranslationStore } from "./store"
 import type { TranslationFieldArray, TranslationMode } from "./types"
 
 const TRANSLATION_STALE_TIME_MS = 1000 * 60 * 60 * 24
-
-let lastTranslationMode: TranslationMode | null = null
 
 export const usePrefetchEntryTranslation = ({
   entryIds,
@@ -31,24 +29,9 @@ export const usePrefetchEntryTranslation = ({
   fields?: TranslationFieldArray
 }) => {
   const translationMode = mode ?? "bilingual"
-  const queryClient = useQueryClient()
   const entryList = (useEntryList(entryIds)?.filter(
     (entry) => entry !== null && (enabled || !!entry?.settings?.translation),
   ) || []) as EntryModel[]
-
-  useEffect(() => {
-    if (lastTranslationMode === null) {
-      lastTranslationMode = translationMode
-      return
-    }
-
-    if (lastTranslationMode === translationMode) return
-
-    lastTranslationMode = translationMode
-    void queryClient.invalidateQueries({
-      predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === "translation",
-    })
-  }, [queryClient, translationMode])
 
   const isLoggedIn = useIsLoggedIn()
 
