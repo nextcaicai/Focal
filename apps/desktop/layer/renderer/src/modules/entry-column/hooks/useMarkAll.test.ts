@@ -4,6 +4,7 @@ import { unreadSyncService } from "@follow/store/unread/store"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { jotaiStore } from "~/lib/jotai"
+import { SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
 import {
   selectedStarredGroupAtom,
   STARRED_GROUP_ALL,
@@ -63,5 +64,110 @@ describe("markAllByRoute", () => {
 
     expect(unreadSyncService.markEntriesAsRead).toHaveBeenCalledWith(["entry-2", "entry-1"])
     expect(unreadSyncService.markBatchAsRead).not.toHaveBeenCalled()
+  })
+
+  it("marks today's smart feed by date range instead of its virtual feed id", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-07-09T10:30:00.000"))
+
+    try {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const todayEnd = new Date(todayStart)
+      todayEnd.setHours(23, 59, 59, 999)
+      const routeParams = {
+        feedId: SMART_FEED_TODAY,
+        view: FeedViewType.All,
+        smartFeed: "today" as const,
+      }
+
+      await markAllByRoute(routeParams)
+
+      expect(unreadSyncService.markBatchAsRead).toHaveBeenCalledTimes(1)
+      const [args] = vi.mocked(unreadSyncService.markBatchAsRead).mock.calls[0]!
+      expect(args).toEqual({
+        view: FeedViewType.All,
+        time: {
+          startTime: todayStart.getTime(),
+          endTime: todayEnd.getTime(),
+        },
+        excludePrivate: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps the footer insertedBefore limit when marking today's smart feed", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-07-09T10:30:00.000"))
+
+    try {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const todayEnd = new Date(todayStart)
+      todayEnd.setHours(23, 59, 59, 999)
+      const insertedBefore = new Date("2026-07-09T10:00:00.000").getTime()
+      const routeParams = {
+        feedId: SMART_FEED_TODAY,
+        view: FeedViewType.All,
+        smartFeed: "today" as const,
+      }
+
+      await markAllByRoute(routeParams, { insertedBefore })
+
+      expect(unreadSyncService.markBatchAsRead).toHaveBeenCalledTimes(1)
+      const [args] = vi.mocked(unreadSyncService.markBatchAsRead).mock.calls[0]!
+      expect(args).toEqual({
+        view: FeedViewType.All,
+        time: {
+          startTime: todayStart.getTime(),
+          endTime: todayEnd.getTime(),
+          insertedBefore,
+        },
+        excludePrivate: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("marks the all-unread smart feed without treating it as a real feed id", async () => {
+    await markAllByRoute({
+      feedId: SMART_FEED_UNREAD,
+      view: FeedViewType.All,
+      smartFeed: "unread",
+    })
+
+    expect(unreadSyncService.markBatchAsRead).toHaveBeenCalledTimes(1)
+    const [args] = vi.mocked(unreadSyncService.markBatchAsRead).mock.calls[0]!
+    expect(args).toEqual({
+      view: FeedViewType.All,
+      time: undefined,
+      excludePrivate: false,
+    })
+  })
+
+  it("keeps the footer insertedBefore limit when marking the all-unread smart feed", async () => {
+    const insertedBefore = new Date("2026-07-09T10:00:00.000").getTime()
+
+    await markAllByRoute(
+      {
+        feedId: SMART_FEED_UNREAD,
+        view: FeedViewType.All,
+        smartFeed: "unread",
+      },
+      { insertedBefore },
+    )
+
+    expect(unreadSyncService.markBatchAsRead).toHaveBeenCalledTimes(1)
+    const [args] = vi.mocked(unreadSyncService.markBatchAsRead).mock.calls[0]!
+    expect(args).toEqual({
+      view: FeedViewType.All,
+      time: {
+        insertedBefore,
+      },
+      excludePrivate: false,
+    })
   })
 })

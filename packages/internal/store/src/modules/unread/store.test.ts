@@ -31,10 +31,11 @@ const createEntry = (
   feedId: string,
   read = false,
   publishedAt = new Date("2026-01-01T00:00:00.000Z"),
+  insertedAt = new Date("2026-01-01T00:00:00.000Z"),
 ): EntryModel => ({
   id,
   guid: `${id}-guid`,
-  insertedAt: new Date("2026-01-01T00:00:00.000Z"),
+  insertedAt,
   publishedAt,
   feedId,
   read,
@@ -149,6 +150,71 @@ describe("unreadSyncService", () => {
     await markBatchAsRead
 
     expect(useUnreadStore.getState().data.feed1).toBe(1)
+  })
+
+  it("keeps local read-scope protection inside both published and insertedBefore limits", async () => {
+    const insertedBefore = new Date("2026-01-01T00:04:00.000Z").getTime()
+    const entries = {
+      entry1: createEntry(
+        "entry1",
+        "feed1",
+        false,
+        new Date("2026-01-01T00:05:00.000Z"),
+        new Date("2026-01-01T00:03:00.000Z"),
+      ),
+      entry2: createEntry(
+        "entry2",
+        "feed1",
+        false,
+        new Date("2026-01-01T00:06:00.000Z"),
+        new Date("2026-01-01T00:05:00.000Z"),
+      ),
+    }
+    useEntryStore.setState((state) => ({
+      ...state,
+      data: entries,
+      entryIdSet: new Set(Object.keys(entries)),
+    }))
+    useUnreadStore.setState({ data: { feed1: 2 } })
+
+    let resolveMarkAllAsRead!: (value: { data: { read: Record<string, number> } }) => void
+    markAllAsReadMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMarkAllAsRead = resolve
+      }),
+    )
+
+    const markBatchAsRead = unreadSyncService.markBatchAsRead({
+      view: FeedViewType.Articles,
+      filter: {
+        feedIdList: ["feed1"],
+      },
+      time: {
+        startTime: new Date("2026-01-01T00:00:00.000Z").getTime(),
+        endTime: new Date("2026-01-01T23:59:59.999Z").getTime(),
+        insertedBefore,
+      },
+      excludePrivate: false,
+    })
+    await Promise.resolve()
+
+    expect(useEntryStore.getState().data.entry1?.read).toBe(true)
+    expect(useEntryStore.getState().data.entry2?.read).toBe(false)
+
+    entryActions.upsertManyInSession([
+      createEntry(
+        "entry2",
+        "feed1",
+        false,
+        new Date("2026-01-01T00:06:00.000Z"),
+        new Date("2026-01-01T00:05:00.000Z"),
+      ),
+    ])
+
+    expect(useEntryStore.getState().data.entry2?.read).toBe(false)
+
+    resolveMarkAllAsRead({ data: { read: { feed1: 1 } } })
+    await markBatchAsRead
   })
 
   it("queues rapid read marks into one batched request", async () => {

@@ -5,20 +5,70 @@ import { unreadSyncService } from "@follow/store/unread/store"
 
 import { getGeneralSettings } from "~/atoms/settings/general"
 import { jotaiStore } from "~/lib/jotai"
+import type { SmartFeedScope } from "~/lib/timeline-scope"
 import {
   doesEntryMatchStarredGroupFilter,
   selectedStarredGroupAtom,
   starredGroupAssignmentsAtom,
 } from "~/modules/starred-groups/store"
 
+type PublishedAtMarkAllFilter = {
+  startTime: number
+  endTime: number
+}
+type InsertedBeforeMarkAllFilter = {
+  insertedBefore: number
+}
 export type MarkAllFilter =
-  | {
-      startTime: number
-      endTime: number
+  | PublishedAtMarkAllFilter
+  | InsertedBeforeMarkAllFilter
+  | (PublishedAtMarkAllFilter & InsertedBeforeMarkAllFilter)
+
+const getLocalDayRange = (dayOffset: 0 | -1): PublishedAtMarkAllFilter => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() + dayOffset)
+
+  const end = new Date(start)
+  end.setHours(23, 59, 59, 999)
+
+  return {
+    startTime: start.getTime(),
+    endTime: end.getTime(),
+  }
+}
+
+const getSmartFeedDateRange = (smartFeed: SmartFeedScope | undefined) => {
+  if (smartFeed === "today") return getLocalDayRange(0)
+  if (smartFeed === "yesterday") return getLocalDayRange(-1)
+}
+
+const intersectMarkAllFilters = (
+  dateRange: PublishedAtMarkAllFilter,
+  time?: MarkAllFilter,
+): MarkAllFilter | null => {
+  const startTime =
+    time && "startTime" in time
+      ? Math.max(dateRange.startTime, time.startTime)
+      : dateRange.startTime
+  const endTime =
+    time && "endTime" in time ? Math.min(dateRange.endTime, time.endTime) : dateRange.endTime
+
+  if (startTime > endTime) return null
+
+  if (time && "insertedBefore" in time) {
+    return {
+      startTime,
+      endTime,
+      insertedBefore: time.insertedBefore,
     }
-  | {
-      insertedBefore: number
-    }
+  }
+
+  return {
+    startTime,
+    endTime,
+  }
+}
 
 export const markAllByRoute = async (
   data: {
@@ -29,11 +79,11 @@ export const markAllByRoute = async (
 
     isAllFeeds?: boolean
     isCollection?: boolean
+    smartFeed?: SmartFeedScope
   },
   time?: MarkAllFilter,
 ) => {
-  const { feedId, view, inboxId, listId, isAllFeeds, isCollection } = data
-  const folderIds = getCategoryFeedIds(feedId, view)
+  const { feedId, view, inboxId, listId, isAllFeeds, isCollection, smartFeed } = data
 
   if (!feedId) return
 
@@ -59,6 +109,23 @@ export const markAllByRoute = async (
   }
 
   const { hidePrivateSubscriptionsInTimeline: excludePrivate } = getGeneralSettings()
+  const smartFeedDateRange = getSmartFeedDateRange(smartFeed)
+
+  if (smartFeedDateRange || smartFeed === "unread") {
+    const smartFeedTime = smartFeedDateRange
+      ? intersectMarkAllFilters(smartFeedDateRange, time)
+      : time
+    if (smartFeedTime === null) return
+
+    unreadSyncService.markBatchAsRead({
+      view,
+      time: smartFeedTime,
+      excludePrivate,
+    })
+    return
+  }
+
+  const folderIds = getCategoryFeedIds(feedId, view)
   if (typeof feedId === "number" || isAllFeeds) {
     unreadSyncService.markBatchAsRead({
       view,

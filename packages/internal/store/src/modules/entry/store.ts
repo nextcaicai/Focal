@@ -153,10 +153,16 @@ class EntryActions implements Hydratable, Resetable {
 
     if ("startTime" in time) {
       const publishedAt = +new Date(entry.publishedAt)
-      return publishedAt >= time.startTime && publishedAt <= time.endTime
+      if (publishedAt < time.startTime || publishedAt > time.endTime) {
+        return false
+      }
     }
 
-    return +new Date(entry.insertedAt) < time.insertedBefore
+    if ("insertedBefore" in time) {
+      return +new Date(entry.insertedAt) < time.insertedBefore
+    }
+
+    return true
   }
 
   private pruneLocalReadProtection(now: number) {
