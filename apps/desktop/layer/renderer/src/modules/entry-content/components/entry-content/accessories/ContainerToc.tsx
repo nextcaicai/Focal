@@ -16,6 +16,8 @@ import type { TocRef } from "~/components/ui/markdown/components/Toc"
 import { Toc } from "~/components/ui/markdown/components/Toc"
 import { useFeature } from "~/hooks/biz/useFeature"
 import { openEntryAIChat } from "~/modules/entry-content/utils/open-ai-chat"
+import type { TranslationDisplayMode } from "~/modules/entry-content/utils/translation-display"
+import { getNextTranslationDisplayMode } from "~/modules/entry-content/utils/translation-display"
 import { useWrappedElement, useWrappedElementSize } from "~/providers/wrapped-element-provider"
 
 const useReadPercent = () => {
@@ -49,52 +51,86 @@ const useReadPercent = () => {
   return [readPercent, scrollTop]
 }
 
-const BackTopIndicator: Component = memo(({ className }) => {
-  const { t } = useTranslation()
-  const [readPercent] = useReadPercent()
-  const scrollElement = useScrollViewElement()
-  const aiEnabled = useFeature("ai")
+const getTranslationDisplayToggleLabelKey = (mode: TranslationDisplayMode) =>
+  getNextTranslationDisplayMode(mode) === "bilingual"
+    ? "entry_content.translation_display.show_bilingual"
+    : "entry_content.translation_display.show_translation_only"
 
-  return (
-    <span
-      className={cn(
-        "mt-2 flex grow flex-col px-2 font-sans text-sm text-gray-800 dark:text-neutral-300",
-        className,
-      )}
-    >
-      <div className="flex items-center gap-2 tabular-nums">
-        <CircleProgress percent={readPercent!} size={14} strokeWidth={2} />
-        <span>{readPercent}%</span>
-        <br />
-      </div>
-      {aiEnabled && (
-        <MotionButtonBase
-          onClick={() => {
-            openEntryAIChat()
-          }}
-          className={cn(
-            "mt-1 flex flex-nowrap items-center gap-2 text-sm opacity-50 transition-all duration-500 hover:opacity-100",
-          )}
-        >
-          <i className="i-focal-ai" />
-          <span>{t("entry_content.ask_ai")}</span>
-        </MotionButtonBase>
-      )}
-      <MotionButtonBase
-        onClick={() => {
-          springScrollTo(0, scrollElement!)
-        }}
+const BackTopIndicator: Component<{
+  translationDisplayMode?: TranslationDisplayMode
+  showTranslationDisplayToggle?: boolean
+  onTranslationDisplayModeChange?: (mode: TranslationDisplayMode) => void
+}> = memo(
+  ({
+    className,
+    translationDisplayMode,
+    showTranslationDisplayToggle = false,
+    onTranslationDisplayModeChange,
+  }) => {
+    const { t } = useTranslation()
+    const [readPercent] = useReadPercent()
+    const scrollElement = useScrollViewElement()
+    const aiEnabled = useFeature("ai")
+    const nextTranslationDisplayMode = translationDisplayMode
+      ? getNextTranslationDisplayMode(translationDisplayMode)
+      : undefined
+
+    return (
+      <span
         className={cn(
-          "mt-1 flex flex-nowrap items-center gap-2 opacity-50 transition-all duration-500 hover:opacity-100",
-          readPercent! > 10 ? "" : "pointer-events-none opacity-0",
+          "mt-2 flex grow flex-col px-2 font-sans text-sm text-gray-800 dark:text-neutral-300",
+          className,
         )}
       >
-        <i className="i-focal-arrow-up-circle-fill" />
-        <span className="whitespace-nowrap">{t("entry_content.back_top")}</span>
-      </MotionButtonBase>
-    </span>
-  )
-})
+        <div className="flex items-center gap-2 tabular-nums">
+          <CircleProgress percent={readPercent!} size={14} strokeWidth={2} />
+          <span>{readPercent}%</span>
+          <br />
+        </div>
+        {showTranslationDisplayToggle && translationDisplayMode && nextTranslationDisplayMode && (
+          <MotionButtonBase
+            onClick={() => {
+              onTranslationDisplayModeChange?.(nextTranslationDisplayMode)
+            }}
+            className={cn(
+              "mt-1 flex flex-nowrap items-center gap-2 text-sm opacity-50 transition-all duration-500 hover:opacity-100",
+            )}
+          >
+            <i className="i-focal-translate-2" />
+            <span className="whitespace-nowrap">
+              {t(getTranslationDisplayToggleLabelKey(translationDisplayMode))}
+            </span>
+          </MotionButtonBase>
+        )}
+        {aiEnabled && (
+          <MotionButtonBase
+            onClick={() => {
+              openEntryAIChat()
+            }}
+            className={cn(
+              "mt-1 flex flex-nowrap items-center gap-2 text-sm opacity-50 transition-all duration-500 hover:opacity-100",
+            )}
+          >
+            <i className="i-focal-ai" />
+            <span>{t("entry_content.ask_ai")}</span>
+          </MotionButtonBase>
+        )}
+        <MotionButtonBase
+          onClick={() => {
+            springScrollTo(0, scrollElement!)
+          }}
+          className={cn(
+            "mt-1 flex flex-nowrap items-center gap-2 opacity-50 transition-all duration-500 hover:opacity-100",
+            readPercent! > 10 ? "" : "pointer-events-none opacity-0",
+          )}
+        >
+          <i className="i-focal-arrow-up-circle-fill" />
+          <span className="whitespace-nowrap">{t("entry_content.back_top")}</span>
+        </MotionButtonBase>
+      </span>
+    )
+  },
+)
 
 const useIsScrolling = (debounceMs = 800) => {
   const scrollElement = useScrollViewElement()
@@ -117,110 +153,145 @@ const useIsScrolling = (debounceMs = 800) => {
   return isScrolling
 }
 
-const SmallScreenReadingFAB = memo(() => {
-  const { t } = useTranslation()
-  const [readPercent] = useReadPercent()
-  const scrollElement = useScrollViewElement()
-  const aiEnabled = useFeature("ai")
-  const isScrolling = useIsScrolling()
-  const [containerWidth, setContainerWidth] = useState(0)
-  const [expanded, setExpanded] = useState(false)
+const SmallScreenReadingFAB = memo(
+  ({
+    translationDisplayMode,
+    showTranslationDisplayToggle = false,
+    onTranslationDisplayModeChange,
+  }: {
+    translationDisplayMode?: TranslationDisplayMode
+    showTranslationDisplayToggle?: boolean
+    onTranslationDisplayModeChange?: (mode: TranslationDisplayMode) => void
+  }) => {
+    const { t } = useTranslation()
+    const [readPercent] = useReadPercent()
+    const scrollElement = useScrollViewElement()
+    const aiEnabled = useFeature("ai")
+    const isScrolling = useIsScrolling()
+    const [containerWidth, setContainerWidth] = useState(0)
+    const [expanded, setExpanded] = useState(false)
 
-  // Observe the scroll container width — same element the @[770px] container query resolves against
-  useEffect(() => {
-    if (!scrollElement) return
-    const observer = new ResizeObserver(([entry]) => {
-      setContainerWidth(entry?.contentRect?.width ?? 0)
-    })
-    observer.observe(scrollElement)
-    return () => observer.disconnect()
-  }, [scrollElement])
+    // Observe the scroll container width — same element the @[770px] container query resolves against
+    useEffect(() => {
+      if (!scrollElement) return
+      const observer = new ResizeObserver(([entry]) => {
+        setContainerWidth(entry?.contentRect?.width ?? 0)
+      })
+      observer.observe(scrollElement)
+      return () => observer.disconnect()
+    }, [scrollElement])
 
-  const isSmallScreen = containerWidth > 0 && containerWidth < 770
-  const hasScolled = (readPercent as number) > 3
+    const isSmallScreen = containerWidth > 0 && containerWidth < 770
+    const hasScolled = (readPercent as number) > 3
+    const nextTranslationDisplayMode = translationDisplayMode
+      ? getNextTranslationDisplayMode(translationDisplayMode)
+      : undefined
 
-  // collapse action chips when user starts scrolling
-  useEffect(() => {
-    if (isScrolling) setExpanded(false)
-  }, [isScrolling])
+    // collapse action chips when user starts scrolling
+    useEffect(() => {
+      if (isScrolling) setExpanded(false)
+    }, [isScrolling])
 
-  if (!isSmallScreen) return null
+    if (!isSmallScreen) return null
 
-  return (
-    <RootPortal>
-      <div
-        className="fixed bottom-20 right-4 z-[999] flex flex-col items-end gap-2"
-        data-hide-in-print
-      >
-        <AnimatePresence>
-          {expanded && (
-            <m.div
-              key="fab-actions"
-              initial={{ opacity: 0, y: 6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 6, scale: 0.96 }}
-              transition={Spring.presets.snappy}
-              className="flex flex-col items-end gap-2"
-            >
-              {aiEnabled && (
-                <MotionButtonBase
-                  onClick={() => {
-                    openEntryAIChat()
-                    setExpanded(false)
-                  }}
-                  className="flex items-center gap-2 rounded-full bg-material-thick px-3.5 py-2 text-sm shadow-sm"
-                >
-                  <i className="i-focal-ai shrink-0" />
-                  <span className="whitespace-nowrap">{t("entry_content.ask_ai")}</span>
-                </MotionButtonBase>
-              )}
-              {(readPercent as number) > 10 && (
-                <MotionButtonBase
-                  onClick={() => {
-                    springScrollTo(0, scrollElement!)
-                    setExpanded(false)
-                  }}
-                  className="flex items-center gap-2 rounded-full bg-material-thick px-3.5 py-2 text-sm shadow-sm"
-                >
-                  <i className="i-focal-arrow-up-circle-fill shrink-0" />
-                  <span className="whitespace-nowrap">{t("entry_content.back_top")}</span>
-                </MotionButtonBase>
-              )}
-            </m.div>
-          )}
-        </AnimatePresence>
-
-        <m.div
-          animate={
-            isScrolling
-              ? { opacity: 0, scale: 0.85, y: 4 }
-              : hasScolled
-                ? { opacity: 1, scale: 1, y: 0 }
-                : { opacity: 0, scale: 0.85, y: 4 }
-          }
-          transition={Spring.presets.snappy}
+    return (
+      <RootPortal>
+        <div
+          className="fixed bottom-20 right-4 z-[999] flex flex-col items-end gap-2"
+          data-hide-in-print
         >
-          <MotionButtonBase
-            onClick={() => setExpanded((v) => !v)}
-            className="flex size-10 items-center justify-center rounded-full bg-material-thick shadow-sm"
+          <AnimatePresence>
+            {expanded && (
+              <m.div
+                key="fab-actions"
+                initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                transition={Spring.presets.snappy}
+                className="flex flex-col items-end gap-2"
+              >
+                {showTranslationDisplayToggle &&
+                  translationDisplayMode &&
+                  nextTranslationDisplayMode && (
+                    <MotionButtonBase
+                      onClick={() => {
+                        onTranslationDisplayModeChange?.(nextTranslationDisplayMode)
+                        setExpanded(false)
+                      }}
+                      className="flex items-center gap-2 rounded-full bg-material-thick px-3.5 py-2 text-sm shadow-sm"
+                    >
+                      <i className="i-focal-translate-2 shrink-0" />
+                      <span className="whitespace-nowrap">
+                        {t(getTranslationDisplayToggleLabelKey(translationDisplayMode))}
+                      </span>
+                    </MotionButtonBase>
+                  )}
+                {aiEnabled && (
+                  <MotionButtonBase
+                    onClick={() => {
+                      openEntryAIChat()
+                      setExpanded(false)
+                    }}
+                    className="flex items-center gap-2 rounded-full bg-material-thick px-3.5 py-2 text-sm shadow-sm"
+                  >
+                    <i className="i-focal-ai shrink-0" />
+                    <span className="whitespace-nowrap">{t("entry_content.ask_ai")}</span>
+                  </MotionButtonBase>
+                )}
+                {(readPercent as number) > 10 && (
+                  <MotionButtonBase
+                    onClick={() => {
+                      springScrollTo(0, scrollElement!)
+                      setExpanded(false)
+                    }}
+                    className="flex items-center gap-2 rounded-full bg-material-thick px-3.5 py-2 text-sm shadow-sm"
+                  >
+                    <i className="i-focal-arrow-up-circle-fill shrink-0" />
+                    <span className="whitespace-nowrap">{t("entry_content.back_top")}</span>
+                  </MotionButtonBase>
+                )}
+              </m.div>
+            )}
+          </AnimatePresence>
+
+          <m.div
+            animate={
+              isScrolling
+                ? { opacity: 0, scale: 0.85, y: 4 }
+                : hasScolled
+                  ? { opacity: 1, scale: 1, y: 0 }
+                  : { opacity: 0, scale: 0.85, y: 4 }
+            }
+            transition={Spring.presets.snappy}
           >
-            <CircleProgress percent={readPercent as number} size={22} strokeWidth={2.5} />
-          </MotionButtonBase>
-        </m.div>
-      </div>
-    </RootPortal>
-  )
-})
+            <MotionButtonBase
+              onClick={() => setExpanded((v) => !v)}
+              className="flex size-10 items-center justify-center rounded-full bg-material-thick shadow-sm"
+            >
+              <CircleProgress percent={readPercent as number} size={22} strokeWidth={2.5} />
+            </MotionButtonBase>
+          </m.div>
+        </div>
+      </RootPortal>
+    )
+  },
+)
 
 export const ContainerToc = memo(
   ({
     ref,
     className,
     stickyClassName,
+    translationDisplayMode,
+    showTranslationDisplayToggle = false,
+    onTranslationDisplayModeChange,
   }: ComponentType & {
     ref?: React.Ref<TocRef | null>
     className?: string
     stickyClassName?: string
+    translationDisplayMode?: TranslationDisplayMode
+    showTranslationDisplayToggle?: boolean
+    onTranslationDisplayModeChange?: (mode: TranslationDisplayMode) => void
   }) => {
     const wrappedElement = useWrappedElement()
 
@@ -244,6 +315,9 @@ export const ContainerToc = memo(
                 )}
               />
               <BackTopIndicator
+                translationDisplayMode={translationDisplayMode}
+                showTranslationDisplayToggle={showTranslationDisplayToggle}
+                onTranslationDisplayModeChange={onTranslationDisplayModeChange}
                 className={
                   "@[700px]:-translate-x-4 @[800px]:-translate-x-8 @[900px]:translate-x-0 @[900px]:items-start"
                 }
@@ -251,7 +325,11 @@ export const ContainerToc = memo(
             </div>
           </div>
         </RootPortal>
-        <SmallScreenReadingFAB />
+        <SmallScreenReadingFAB
+          translationDisplayMode={translationDisplayMode}
+          showTranslationDisplayToggle={showTranslationDisplayToggle}
+          onTranslationDisplayModeChange={onTranslationDisplayModeChange}
+        />
       </>
     )
   },

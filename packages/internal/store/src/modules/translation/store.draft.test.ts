@@ -79,7 +79,7 @@ describe("translation draft store", () => {
     expect(state.drafts["entry-1"]?.[language]?.content?.blocks.b1?.source.text).toBe("Hello")
   })
 
-  test("clears content draft when final translation is upserted", () => {
+  test("keeps content draft when final translation is upserted", () => {
     translationActions.upsertDraftInSession({
       entryId,
       language,
@@ -101,7 +101,9 @@ describe("translation draft store", () => {
     const state = useTranslationStore.getState()
 
     expect(state.data[entryId]?.[language]?.content).toBe("<p>Final</p>")
-    expect(state.drafts[entryId]?.[language]?.content).toBeUndefined()
+    expect(state.drafts[entryId]?.[language]?.content?.blocks.b1?.translated?.html).toBe(
+      "<p>你好</p>",
+    )
   })
 
   test("keeps cached body translation when translation mode changes", async () => {

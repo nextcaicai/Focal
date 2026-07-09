@@ -26,6 +26,7 @@ import { AISummary } from "../AISummary"
 import { ContainerToc } from "../entry-content/accessories/ContainerToc"
 import { EntryRenderError } from "../entry-content/EntryRenderError"
 import { ReadabilityNotice } from "../entry-content/ReadabilityNotice"
+import { TranslationDisplaySwitcher } from "../entry-content/TranslationDisplaySwitcher"
 import { EntryAttachments } from "../EntryAttachments"
 import { EntryTitle } from "../EntryTitle"
 import { MediaTranscript, TranscriptToggle, useTranscription } from "./shared"
@@ -36,7 +37,11 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
   entryId,
   compact = false,
   noMedia = false,
-  translation,
+  isTranslationEnabled = false,
+  translationDisplayMode = "translation-only",
+  onTranslationDisplayModeChange,
+  translationDisplayControlRef,
+  showFloatingTranslationDisplayToggle = false,
 }) => {
   const entry = useEntry(entryId, (state) => ({
     feedId: state.feedId,
@@ -48,7 +53,7 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
   const isInbox = useIsInbox(entry?.inboxId)
   const [showTranscript, setShowTranscript] = useState(false)
 
-  const { content } = useEntryContent(entryId)
+  const { content } = useEntryContent(entryId, { translationDisplayMode })
   const customCSS = useUISettingKey("customCSS")
 
   const aiChatPanelStyle = useAIChatPanelStyle()
@@ -77,6 +82,14 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
           {shouldShowAISummary && <AISummary entryId={entryId} />}
           <ErrorBoundary fallback={EntryRenderError}>
             <ReadabilityNotice entryId={entryId} />
+            {isTranslationEnabled && onTranslationDisplayModeChange && !showTranscript && (
+              <div ref={translationDisplayControlRef} className="mb-4 mt-4">
+                <TranslationDisplaySwitcher
+                  value={translationDisplayMode}
+                  onValueChange={onTranslationDisplayModeChange}
+                />
+              </div>
+            )}
             {showTranscript ? (
               <MediaTranscript
                 className="prose !max-w-full dark:prose-invert"
@@ -105,7 +118,10 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
                   feedId={feed?.id || ""}
                   noMedia={noMedia}
                   content={content}
-                  translation={translation}
+                  isTranslationEnabled={isTranslationEnabled}
+                  translationDisplayMode={translationDisplayMode}
+                  showFloatingTranslationDisplayToggle={showFloatingTranslationDisplayToggle}
+                  onTranslationDisplayModeChange={onTranslationDisplayModeChange}
                 />
               </ShadowDOM>
             )}
@@ -124,11 +140,21 @@ const Renderer: React.FC<{
   feedId: string
   noMedia?: boolean
   content?: Nullable<string>
-  translation?: {
-    content?: string
-    title?: string
-  }
-}> = ({ entryId, view, feedId, noMedia = false, content = "", translation }) => {
+  isTranslationEnabled?: boolean
+  translationDisplayMode: EntryLayoutProps["translationDisplayMode"]
+  showFloatingTranslationDisplayToggle?: boolean
+  onTranslationDisplayModeChange?: EntryLayoutProps["onTranslationDisplayModeChange"]
+}> = ({
+  entryId,
+  view,
+  feedId,
+  noMedia = false,
+  content = "",
+  isTranslationEnabled = false,
+  translationDisplayMode = "translation-only",
+  showFloatingTranslationDisplayToggle = false,
+  onTranslationDisplayModeChange,
+}) => {
   const mediaInfo = useEntryMediaInfo(entryId)
   const isMarkdownEntry = useMemo(() => {
     return isOnboardingEntry(entryId)
@@ -139,8 +165,25 @@ const Renderer: React.FC<{
 
   const tocRef = useRef<TocRef | null>(null)
   const contentAccessories = useMemo(
-    () => (isInPeekModal ? undefined : <ContainerToc ref={tocRef} stickyClassName="top-48" />),
-    [isInPeekModal],
+    () =>
+      isInPeekModal ? undefined : (
+        <ContainerToc
+          ref={tocRef}
+          stickyClassName="top-48"
+          translationDisplayMode={translationDisplayMode}
+          showTranslationDisplayToggle={
+            isTranslationEnabled && showFloatingTranslationDisplayToggle
+          }
+          onTranslationDisplayModeChange={onTranslationDisplayModeChange}
+        />
+      ),
+    [
+      isInPeekModal,
+      isTranslationEnabled,
+      onTranslationDisplayModeChange,
+      showFloatingTranslationDisplayToggle,
+      translationDisplayMode,
+    ],
   )
 
   useEffect(() => {
@@ -165,7 +208,7 @@ const Renderer: React.FC<{
       style={stableRenderStyle}
       renderInlineStyle={readerRenderInlineStyle}
     >
-      {translation?.content || content}
+      {content}
     </ContentRenderer>
   )
 }

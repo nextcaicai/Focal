@@ -1,7 +1,11 @@
 import { isFreeRole } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { useEntry, usePrefetchEntryDetail } from "@follow/store/entry/hooks"
-import { useEntryTranslation, usePrefetchEntryTranslation } from "@follow/store/translation/hooks"
+import {
+  useEntryTranslation,
+  useEntryTranslationDraft,
+  usePrefetchEntryTranslation,
+} from "@follow/store/translation/hooks"
 import { useUserRole } from "@follow/store/user/hooks"
 import { tracker } from "@follow/tracker"
 import { createElement, useCallback, useMemo } from "react"
@@ -14,6 +18,8 @@ import { useActionLanguage } from "~/atoms/settings/general"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 
 import { ImageGalleryContent } from "./components/ImageGalleryContent"
+import type { TranslationDisplayMode } from "./utils/translation-display"
+import { assembleTranslationDisplayContent } from "./utils/translation-display"
 
 export const useGalleryModal = () => {
   const { present } = useModalStack()
@@ -39,7 +45,12 @@ export const useGalleryModal = () => {
   )
 }
 
-export const useEntryContent = (entryId: string) => {
+export const useEntryContent = (
+  entryId: string,
+  options?: {
+    translationDisplayMode?: TranslationDisplayMode
+  },
+) => {
   const entry = useEntry(entryId, (state) => {
     const { inboxHandle, content, readabilityContent } = state
     return { inboxId: inboxHandle, content, readabilityContent }
@@ -55,10 +66,17 @@ export const useEntryContent = (entryId: string) => {
     enableTranslation && (!LOCAL_RSS_MODE ? !isFreeRole(userRole) : true)
   const actionLanguage = useActionLanguage()
   const contentTarget = isReadabilitySuccess ? "readabilityContent" : "content"
+  const translationDisplayMode = options?.translationDisplayMode ?? "translation-only"
   const contentTranslated = useEntryTranslation({
     entryId,
     language: actionLanguage,
     enabled: enableTranslation,
+  })
+  const translationDraft = useEntryTranslationDraft({
+    entryId,
+    language: actionLanguage,
+    enabled: enableTranslation,
+    field: contentTarget,
   })
   usePrefetchEntryTranslation({
     entryIds: [entryId],
@@ -77,7 +95,16 @@ export const useEntryContent = (entryId: string) => {
     const translatedContent = isInReadabilityMode
       ? contentTranslated?.readabilityContent
       : contentTranslated?.content
-    const content = translatedContent || entryContent
+    const content = enableTranslation
+      ? assembleTranslationDisplayContent({
+          entryId,
+          target: contentTarget,
+          sourceContent: entryContent,
+          translatedContent,
+          draft: translationDraft,
+          mode: translationDisplayMode,
+        })
+      : entryContent
     return {
       content,
       error,
@@ -87,11 +114,16 @@ export const useEntryContent = (entryId: string) => {
     contentTranslated?.content,
     contentTranslated?.readabilityContent,
     data?.content,
+    enableTranslation,
     entry?.content,
     error,
+    contentTarget,
+    entryId,
     isInReadabilityMode,
     isPending,
     entry?.readabilityContent,
+    translationDisplayMode,
+    translationDraft,
   ])
 }
 

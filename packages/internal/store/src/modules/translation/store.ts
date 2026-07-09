@@ -20,7 +20,6 @@ import { translationFields } from "./types"
 
 type TranslationModel = Omit<TranslationSchema, "createdAt">
 type TranslationBatchRequest = Parameters<ReturnType<typeof api>["ai"]["translationBatch"]>[0]
-const translationContentFields = ["content", "readabilityContent"] as const
 
 interface TranslationState {
   data: Record<string, Partial<Record<SupportedActionLanguage, EntryTranslation>>>
@@ -83,11 +82,6 @@ class TranslationActions implements Hydratable, Resetable {
           if (translation[field]) {
             state.data[translation.entryId]![translation.language]![field] = translation[field]
           }
-        })
-
-        translationContentFields.forEach((field) => {
-          if (!translation[field]) return
-          delete state.drafts[translation.entryId]?.[translation.language]?.[field]
         })
       })
     })

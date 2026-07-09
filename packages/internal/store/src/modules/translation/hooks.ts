@@ -3,6 +3,7 @@ import type { SupportedLanguages } from "@follow-app/client-sdk"
 import { useQueries } from "@tanstack/react-query"
 import { useCallback } from "react"
 
+import type { TranslationGeneratorContentField } from "../../context"
 import { useEntry, useEntryList } from "../entry/hooks"
 import type { EntryModel } from "../entry/types"
 import { useIsLoggedIn } from "../user/hooks"
@@ -79,6 +80,30 @@ export const useEntryTranslation = ({
         return state.data[entryId]?.[language as SupportedActionLanguage]
       },
       [actionSetting, entryId, language, enabled],
+    ),
+  )
+}
+
+export const useEntryTranslationDraft = ({
+  entryId,
+  language,
+  enabled,
+  field,
+}: {
+  entryId: string
+  language: SupportedLanguages
+  enabled: boolean
+  field: TranslationGeneratorContentField
+}) => {
+  const actionSetting = useEntry(entryId, (state) => state.settings?.translation)
+
+  return useTranslationStore(
+    useCallback(
+      (state) => {
+        if (!enabled && !actionSetting) return
+        return state.drafts[entryId]?.[language as SupportedActionLanguage]?.[field]
+      },
+      [actionSetting, entryId, field, language, enabled],
     ),
   )
 }

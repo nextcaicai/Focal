@@ -22,7 +22,7 @@ import { memo, useEffect, useRef, useState } from "react"
 
 import { useShowAITranslation } from "~/atoms/ai-translation"
 import { useEntryIsInReadability } from "~/atoms/readability"
-import { useActionLanguage } from "~/atoms/settings/general"
+import { getGeneralSettings, useActionLanguage } from "~/atoms/settings/general"
 import { AppErrorBoundary } from "~/components/common/AppErrorBoundary"
 import { Focusable } from "~/components/common/Focusable"
 import { m } from "~/components/common/Motion"
@@ -51,12 +51,16 @@ import { SourceContentPanel } from "./components/SourceContentView"
 import { useEntryContent } from "./hooks"
 import { useSelectedTextIntegrationContextMenu } from "./hooks/useSelectedTextIntegrationContextMenu"
 import { getSelectedTextFromDocumentSelection } from "./utils/selected-text-context-menu"
+import type { TranslationDisplayMode } from "./utils/translation-display"
 
 const contentVariants = {
   initial: { opacity: 0, y: 30 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: 30 },
 }
+const getDefaultTranslationDisplayMode = (): TranslationDisplayMode =>
+  getGeneralSettings().translationMode
+
 const EntryContentImpl: Component<EntryContentProps> = ({
   entryId,
   noMedia,
@@ -79,7 +83,10 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   const isInbox = useIsInbox(entry.inboxId)
   const isInReadabilityMode = useEntryIsInReadability(entryId)
 
-  const { error, content, isPending } = useEntryContent(entryId)
+  const [translationDisplayMode, setTranslationDisplayMode] = useState<TranslationDisplayMode>(
+    getDefaultTranslationDisplayMode,
+  )
+  const { error, content, isPending } = useEntryContent(entryId, { translationDisplayMode })
   const hasPlayableYouTubeVideo =
     isYouTubeWatchUrl(entry.url) &&
     transformVideoUrl({
@@ -99,6 +106,9 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   const subscriptionView = subscription?.view
   const view = typeof subscriptionView === "number" ? subscriptionView : routeView
   const [scrollerRef, setScrollerRef] = useState<HTMLDivElement | null>(null)
+  const [translationDisplayControlElement, setTranslationDisplayControlElement] =
+    useState<HTMLDivElement | null>(null)
+  const [isTranslationDisplayControlInView, setIsTranslationDisplayControlInView] = useState(true)
   const safeUrl = useFeedSafeUrl(entryId)
 
   const [panelPortalElement, setPanelPortalElement] = useState<HTMLDivElement | null>(null)
@@ -142,6 +152,7 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   useEffect(() => {
     animationController.set(contentVariants.exit)
     animationController.start(contentVariants.animate)
+    setTranslationDisplayMode(getDefaultTranslationDisplayMode())
 
     // Scroll to top
     if (scrollerRef) {
@@ -169,7 +180,31 @@ const EntryContentImpl: Component<EntryContentProps> = ({
     }
   }, [scrollerRef])
 
+  useEffect(() => {
+    if (!enableTranslation || !scrollerRef || !translationDisplayControlElement) {
+      setIsTranslationDisplayControlInView(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsTranslationDisplayControlInView(!!entry?.isIntersecting)
+      },
+      {
+        root: scrollerRef,
+        threshold: 0.01,
+      },
+    )
+    observer.observe(translationDisplayControlElement)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [enableTranslation, entryId, scrollerRef, translationDisplayControlElement])
+
   const scrollerRefObject = React.useMemo(() => ({ current: scrollerRef }), [scrollerRef])
+  const showFloatingTranslationDisplayToggle =
+    enableTranslation && !!translationDisplayControlElement && !isTranslationDisplayControlInView
   const layoutTranslation = React.useMemo(
     () =>
       entryTranslation
@@ -268,6 +303,11 @@ const EntryContentImpl: Component<EntryContentProps> = ({
                   compact={compact}
                   noMedia={noMedia}
                   translation={layoutTranslation}
+                  isTranslationEnabled={enableTranslation}
+                  translationDisplayMode={translationDisplayMode}
+                  onTranslationDisplayModeChange={setTranslationDisplayMode}
+                  translationDisplayControlRef={setTranslationDisplayControlElement}
+                  showFloatingTranslationDisplayToggle={showFloatingTranslationDisplayToggle}
                 />
               )}
             </article>
@@ -319,7 +359,23 @@ const AdaptiveContentRenderer: React.FC<{
   compact?: boolean
   noMedia?: boolean
   translation?: EntryLayoutProps["translation"]
-}> = ({ entryId, view, compact = false, noMedia = false, translation }) => {
+  isTranslationEnabled?: EntryLayoutProps["isTranslationEnabled"]
+  translationDisplayMode?: EntryLayoutProps["translationDisplayMode"]
+  onTranslationDisplayModeChange?: EntryLayoutProps["onTranslationDisplayModeChange"]
+  translationDisplayControlRef?: EntryLayoutProps["translationDisplayControlRef"]
+  showFloatingTranslationDisplayToggle?: EntryLayoutProps["showFloatingTranslationDisplayToggle"]
+}> = ({
+  entryId,
+  view,
+  compact = false,
+  noMedia = false,
+  translation,
+  isTranslationEnabled,
+  translationDisplayMode,
+  onTranslationDisplayModeChange,
+  translationDisplayControlRef,
+  showFloatingTranslationDisplayToggle,
+}) => {
   const LayoutComponent = getEntryContentLayout(view)
 
   return (
@@ -328,6 +384,11 @@ const AdaptiveContentRenderer: React.FC<{
       compact={compact}
       noMedia={noMedia}
       translation={translation}
+      isTranslationEnabled={isTranslationEnabled}
+      translationDisplayMode={translationDisplayMode}
+      onTranslationDisplayModeChange={onTranslationDisplayModeChange}
+      translationDisplayControlRef={translationDisplayControlRef}
+      showFloatingTranslationDisplayToggle={showFloatingTranslationDisplayToggle}
     />
   )
 }
