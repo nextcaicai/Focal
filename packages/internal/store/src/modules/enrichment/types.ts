@@ -20,4 +20,5 @@ export type EnrichmentEnqueueOptions = {
   phases?: readonly EnrichmentPhase[]
   translationMode?: EnrichmentTranslationMode
   prepend?: boolean
+  ignoreFailedAttemptLimit?: boolean
 }

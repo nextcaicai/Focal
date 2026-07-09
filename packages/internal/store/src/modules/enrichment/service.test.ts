@@ -1,12 +1,17 @@
 import { FeedViewType } from "@follow/constants"
-import { beforeEach, describe, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 import { useEntryStore } from "../entry/store"
 import type { EntryModel } from "../entry/types"
-import { entryQualityScoreActions } from "../entry-quality-score/store"
+import {
+  entryQualityScoreActions,
+  entryQualityScoreSyncService,
+  useEntryQualityScoreStore,
+} from "../entry-quality-score/store"
 import { useSubscriptionStore } from "../subscription/store"
 import { useSummaryStore } from "../summary/store"
-import { entryEnrichmentService } from "./service"
+import { translationSyncService } from "../translation/store"
+import { ENRICHMENT_PHASE_AUTO_RETRY_LIMIT, entryEnrichmentService } from "./service"
 import { useEnrichmentStatusStore } from "./store"
 
 const generateSummaryMock = vi.fn()
@@ -85,8 +90,14 @@ const setSubscribedFeedIds = (feedIds: string[]) => {
 }
 
 describe("entryEnrichmentService", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    entryEnrichmentService.resetForTest()
     generateSummaryMock.mockResolvedValue("summary text")
     setSubscribedFeedIds(["feed-a", "feed-b"])
 
@@ -99,6 +110,9 @@ describe("entryEnrichmentService", () => {
     useSummaryStore.setState({
       data: {},
       generatingStatus: {},
+    })
+    useEntryQualityScoreStore.setState({
+      data: {},
     })
     useEnrichmentStatusStore.setState({
       snapshot: {
@@ -245,41 +259,108 @@ describe("entryEnrichmentService", () => {
     ])
   })
 
-  test("retries entries after job timeout", async () => {
-    vi.useFakeTimers()
+  test("stops automatic quality score retries after the phase attempt limit", async () => {
+    const generateScoreSpy = vi
+      .spyOn(entryQualityScoreSyncService, "generateScore")
+      .mockRejectedValue(new Error("quality score request failed"))
 
-    generateSummaryMock.mockImplementation(
-      () =>
-        new Promise(() => {
-          // Never resolves to simulate a hung BYOK request.
-        }),
-    )
+    for (let attempt = 1; attempt <= ENRICHMENT_PHASE_AUTO_RETRY_LIMIT; attempt += 1) {
+      entryEnrichmentService.backfillVisible({
+        entryIds: ["entry-1"],
+        actionLanguage: "en",
+        phases: ["qualityScore"],
+      })
 
-    entryEnrichmentService.enqueueFromIngest({
+      await vi.waitFor(() => {
+        expect(generateScoreSpy).toHaveBeenCalledTimes(attempt)
+      })
+      await vi.waitFor(() => {
+        expect(entryEnrichmentService.isEntryInPipeline("entry-1")).toBe(false)
+      })
+    }
+
+    entryEnrichmentService.backfillVisible({
       entryIds: ["entry-1"],
       actionLanguage: "en",
+      phases: ["qualityScore"],
     })
 
-    await vi.advanceTimersByTimeAsync(90_000)
+    expect(generateScoreSpy).toHaveBeenCalledTimes(ENRICHMENT_PHASE_AUTO_RETRY_LIMIT)
+    expect(entryEnrichmentService.isEntryInPipeline("entry-1")).toBe(false)
 
-    const { lastError } = useEnrichmentStatusStore.getState().snapshot
-    expect(lastError).toMatchObject({
+    const retryResult = entryEnrichmentService.retryEntry({
       entryId: "entry-1",
-      phase: "summary",
-      errorCode: "enrichment_timeout",
-      errorKey: "entry-1:enrichment_timeout",
-    })
-
-    entryEnrichmentService.enqueueFromIngest({
-      entryIds: ["entry-1"],
       actionLanguage: "en",
+      phases: ["qualityScore"],
     })
 
-    await vi.advanceTimersByTimeAsync(0)
+    expect(retryResult).toEqual({ ok: true })
+    await vi.waitFor(() => {
+      expect(generateScoreSpy).toHaveBeenCalledTimes(ENRICHMENT_PHASE_AUTO_RETRY_LIMIT + 1)
+    })
 
-    expect(generateSummaryMock).toHaveBeenCalledTimes(2)
+    generateScoreSpy.mockRestore()
+  })
 
-    vi.useRealTimers()
+  test("skips capped title translation retries while continuing other missing phases", async () => {
+    const generateTranslationSpy = vi
+      .spyOn(translationSyncService, "generateTranslation")
+      .mockRejectedValue(new Error("translation request failed"))
+    const generateScoreSpy = vi
+      .spyOn(entryQualityScoreSyncService, "generateScore")
+      .mockImplementation(async ({ entryId }) => {
+        entryQualityScoreActions.upsertManyInSession([
+          {
+            entryId,
+            data: {
+              quality_score: 80,
+              confidence: 0.9,
+              content_types: { Research: 1 },
+              scores: {
+                information_gain: 4,
+                depth: 4,
+                evidence: 4,
+                actionability: 4,
+                originality: 4,
+                signal_density: 4,
+              },
+              positive_reasons: [],
+              negative_reasons: [],
+              summary: entryId,
+            },
+          },
+        ])
+        return entryQualityScoreActions.getScore(entryId) ?? null
+      })
+
+    for (let attempt = 1; attempt <= ENRICHMENT_PHASE_AUTO_RETRY_LIMIT; attempt += 1) {
+      entryEnrichmentService.backfillVisible({
+        entryIds: ["entry-1"],
+        actionLanguage: "zh-CN",
+        phases: ["titleTranslation", "qualityScore"],
+      })
+
+      await vi.waitFor(() => {
+        expect(generateTranslationSpy).toHaveBeenCalledTimes(attempt)
+      })
+      await vi.waitFor(() => {
+        expect(entryEnrichmentService.isEntryInPipeline("entry-1")).toBe(false)
+      })
+    }
+
+    entryEnrichmentService.backfillVisible({
+      entryIds: ["entry-1"],
+      actionLanguage: "zh-CN",
+      phases: ["titleTranslation", "qualityScore"],
+    })
+
+    await vi.waitFor(() => {
+      expect(generateScoreSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(generateTranslationSpy).toHaveBeenCalledTimes(ENRICHMENT_PHASE_AUTO_RETRY_LIMIT)
+
+    generateTranslationSpy.mockRestore()
+    generateScoreSpy.mockRestore()
   })
 
   test("rescoring selected feeds only clears scores for those feeds", async () => {

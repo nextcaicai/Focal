@@ -31,12 +31,14 @@ const BATCH_SIZE = 6
 const CONCURRENCY = 2
 const JOB_TIMEOUT_MS = 90_000
 const STALE_PENDING_MS = 90_000
+export const ENRICHMENT_PHASE_AUTO_RETRY_LIMIT = 3
 
 class EntryEnrichmentService {
   private queue: EnrichmentJob[] = []
   private pendingSince = new Map<string, number>()
   private activeJobs = new Map<string, EnrichmentActiveJob>()
   private cancelledActiveEntryIds = new Set<string>()
+  private failedPhaseAttempts = new Map<string, number>()
   private isDraining = false
   private lastError: EnrichmentStatusSnapshot["lastError"] = null
 
@@ -61,6 +63,7 @@ class EntryEnrichmentService {
       actionLanguage,
       phases: ["qualityScore"],
       prepend: true,
+      ignoreFailedAttemptLimit: true,
     })
     return entryIds.length
   }
@@ -85,6 +88,7 @@ class EntryEnrichmentService {
       actionLanguage,
       phases: ["qualityScore"],
       prepend: true,
+      ignoreFailedAttemptLimit: true,
     })
     return entryIds.length
   }
@@ -134,6 +138,17 @@ class EntryEnrichmentService {
     return getQualityScoreCoverageStats((entryId) => this.isEntryInPipeline(entryId))
   }
 
+  resetForTest() {
+    this.queue = []
+    this.pendingSince.clear()
+    this.activeJobs.clear()
+    this.cancelledActiveEntryIds.clear()
+    this.failedPhaseAttempts.clear()
+    this.isDraining = false
+    this.lastError = null
+    this.publishStatus()
+  }
+
   retryEntry({
     entryId,
     actionLanguage,
@@ -157,18 +172,18 @@ class EntryEnrichmentService {
       return { ok: false, reason: "in_pipeline" }
     }
 
-    const jobs = this.buildJobs([entryId], actionLanguage, phases, translationMode)
-    if (jobs.length === 0) {
-      return { ok: false, reason: "nothing_to_do" }
-    }
-
-    this.enqueueMissing({
+    const enqueuedCount = this.enqueueMissing({
       entryIds: [entryId],
       actionLanguage,
       phases,
       translationMode,
       prepend: true,
+      ignoreFailedAttemptLimit: true,
     })
+    if (enqueuedCount === 0) {
+      return { ok: false, reason: "nothing_to_do" }
+    }
+
     return { ok: true }
   }
 
@@ -178,9 +193,12 @@ class EntryEnrichmentService {
     phases = DEFAULT_ENRICHMENT_PHASES,
     translationMode = "bilingual",
     prepend = false,
+    ignoreFailedAttemptLimit = false,
   }: EnrichmentEnqueueOptions) {
-    const jobs = this.buildJobs(entryIds, actionLanguage, phases, translationMode)
-    if (jobs.length === 0) return
+    const jobs = this.buildJobs(entryIds, actionLanguage, phases, translationMode, {
+      ignoreFailedAttemptLimit,
+    })
+    if (jobs.length === 0) return 0
 
     if (prepend) {
       this.queue.unshift(...jobs)
@@ -189,6 +207,7 @@ class EntryEnrichmentService {
     }
     this.publishStatus()
     void this.drain()
+    return jobs.length
   }
 
   private publishStatus() {
@@ -206,6 +225,11 @@ class EntryEnrichmentService {
     actionLanguage: SupportedActionLanguage,
     phases: readonly EnrichmentPhase[],
     translationMode: EnrichmentJob["translationMode"],
+    {
+      ignoreFailedAttemptLimit = false,
+    }: {
+      ignoreFailedAttemptLimit?: boolean
+    } = {},
   ) {
     const jobs: EnrichmentJob[] = []
     const seenIds = new Set<string>()
@@ -218,21 +242,43 @@ class EntryEnrichmentService {
       if (!getEntry(entryId)) continue
       if (!this.isEntryStillSubscribed(entryId)) continue
       if (this.isSummaryGenerating(entryId, actionLanguage)) continue
-      if (!this.needsEnrichment(entryId, actionLanguage, phases)) continue
+
+      const missingPhases = this.getMissingPhases(entryId, actionLanguage, phases, {
+        translationMode,
+        ignoreFailedAttemptLimit,
+      })
+      if (missingPhases.length === 0) continue
 
       this.markPending(entryId)
-      jobs.push({ entryId, actionLanguage, phases, translationMode })
+      jobs.push({ entryId, actionLanguage, phases: missingPhases, translationMode })
     }
 
     return jobs
   }
 
-  private needsEnrichment(
+  private getMissingPhases(
     entryId: string,
     actionLanguage: SupportedActionLanguage,
     phases: readonly EnrichmentPhase[],
+    {
+      translationMode,
+      ignoreFailedAttemptLimit,
+    }: {
+      translationMode: EnrichmentJob["translationMode"]
+      ignoreFailedAttemptLimit: boolean
+    },
   ) {
-    return phases.some((phase) => this.isPhaseMissing(entryId, actionLanguage, phase))
+    return phases.filter((phase) => {
+      if (!this.isPhaseMissing(entryId, actionLanguage, phase)) return false
+      if (ignoreFailedAttemptLimit) return true
+
+      return !this.hasReachedAutomaticPhaseAttemptLimit({
+        entryId,
+        actionLanguage,
+        phase,
+        translationMode,
+      })
+    })
   }
 
   private isPhaseMissing(
@@ -332,6 +378,77 @@ class EntryEnrichmentService {
     this.pendingSince.delete(entryId)
   }
 
+  private getPhaseAttemptKey({
+    entryId,
+    actionLanguage,
+    phase,
+    translationMode,
+  }: {
+    entryId: string
+    actionLanguage: SupportedActionLanguage
+    phase: EnrichmentPhase
+    translationMode: EnrichmentJob["translationMode"]
+  }) {
+    const modeKey = phase === "titleTranslation" ? translationMode : ""
+    return `${entryId}:${actionLanguage}:${phase}:${modeKey}`
+  }
+
+  private getFailedPhaseAttempts({
+    entryId,
+    actionLanguage,
+    phase,
+    translationMode,
+  }: {
+    entryId: string
+    actionLanguage: SupportedActionLanguage
+    phase: EnrichmentPhase
+    translationMode: EnrichmentJob["translationMode"]
+  }) {
+    return (
+      this.failedPhaseAttempts.get(
+        this.getPhaseAttemptKey({ entryId, actionLanguage, phase, translationMode }),
+      ) ?? 0
+    )
+  }
+
+  private hasReachedAutomaticPhaseAttemptLimit({
+    entryId,
+    actionLanguage,
+    phase,
+    translationMode,
+  }: {
+    entryId: string
+    actionLanguage: SupportedActionLanguage
+    phase: EnrichmentPhase
+    translationMode: EnrichmentJob["translationMode"]
+  }) {
+    return (
+      this.getFailedPhaseAttempts({ entryId, actionLanguage, phase, translationMode }) >=
+      ENRICHMENT_PHASE_AUTO_RETRY_LIMIT
+    )
+  }
+
+  private recordPhaseFailure(job: EnrichmentJob, phase: EnrichmentPhase) {
+    const key = this.getPhaseAttemptKey({
+      entryId: job.entryId,
+      actionLanguage: job.actionLanguage,
+      phase,
+      translationMode: job.translationMode,
+    })
+    this.failedPhaseAttempts.set(key, (this.failedPhaseAttempts.get(key) ?? 0) + 1)
+  }
+
+  private clearPhaseFailure(job: EnrichmentJob, phase: EnrichmentPhase) {
+    this.failedPhaseAttempts.delete(
+      this.getPhaseAttemptKey({
+        entryId: job.entryId,
+        actionLanguage: job.actionLanguage,
+        phase,
+        translationMode: job.translationMode,
+      }),
+    )
+  }
+
   private isEntryStillSubscribed(entryId: string) {
     return Boolean(getSubscriptionByEntryId(entryId))
   }
@@ -378,6 +495,8 @@ class EntryEnrichmentService {
     })
     this.publishStatus()
 
+    const completedPhases: EnrichmentPhase[] = []
+
     try {
       await this.withTimeout(
         (async () => {
@@ -389,17 +508,36 @@ class EntryEnrichmentService {
               this.activeJobs.set(job.entryId, { ...activeJob, phase })
               this.publishStatus()
             }
-            await this.runPhase(job, phase)
+            const result = await this.runPhase(job, phase)
+            if (this.isEntryCancelled(job.entryId)) break
+
+            const isStillMissing = this.isPhaseMissing(job.entryId, job.actionLanguage, phase)
+            if (isStillMissing && (phase === "tags" || !result)) {
+              throw new Error(
+                `[enrichment] Phase finished without producing a result: ${phase} (${job.entryId})`,
+              )
+            }
+
+            completedPhases.push(phase)
           }
         })(),
         JOB_TIMEOUT_MS,
         job.entryId,
       )
+      for (const phase of completedPhases) {
+        this.clearPhaseFailure(job, phase)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown enrichment error"
       const activeJob = this.activeJobs.get(job.entryId)
       const phase = activeJob?.phase ?? job.phases[0] ?? null
       const errorCode = getEnrichmentErrorCode(message)
+      for (const completedPhase of completedPhases) {
+        this.clearPhaseFailure(job, completedPhase)
+      }
+      if (phase) {
+        this.recordPhaseFailure(job, phase)
+      }
       console.warn("[enrichment] Failed to enrich entry:", job.entryId, error)
       this.lastError = {
         entryId: job.entryId,
@@ -422,15 +560,14 @@ class EntryEnrichmentService {
 
     switch (phase) {
       case "summary": {
-        await summarySyncService.generateSummary({
+        return summarySyncService.generateSummary({
           entryId,
           target: "content",
           actionLanguage,
         })
-        return
       }
       case "titleTranslation": {
-        await translationSyncService.generateTranslation({
+        return translationSyncService.generateTranslation({
           entryId,
           language: actionLanguage,
           target: "content",
@@ -438,24 +575,21 @@ class EntryEnrichmentService {
           mode: translationMode,
           fields: ["title"],
         })
-        return
       }
       case "tags": {
-        await entryAiTagsSyncService.generateTags({
+        return entryAiTagsSyncService.generateTags({
           entryId,
           actionLanguage,
         })
-        return
       }
       case "qualityScore": {
-        await entryQualityScoreSyncService.generateScore({
+        return entryQualityScoreSyncService.generateScore({
           entryId,
           actionLanguage,
         })
-        return
       }
       default: {
-        return
+        return null
       }
     }
   }
