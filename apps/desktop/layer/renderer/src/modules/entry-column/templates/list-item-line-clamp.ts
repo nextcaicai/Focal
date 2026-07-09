@@ -41,6 +41,6 @@ export const getListItemLineClampClassNames = ({
   return {
     global: !envIsSafari ? `line-clamp-[${globalLineClamp}]` : "",
     title: `line-clamp-${lineClampTitle}`,
-    description: envIsSafari ? `line-clamp-[${lineClampDescription}]` : "",
+    description: lineClampDescription === 2 ? "line-clamp-2" : "line-clamp-3",
   }
 }

@@ -23,6 +23,7 @@ describe("list item line clamp classes", () => {
 
     expect(lineClamp.title).toBe("line-clamp-2")
     expect(lineClamp.global).toBe("line-clamp-[4]")
+    expect(lineClamp.description).toBe("line-clamp-2")
   })
 
   test("limits bilingual titles to two lines", () => {
@@ -36,6 +37,34 @@ describe("list item line clamp classes", () => {
     })
 
     expect(lineClamp.title).toBe("line-clamp-2")
+    expect(lineClamp.global).toBe("line-clamp-[4]")
+  })
+
+  test("keeps translated RSS descriptions to three lines", () => {
+    const lineClamp = getListItemLineClampClassNames({
+      bilingual: true,
+      entryDescription: "Original description",
+      entryTitle: "A very long title",
+      isSummary: false,
+      simple: false,
+      translationDescription: "Translated description",
+    })
+
+    expect(lineClamp.description).toBe("line-clamp-3")
+    expect(lineClamp.global).toBe("line-clamp-[5]")
+  })
+
+  test("keeps generated descriptions to two lines even in bilingual mode", () => {
+    const lineClamp = getListItemLineClampClassNames({
+      bilingual: true,
+      entryDescription: "Original description",
+      entryTitle: "A very long title",
+      isSummary: true,
+      simple: false,
+      translationDescription: "Translated description",
+    })
+
+    expect(lineClamp.description).toBe("line-clamp-2")
     expect(lineClamp.global).toBe("line-clamp-[4]")
   })
 })
