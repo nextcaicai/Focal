@@ -61,6 +61,38 @@ export interface SummaryGeneratorInput {
 export type SummaryGenerator = (input: SummaryGeneratorInput) => Promise<string | null>
 
 export type TranslationGeneratorField = "title" | "description" | "content" | "readabilityContent"
+export type TranslationGeneratorContentField = Extract<
+  TranslationGeneratorField,
+  "content" | "readabilityContent"
+>
+export type TranslationBlockKind = "paragraph" | "heading" | "list" | "quote" | "other"
+
+export interface TranslationBlockPair {
+  id: string
+  kind: TranslationBlockKind
+  translatable: boolean
+  source: {
+    html: string
+    text: string
+  }
+  translated?: {
+    html: string
+    partial?: boolean
+  }
+}
+
+export interface TranslationDocumentDraft {
+  entryId: string
+  target: TranslationGeneratorContentField
+  blockOrder: string[]
+  blocks: Record<string, TranslationBlockPair>
+}
+
+export interface TranslationGeneratorContentDraftEvent {
+  field: TranslationGeneratorContentField
+  draft: TranslationDocumentDraft
+  content: string
+}
 
 export interface TranslationGeneratorEntry {
   title?: string | null
@@ -76,6 +108,7 @@ export interface TranslationGeneratorInput {
   fields: readonly TranslationGeneratorField[]
   actionLanguage: SupportedActionLanguage
   mode: "bilingual" | "translation-only"
+  onContentDraft?: (event: TranslationGeneratorContentDraftEvent) => void
 }
 
 export type TranslationGeneratorResult = Partial<Record<TranslationGeneratorField, string | null>>

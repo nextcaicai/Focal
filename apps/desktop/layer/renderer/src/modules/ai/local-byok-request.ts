@@ -1,6 +1,6 @@
 import { ipcServices } from "~/lib/client"
 
-interface OpenAICompatibleChatCompletionInput {
+export interface OpenAICompatibleChatCompletionInput {
   baseURL: string
   apiKey?: string
   headers?: Record<string, string>
@@ -16,6 +16,14 @@ interface OpenAICompatibleEmbeddingInput {
 export interface OpenAICompatibleChatCompletionResponse {
   choices?: {
     message?: {
+      content?: string | null
+    }
+  }[]
+}
+
+export interface OpenAICompatibleChatCompletionChunk {
+  choices?: {
+    delta?: {
       content?: string | null
     }
   }[]
@@ -81,6 +89,65 @@ export const requestOpenAICompatibleChatCompletion = async (
 
   // In non-Electron environments (web), use direct fetch
   return fetchOpenAICompatibleChatCompletion(input)
+}
+
+export async function* requestOpenAICompatibleChatCompletionStream(
+  input: OpenAICompatibleChatCompletionInput,
+) {
+  const endpoint = `${normalizeOpenAIBaseURL(input.baseURL)}/chat/completions`
+
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(input.apiKey ? { Authorization: `Bearer ${input.apiKey}` } : {}),
+        "Content-Type": "application/json",
+        ...input.headers,
+      },
+      body: JSON.stringify(input.body),
+    })
+  } catch (error) {
+    throw new Error(
+      `Failed to reach BYOK provider at ${input.baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
+    )
+  }
+
+  if (!response.ok || !response.body) {
+    const errorText = await response.text().catch(() => "")
+    throw new Error(errorText || `BYOK provider request failed with HTTP ${response.status}.`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split("\n\n")
+    buffer = events.pop() ?? ""
+
+    for (const event of events) {
+      const dataLines = event
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+
+      for (const data of dataLines) {
+        if (!data || data === "[DONE]") continue
+
+        const chunk = JSON.parse(data) as OpenAICompatibleChatCompletionChunk
+        const delta = chunk.choices?.[0]?.delta?.content
+        if (delta) {
+          yield delta
+        }
+      }
+    }
+  }
 }
 
 const fetchOpenAICompatibleEmbedding = async ({

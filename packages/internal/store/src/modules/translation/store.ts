@@ -7,23 +7,36 @@ import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { checkLanguage } from "@follow/utils/language"
 import { create, indexedResolver, windowScheduler } from "@yornaath/batshit"
 
+import type { TranslationDocumentDraft, TranslationGeneratorContentField } from "../../context"
 import { api, translationGenerator } from "../../context"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { readNdjsonStream } from "../../lib/stream"
 import { getEntry } from "../entry/getter"
 import { useUserStore } from "../user/store"
+import { assembleTranslationDraft, cloneTranslationDraft } from "./document"
 import type { EntryTranslation, TranslationFieldArray, TranslationMode } from "./types"
 import { translationFields } from "./types"
 
 type TranslationModel = Omit<TranslationSchema, "createdAt">
 type TranslationBatchRequest = Parameters<ReturnType<typeof api>["ai"]["translationBatch"]>[0]
+const translationContentFields = ["content", "readabilityContent"] as const
 
 interface TranslationState {
   data: Record<string, Partial<Record<SupportedActionLanguage, EntryTranslation>>>
+  drafts: Record<
+    string,
+    Partial<
+      Record<
+        SupportedActionLanguage,
+        Partial<Record<TranslationGeneratorContentField, TranslationDocumentDraft>>
+      >
+    >
+  >
 }
 const defaultState: TranslationState = {
   data: {},
+  drafts: {},
 }
 
 export const useTranslationStore = createZustandStore<TranslationState>("translation")(
@@ -71,7 +84,42 @@ class TranslationActions implements Hydratable, Resetable {
             state.data[translation.entryId]![translation.language]![field] = translation[field]
           }
         })
+
+        translationContentFields.forEach((field) => {
+          if (!translation[field]) return
+          delete state.drafts[translation.entryId]?.[translation.language]?.[field]
+        })
       })
+    })
+  }
+
+  upsertDraftInSession({
+    entryId,
+    language,
+    field,
+    draft,
+  }: {
+    entryId: string
+    language: SupportedActionLanguage
+    field: TranslationGeneratorContentField
+    draft: TranslationDocumentDraft
+  }) {
+    const draftToStore = cloneTranslationDraft(draft)
+    const content = assembleTranslationDraft(draftToStore, "translation-only")
+
+    immerSet((state) => {
+      state.drafts[entryId] ??= {}
+      state.drafts[entryId]![language] ??= {}
+      state.drafts[entryId]![language]![field] = draftToStore
+
+      state.data[entryId] ??= {}
+      state.data[entryId]![language] ??= {
+        title: null,
+        description: null,
+        content: null,
+        readabilityContent: null,
+      }
+      state.data[entryId]![language]![field] = content
     })
   }
 
@@ -85,6 +133,14 @@ class TranslationActions implements Hydratable, Resetable {
 
   getTranslation(entryId: string, language: SupportedActionLanguage) {
     return get().data[entryId]?.[language]
+  }
+
+  getDraft(
+    entryId: string,
+    language: SupportedActionLanguage,
+    field: TranslationGeneratorContentField,
+  ) {
+    return get().drafts[entryId]?.[language]?.[field]
   }
 }
 
@@ -274,6 +330,14 @@ class TranslationSyncService {
       fields,
       actionLanguage: language,
       mode,
+      onContentDraft: ({ field, draft }) => {
+        translationActions.upsertDraftInSession({
+          entryId,
+          language,
+          field,
+          draft,
+        })
+      },
     })
 
     const translation: TranslationModel = {
