@@ -242,7 +242,6 @@
   "entry_content.tab.transcript": "文字起こし",
   "entry_content.transcript_error": "字幕の読み込みに失敗しました。Electron アプリを再起動して再試行してください。",
   "entry_content.transcript_loading": "字幕を読み込み中...",
-  "entry_content.translation_display.ai_translation": "AI 翻訳",
   "entry_content.translation_display.bilingual": "バイリンガル",
   "entry_content.translation_display.show_bilingual": "バイリンガル表示",
   "entry_content.translation_display.show_translation_only": "翻訳のみ表示",

@@ -242,7 +242,6 @@
   "entry_content.tab.transcript": "字幕",
   "entry_content.transcript_error": "逐字稿加载失败，请重启 Electron 应用后重试。",
   "entry_content.transcript_loading": "正在加载逐字稿...",
-  "entry_content.translation_display.ai_translation": "AI 翻译",
   "entry_content.translation_display.bilingual": "双语",
   "entry_content.translation_display.show_bilingual": "显示双语",
   "entry_content.translation_display.show_translation_only": "仅看译文",

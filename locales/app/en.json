@@ -242,7 +242,6 @@
   "entry_content.tab.transcript": "Transcript",
   "entry_content.transcript_error": "Failed to load transcript. Restart the Electron app and try again.",
   "entry_content.transcript_loading": "Loading transcript...",
-  "entry_content.translation_display.ai_translation": "AI Translation",
   "entry_content.translation_display.bilingual": "Bilingual",
   "entry_content.translation_display.show_bilingual": "Show bilingual",
   "entry_content.translation_display.show_translation_only": "Translation only",

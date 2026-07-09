@@ -83,7 +83,7 @@ export const ArticleLayout: React.FC<EntryLayoutProps> = ({
           <ErrorBoundary fallback={EntryRenderError}>
             <ReadabilityNotice entryId={entryId} />
             {isTranslationEnabled && onTranslationDisplayModeChange && !showTranscript && (
-              <div ref={translationDisplayControlRef} className="mb-4 mt-4">
+              <div ref={translationDisplayControlRef} className="mb-6 mt-4">
                 <TranslationDisplaySwitcher
                   value={translationDisplayMode}
                   onValueChange={onTranslationDisplayModeChange}
