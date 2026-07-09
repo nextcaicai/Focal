@@ -18,7 +18,7 @@ export const EntryContentPlaceholder = () => {
             initial={{ opacity: 0.01, y: 300 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            {t("entry_content.no_selection")}
+            {t("entry_content.empty_selection")}
           </m.div>
         </AnimatePresence>
       </div>

@@ -58,7 +58,7 @@ describe("EntryContentPlaceholder", () => {
 
     const placeholder = container.querySelector(".center")
 
-    expect(placeholder?.textContent).toBe("entry_content.no_selection")
+    expect(placeholder?.textContent).toBe("entry_content.empty_selection")
     expect(placeholder?.classList.contains("text-base")).toBe(true)
     expect(placeholder?.classList.contains("text-zinc-400")).toBe(true)
     expect(placeholder?.classList.contains("text-sm")).toBe(false)

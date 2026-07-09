@@ -1,4 +1,3 @@
-import { EmptyIcon } from "@follow/components/icons/empty.jsx"
 import { useScrollViewElement } from "@follow/components/ui/scroll-area/hooks.js"
 import type { FeedViewType } from "@follow/constants"
 import { useTypeScriptHappyCallback } from "@follow/hooks"
@@ -40,10 +39,7 @@ export const EntryEmptyList = ({
           <span className="text-base">{t("entry_list.zero_unread")}</span>
         </>
       ) : (
-        <div className="flex -translate-y-6 flex-col items-center justify-center gap-2">
-          <EmptyIcon className="size-[30px]" />
-          <span className="text-base">{t("words.zero_items")}</span>
-        </div>
+        <span className="text-base">{t("entry_list.empty")}</span>
       )}
     </m.div>
   )
