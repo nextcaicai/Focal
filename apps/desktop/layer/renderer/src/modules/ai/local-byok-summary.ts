@@ -50,13 +50,13 @@ export const generateLocalByokSummary: SummaryGenerator = async (input) => {
 
   if (!resolvedProvider) {
     throw new Error(
-      "No OpenAI-compatible BYOK provider is configured. Enable BYOK and add a provider in Settings > AI.",
+      "No OpenAI-compatible LLM provider is configured. Enable the LLM model and add a provider in Settings > AI.",
     )
   }
 
   const providerOption = getProviderOption(resolvedProvider.provider.provider)
   if (!providerOption) {
-    throw new Error("The selected BYOK provider is not supported.")
+    throw new Error("The selected LLM provider is not supported.")
   }
 
   const languageLabel = ACTION_LANGUAGE_MAP[input.actionLanguage]?.label || input.actionLanguage

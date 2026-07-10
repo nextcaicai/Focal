@@ -285,7 +285,7 @@
   "general.action.summary.description": "有効にすると、新しい未読エントリを自動で要約します。既読の履歴は既定ではトークンを消費しません。記事ページから必要に応じて生成できます。",
   "general.action.summary.label": "AI要約",
   "general.action.title": "AI 自動処理",
-  "general.action.translation.description": "エントリのタイトルを自動翻訳します。BYOK の使用量を節約するため、本文は自動翻訳されません。必要な場合は、本文ページのツールバーにある「AI翻訳」から手動で有効にできます。",
+  "general.action.translation.description": "エントリのタイトルを自動翻訳します。LLM の使用量を節約するため、本文は自動翻訳されません。必要な場合は、本文ページのツールバーにある「AI翻訳」から手動で有効にできます。",
   "general.action.translation.label": "AI翻訳",
   "general.action_language.default": "デフォルト（UI言語）",
   "general.action_language.description": "AI アクションの言語を選択します。",

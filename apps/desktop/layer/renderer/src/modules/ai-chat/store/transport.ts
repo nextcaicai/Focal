@@ -134,18 +134,18 @@ class LocalByokChatTransport implements ChatTransport<BizUIMessage> {
 
     if (!resolvedProvider) {
       throw new Error(
-        "No OpenAI-compatible BYOK provider is configured. Enable BYOK and add a provider in Settings > AI.",
+        "No OpenAI-compatible LLM provider is configured. Enable the LLM model and add a provider in Settings > AI.",
       )
     }
 
     const providerOption = getProviderOption(resolvedProvider.provider.provider)
     if (!providerOption) {
-      throw new Error("The selected BYOK provider is not supported.")
+      throw new Error("The selected LLM provider is not supported.")
     }
 
     const chatMessages = toOpenAIChatMessages(messages)
     if (chatMessages.length === 0) {
-      throw new Error("No text message is available for the local BYOK request.")
+      throw new Error("No text message is available for the local LLM request.")
     }
 
     const startedAt = Date.now()
@@ -176,13 +176,13 @@ class LocalByokChatTransport implements ChatTransport<BizUIMessage> {
       })
     } catch (error) {
       throw new Error(
-        `Failed to reach BYOK provider at ${resolvedProvider.baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
+        `Failed to reach LLM provider at ${resolvedProvider.baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
       )
     }
 
     if (!response.ok || !response.body) {
       const errorText = await response.text().catch(() => "")
-      throw new Error(errorText || `BYOK provider request failed with HTTP ${response.status}.`)
+      throw new Error(errorText || `LLM provider request failed with HTTP ${response.status}.`)
     }
 
     return new ReadableStream<UIMessageChunk>({

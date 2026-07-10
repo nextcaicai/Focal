@@ -65,13 +65,13 @@ const fetchOpenAICompatibleChatCompletion = async ({
     })
   } catch (error) {
     throw new Error(
-      `Failed to reach BYOK provider at ${baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
+      `Failed to reach LLM provider at ${baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
     )
   }
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "")
-    throw new Error(errorText || `BYOK provider request failed with HTTP ${response.status}.`)
+    throw new Error(errorText || `LLM provider request failed with HTTP ${response.status}.`)
   }
 
   return response.json() as Promise<OpenAICompatibleChatCompletionResponse>
@@ -109,13 +109,13 @@ export async function* requestOpenAICompatibleChatCompletionStream(
     })
   } catch (error) {
     throw new Error(
-      `Failed to reach BYOK provider at ${input.baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
+      `Failed to reach LLM provider at ${input.baseURL}. Check the Base URL, network, proxy, or provider CORS settings. ${toReadableErrorMessage(error)}`,
     )
   }
 
   if (!response.ok || !response.body) {
     const errorText = await response.text().catch(() => "")
-    throw new Error(errorText || `BYOK provider request failed with HTTP ${response.status}.`)
+    throw new Error(errorText || `LLM provider request failed with HTTP ${response.status}.`)
   }
 
   const reader = response.body.getReader()

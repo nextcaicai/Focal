@@ -35,7 +35,7 @@ export class AiService extends IpcService {
     const url = new URL(endpoint)
 
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("BYOK provider Base URL must use http or https.")
+      throw new Error("LLM provider Base URL must use http or https.")
     }
 
     let response: Response
@@ -51,13 +51,13 @@ export class AiService extends IpcService {
       })
     } catch (error) {
       throw new Error(
-        `Failed to reach BYOK provider at ${url.origin}. Check the Base URL, network, or proxy settings. ${toReadableErrorMessage(error)}`,
+        `Failed to reach LLM provider at ${url.origin}. Check the Base URL, network, or proxy settings. ${toReadableErrorMessage(error)}`,
       )
     }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "")
-      throw new Error(errorText || `BYOK provider request failed with HTTP ${response.status}.`)
+      throw new Error(errorText || `LLM provider request failed with HTTP ${response.status}.`)
     }
 
     return response.json()

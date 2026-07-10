@@ -285,7 +285,7 @@
   "general.action.summary.description": "Une fois activé, résume automatiquement les nouvelles entrées non lues. L'historique déjà lu n'utilise pas de tokens par défaut ; générez à la demande depuis la page de l'article.",
   "general.action.summary.label": "Résumé IA",
   "general.action.title": "Traitement IA automatique",
-  "general.action.translation.description": "Traduire automatiquement les titres des entrées. Pour économiser l'utilisation BYOK, le contenu n'est pas traduit automatiquement ; activez-le manuellement depuis l'action « Traduction IA » de la barre d'outils sur la page de l'entrée si nécessaire.",
+  "general.action.translation.description": "Traduire automatiquement les titres des entrées. Pour économiser l'utilisation LLM, le contenu n'est pas traduit automatiquement ; activez-le manuellement depuis l'action « Traduction IA » de la barre d'outils sur la page de l'entrée si nécessaire.",
   "general.action.translation.label": "Traduction IA",
   "general.action_language.default": "Défaut (Langue UI)",
   "general.action_language.description": "Choisissez la langue pour les actions IA, ex. Résumé IA, Traduction IA.",

@@ -222,13 +222,13 @@ export const generateLocalByokQualityScore: QualityScoreGenerator = async (input
 
   if (!resolvedProvider) {
     throw new Error(
-      "No OpenAI-compatible BYOK provider is configured. Enable BYOK and add a provider in Settings > AI.",
+      "No OpenAI-compatible LLM provider is configured. Enable the LLM model and add a provider in Settings > AI.",
     )
   }
 
   const providerOption = getProviderOption(resolvedProvider.provider.provider)
   if (!providerOption) {
-    throw new Error("The selected BYOK provider is not supported.")
+    throw new Error("The selected LLM provider is not supported.")
   }
 
   const outputLanguageLabel =
@@ -250,12 +250,12 @@ export const generateLocalByokQualityScore: QualityScoreGenerator = async (input
   })
   const content = data.choices?.[0]?.message?.content?.trim()
   if (!content) {
-    throw new Error("BYOK provider returned an empty quality score response.")
+    throw new Error("LLM provider returned an empty quality score response.")
   }
 
   const parsed = parseJsonResponse(content)
   if (!parsed || typeof parsed !== "object") {
-    throw new Error("BYOK provider returned invalid quality score JSON.")
+    throw new Error("LLM provider returned invalid quality score JSON.")
   }
 
   return parsed as Record<string, unknown>

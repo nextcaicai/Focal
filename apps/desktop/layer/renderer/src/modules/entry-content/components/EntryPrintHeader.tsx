@@ -32,7 +32,7 @@ export const EntryPrintHeader = ({ entryId }: { entryId: string }) => {
 
         <div className="mt-3 space-y-1.5">
           <p className="text-sm font-medium text-text-secondary">
-            Local-first RSS reader with BYOK AI
+            Local-first RSS reader with LLM AI
           </p>
           {sourceTitle ? (
             <p className="text-sm text-text-secondary">Source: {sourceTitle}</p>

@@ -285,7 +285,7 @@
   "general.action.summary.description": "When enabled, automatically summarizes newly unread entries. Already-read history does not use tokens by default; generate on demand from the article page.",
   "general.action.summary.label": "AI Summary",
   "general.action.title": "AI Auto Processing",
-  "general.action.translation.description": "Automatically translate entry titles. To save BYOK usage, content is not translated automatically; enable it manually from the \"AI Translation\" toolbar action on the entry page when needed.",
+  "general.action.translation.description": "Automatically translate entry titles. To save LLM usage, content is not translated automatically; enable it manually from the \"AI Translation\" toolbar action on the entry page when needed.",
   "general.action.translation.label": "AI Translation",
   "general.action_language.default": "Default (UI Language)",
   "general.action_language.description": "Choose the language for the AI actions, e.g. AI Summary, AI Translation.",

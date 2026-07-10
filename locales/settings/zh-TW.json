@@ -285,7 +285,7 @@
   "general.action.summary.description": "開啟後，會對新出現的未讀項目自動處理。歷史已讀內容預設不會消耗 token；正文頁可按需產生總結。",
   "general.action.summary.label": "AI 總結",
   "general.action.title": "AI 自動處理",
-  "general.action.translation.description": "自動翻譯條目的標題。為節省 BYOK 用量，正文不會自動翻譯，需要時可在正文頁透過工具列的「AI 翻譯」手動開啟。",
+  "general.action.translation.description": "自動翻譯條目的標題。為節省 LLM 用量，正文不會自動翻譯，需要時可在正文頁透過工具列的「AI 翻譯」手動開啟。",
   "general.action.translation.label": "AI 翻譯",
   "general.action_language.default": "預設（介面語言）",
   "general.action_language.description": "選擇 AI 操作的語言，例如 AI 總結、AI 翻譯。",
