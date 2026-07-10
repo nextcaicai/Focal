@@ -1,15 +1,9 @@
-import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { cn } from "@follow/utils/utils"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
-import { AppErrorBoundary } from "~/components/common/AppErrorBoundary"
-import { ErrorComponentType } from "~/components/errors/enum"
 import { useSubViewTitle } from "~/modules/app-layout/subview/hooks"
-import { useHasDiscoverSearchData } from "~/modules/discover/atoms/discover"
-import { DiscoveryContent } from "~/modules/discover/DiscoveryContent"
 import { LocalDiscoverForm } from "~/modules/discover/LocalDiscoverForm"
-import { UnifiedDiscoverForm } from "~/modules/discover/UnifiedDiscoverForm"
 
 // ============================================================================
 // Section Components
@@ -32,47 +26,20 @@ export function Component() {
   const { t } = useTranslation()
 
   useSubViewTitle("words.discover")
-  const hasSearchData = useHasDiscoverSearchData()
-
-  if (LOCAL_RSS_MODE) {
-    return (
-      <div className="flex size-full flex-col p-6">
-        <Section>
-          <div className="rounded-[28px] border border-fill-secondary bg-material-ultra-thin px-6 py-8 shadow-sm">
-            <div className="text-center">
-              <h1 className="mb-2 text-3xl font-bold text-text">{t("words.discover")}</h1>
-              <p className="text-sm text-text-secondary">{t("discover.rss_url")}</p>
-            </div>
-            <div className="mt-6 flex flex-col items-center">
-              <LocalDiscoverForm />
-            </div>
-          </div>
-        </Section>
-      </div>
-    )
-  }
 
   return (
     <div className="flex size-full flex-col p-6">
-      <Section className="mb-8">
+      <Section>
         <div className="rounded-[28px] border border-fill-secondary bg-material-ultra-thin px-6 py-8 shadow-sm">
           <div className="text-center">
             <h1 className="mb-2 text-3xl font-bold text-text">{t("words.discover")}</h1>
-            <p className="text-sm text-text-secondary">{t("discover.tips.search_keyword")}</p>
+            <p className="text-sm text-text-secondary">{t("discover.rss_url")}</p>
           </div>
           <div className="mt-6 flex flex-col items-center">
-            <UnifiedDiscoverForm />
+            <LocalDiscoverForm />
           </div>
         </div>
       </Section>
-
-      {!hasSearchData && (
-        <Section className="mt-8">
-          <AppErrorBoundary errorType={ErrorComponentType.RSSHubDiscoverError}>
-            <DiscoveryContent />
-          </AppErrorBoundary>
-        </Section>
-      )}
     </div>
   )
 }

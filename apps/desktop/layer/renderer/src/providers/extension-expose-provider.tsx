@@ -4,7 +4,6 @@ import { registerGlobalContext } from "@follow/shared/bridge"
 import { env } from "@follow/shared/env.desktop"
 import { invalidateUserSession } from "@follow/store/user/hooks"
 import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 import { toast } from "sonner"
 
@@ -12,8 +11,7 @@ import { setWindowState } from "~/atoms/app"
 import { getGeneralSettings } from "~/atoms/settings/general"
 import { getUISettings } from "~/atoms/settings/ui"
 import { setUpdaterStatus, useUpdaterStatus } from "~/atoms/updater"
-import { useDialog, useModalStack } from "~/components/ui/modal/stacked/hooks"
-import { useDiscoverRSSHubRouteModal } from "~/hooks/biz/useDiscoverRSSHubRoute"
+import { useDialog } from "~/components/ui/modal/stacked/hooks"
 import { useFollow } from "~/hooks/biz/useFollow"
 import { navigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { oneTimeToken } from "~/lib/auth"
@@ -31,7 +29,6 @@ declare module "@follow/components/providers/stable-router-provider.js" {
 }
 
 export const ExtensionExposeProvider = () => {
-  const { present } = useModalStack()
   const showSettings = useSettingModal()
   const updaterStatus = useUpdaterStatus()
   useEffect(() => {
@@ -113,22 +110,16 @@ export const ExtensionExposeProvider = () => {
     window.router.showSettings = showSettings
   }, [showSettings])
 
-  const { t } = useTranslation()
-
   const follow = useFollow()
   const presentUserProfile = usePresentUserProfileModal("dialog")
-  const presentDiscoverRSSHubRoute = useDiscoverRSSHubRouteModal()
   useEffect(() => {
     registerGlobalContext({
       follow,
       profile(id, variant) {
         presentUserProfile(id, variant)
       },
-      rsshubRoute(route) {
-        presentDiscoverRSSHubRoute(route)
-      },
     })
-  }, [follow, present, presentDiscoverRSSHubRoute, presentUserProfile, t])
+  }, [follow, presentUserProfile])
 
   const dialog = useDialog()
   useEffect(() => {

@@ -53,7 +53,6 @@ interface RenderGlobalContext {
   follow: (options?: { isList: boolean; id?: string; url?: string }) => void
   profile: (id: string, variant?: "drawer" | "dialog") => void
   quickAdd: () => void
-  rsshubRoute: (route: string) => void
   // Navigate
   goToDiscover: () => void
   goToFeed: ({ id, view }: { id: string; view?: number }) => void

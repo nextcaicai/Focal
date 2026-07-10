@@ -38,11 +38,7 @@ export const handleUrlRouting = (url: string) => {
       case "/discover": {
         callMainWindow(url, (mainWindow) => {
           const caller = callWindowExpose(mainWindow)
-
-          const route = searchParams.get("route") ?? undefined
-
-          if (!route) return
-          caller.rsshubRoute(route)
+          caller.goToDiscover()
         })
         return
       }

@@ -6,7 +6,6 @@ const ErrorFallbackMap = {
   [ErrorComponentType.Modal]: lazy(() => import("./ModalError")),
   [ErrorComponentType.Page]: lazy(() => import("./PageError")),
   [ErrorComponentType.FeedNotFound]: lazy(() => import("./FeedNotFound")),
-  [ErrorComponentType.RSSHubDiscoverError]: lazy(() => import("./RSSHubError")),
   [ErrorComponentType.EntryNotFound]: lazy(() => import("./EntryNotFound")),
 }
 
