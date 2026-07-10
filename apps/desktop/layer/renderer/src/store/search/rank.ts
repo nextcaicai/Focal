@@ -16,6 +16,7 @@ export function scoreKeywordMatch(entry: RankableEntry, query: string): number {
   const q = query.trim().toLowerCase()
   if (!q) return 0
 
+  // toLowerCase is a no-op for CJK; still required for Latin case-insensitivity.
   const title = (entry.title ?? "").toLowerCase()
   const description = (entry.description ?? "").toLowerCase()
   // Strip coarse HTML for content matching
@@ -32,6 +33,42 @@ export function scoreKeywordMatch(entry: RankableEntry, query: string): number {
   if (description.includes(q)) return 50
   if (content.includes(q)) return 20
   return 0
+}
+
+export type TranslationTextFields = {
+  title?: string | null
+  description?: string | null
+  content?: string | null
+}
+
+/**
+ * Best keyword score across original entry fields and any stored translations.
+ * List UI often shows translated titles; search must match what the user sees.
+ */
+export function scoreEntryWithTranslations(
+  entry: RankableEntry,
+  query: string,
+  translations?: Partial<Record<string, TranslationTextFields>> | null,
+): number {
+  let best = scoreKeywordMatch(entry, query)
+  if (!translations) return best
+
+  for (const translation of Object.values(translations)) {
+    if (!translation) continue
+    const score = scoreKeywordMatch(
+      {
+        id: entry.id,
+        title: translation.title,
+        description: translation.description,
+        content: translation.content,
+        publishedAt: entry.publishedAt,
+      },
+      query,
+    )
+    if (score > best) best = score
+  }
+
+  return best
 }
 
 const publishedAtMs = (value: Date | number) =>

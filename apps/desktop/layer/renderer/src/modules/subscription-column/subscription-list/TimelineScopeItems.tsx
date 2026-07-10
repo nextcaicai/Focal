@@ -9,11 +9,13 @@ import type { ReactNode } from "react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { useLibrarySearchActive } from "~/atoms/library-search"
 import { FEED_COLLECTION_LIST, ROUTE_VIEW_ALL } from "~/constants"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
 
+import { SidebarSearchInput } from "../SidebarSearchInput"
 import { feedColumnStyles } from "../styles"
 import { UnreadNumber } from "../UnreadNumber"
 import { CollapsibleSectionHeader } from "./CollapsibleSectionHeader"
@@ -181,26 +183,37 @@ export const TimelineScopeItems = memo(() => {
   const counts = useSmartFeedUnreadCounts()
   const todayIcon = useTodaySmartFeedIcon()
   const activeFeedId = useRouteParamsSelector((params) => params.feedId)
+  const librarySearchActive = useLibrarySearchActive()
   const [smartFeedsCollapsed, setSmartFeedsCollapsed] = useAtom(smartFeedsCollapsedAtom)
   const smartFeedsOpen = !smartFeedsCollapsed
   const toggleSmartFeeds = useCallback(() => {
     setSmartFeedsCollapsed((current) => !current)
   }, [setSmartFeedsCollapsed])
+  const expandFindSection = useCallback(() => {
+    setSmartFeedsCollapsed(false)
+  }, [setSmartFeedsCollapsed])
+
+  // Search is peer to smart feeds: when search is active, no smart item stays selected.
+  const smartItemActive = (feedId: string) => !librarySearchActive && activeFeedId === feedId
+
   return (
     <>
+      {/* Option D: search + smart feeds share one "Find" section; mutually exclusive selection */}
       <CollapsibleSectionHeader
         className="mt-0"
         isOpen={smartFeedsOpen}
         onToggle={toggleSmartFeeds}
       >
-        {t("sidebar.smart_feeds.title")}
+        {t("sidebar.find.title")}
       </CollapsibleSectionHeader>
       {smartFeedsOpen && (
         <>
+          <SidebarSearchInput onRequestExpand={expandFindSection} isActive={librarySearchActive} />
           <ScopeItem
             feedId={SMART_FEED_TODAY}
             icon={todayIcon}
             iconClassName="text-orange"
+            isActive={smartItemActive(SMART_FEED_TODAY)}
             title={t("time.today", { ns: "common" })}
             unread={counts.today}
           />
@@ -208,6 +221,7 @@ export const TimelineScopeItems = memo(() => {
             feedId={SMART_FEED_UNREAD}
             icon="i-lucide-scroll-text"
             iconClassName="text-blue"
+            isActive={smartItemActive(SMART_FEED_UNREAD)}
             title={t("sidebar.smart_feeds.all_unread")}
             unread={counts.unread}
           />
@@ -215,7 +229,7 @@ export const TimelineScopeItems = memo(() => {
             feedId={FEED_COLLECTION_LIST}
             icon="i-focal-star-fill"
             iconClassName="text-orange-500"
-            isActive={activeFeedId === FEED_COLLECTION_LIST}
+            isActive={smartItemActive(FEED_COLLECTION_LIST)}
             title={t("words.starred")}
             unread={counts.starred}
           />

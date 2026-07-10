@@ -1,54 +1,27 @@
 import { entryActions, useEntryStore } from "@follow/store/entry/store"
 import { entryQualityScoreActions } from "@follow/store/entry-quality-score/store"
-import { useEntryAiTagsStore } from "@follow/store/entry-tags/store"
-import { getCategoryFeedIds } from "@follow/store/subscription/getter"
-import { useAtomValue } from "jotai"
+import { useTranslationStore } from "@follow/store/translation/store"
 import { useMemo } from "react"
 
-import type { LibrarySearchScopeMode, LibrarySearchSort } from "~/atoms/library-search"
 import { useLibrarySearchSession } from "~/atoms/library-search"
-import { ROUTE_FEED_PENDING } from "~/constants"
-import {
-  getMyTopicIdFromFeedId,
-  getSmartFeedScope,
-  getTopicLabelFromFeedId,
-} from "~/lib/timeline-scope"
-import { matchEntryBySelector } from "~/modules/my-topics/selector"
-import { myTopicsAtom } from "~/modules/my-topics/store"
 
-import { scoreKeywordMatch, sortSearchHits } from "./rank"
-
-const isSameLocalDay = (date: Date, offset: number) => {
-  const target = new Date()
-  target.setDate(target.getDate() + offset)
-  return (
-    date.getFullYear() === target.getFullYear() &&
-    date.getMonth() === target.getMonth() &&
-    date.getDate() === target.getDate()
-  )
-}
+import { scoreEntryWithTranslations, sortSearchHits } from "./rank"
 
 export type SearchEntryIdsOptions = {
   query: string
-  sort: LibrarySearchSort
-  scopeMode: LibrarySearchScopeMode
-  allowedFeedIds?: Set<string> | null
-  smartFilter?: "today" | "yesterday" | "unread" | "starred" | null
-  topicLabel?: string | null
-  myTopicSelector?: Parameters<typeof matchEntryBySelector>[0] | null
-  tagsByEntryId?: Record<string, Array<{ label: string }> | undefined>
-  /** When smartFilter is starred, only these entry ids (collections) are eligible. */
-  starredEntryIds?: Set<string> | null
 }
 
 /**
  * Scan in-memory entry store for keyword matches and return ranked ids.
+ * Always full-library. Includes AI title/description translations so
+ * Chinese queries match translated UI titles.
  */
 export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[] {
   const query = options.query.trim()
   if (!query) return []
 
   const entries = entryActions.getFlattenMapEntries()
+  const translationsByEntryId = useTranslationStore.getState().data
   const hits: Array<{
     entryId: string
     matchScore: number
@@ -59,25 +32,7 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
   for (const entry of Object.values(entries)) {
     if (!entry) continue
 
-    if (options.allowedFeedIds && (!entry.feedId || !options.allowedFeedIds.has(entry.feedId)))
-      continue
-
-    if (options.smartFilter === "unread" && entry.read) continue
-    if (options.smartFilter === "today" && !isSameLocalDay(entry.publishedAt, 0)) continue
-    if (options.smartFilter === "yesterday" && !isSameLocalDay(entry.publishedAt, -1)) continue
-    if (options.smartFilter === "starred" && !options.starredEntryIds?.has(entry.id)) continue
-
-    if (options.topicLabel) {
-      const tags = options.tagsByEntryId?.[entry.id]
-      if (!tags?.some((t) => t.label === options.topicLabel)) continue
-    }
-
-    if (options.myTopicSelector) {
-      const tags = options.tagsByEntryId?.[entry.id]
-      if (!matchEntryBySelector(options.myTopicSelector, entry, tags as any)) continue
-    }
-
-    const matchScore = scoreKeywordMatch(
+    const matchScore = scoreEntryWithTranslations(
       {
         id: entry.id,
         title: entry.title,
@@ -86,6 +41,7 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
         publishedAt: entry.publishedAt,
       },
       query,
+      translationsByEntryId[entry.id],
     )
     if (matchScore <= 0) continue
 
@@ -98,82 +54,8 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
     })
   }
 
-  return sortSearchHits(hits, options.sort)
-}
-
-function resolveCurrentScopeConstraints(
-  snapshotFeedId: string | null,
-  myTopics: Array<{ id: string; selector: Parameters<typeof matchEntryBySelector>[0] }>,
-  view: number,
-): Pick<
-  SearchEntryIdsOptions,
-  "allowedFeedIds" | "smartFilter" | "topicLabel" | "myTopicSelector"
-> {
-  if (!snapshotFeedId || snapshotFeedId === ROUTE_FEED_PENDING) {
-    return {
-      allowedFeedIds: null,
-      smartFilter: null,
-      topicLabel: null,
-      myTopicSelector: null,
-    }
-  }
-
-  const smart = getSmartFeedScope(snapshotFeedId)
-  if (smart === "today" || smart === "yesterday" || smart === "unread" || smart === "starred") {
-    return {
-      allowedFeedIds: null,
-      smartFilter: smart,
-      topicLabel: null,
-      myTopicSelector: null,
-    }
-  }
-
-  const topicLabel = getTopicLabelFromFeedId(snapshotFeedId)
-  if (topicLabel) {
-    return {
-      allowedFeedIds: null,
-      smartFilter: null,
-      topicLabel,
-      myTopicSelector: null,
-    }
-  }
-
-  const myTopicId = getMyTopicIdFromFeedId(snapshotFeedId)
-  if (myTopicId) {
-    const topic = myTopics.find((t) => t.id === myTopicId)
-    return {
-      allowedFeedIds: null,
-      smartFilter: null,
-      topicLabel: null,
-      myTopicSelector: topic?.selector ?? null,
-    }
-  }
-
-  // Folder category or single feed id
-  const folderFeeds = getCategoryFeedIds(snapshotFeedId, view as any)
-  if (folderFeeds && folderFeeds.length > 1) {
-    return {
-      allowedFeedIds: new Set(folderFeeds),
-      smartFilter: null,
-      topicLabel: null,
-      myTopicSelector: null,
-    }
-  }
-  if (folderFeeds && folderFeeds.length === 1) {
-    return {
-      allowedFeedIds: new Set(folderFeeds),
-      smartFilter: null,
-      topicLabel: null,
-      myTopicSelector: null,
-    }
-  }
-
-  return {
-    allowedFeedIds: new Set([snapshotFeedId]),
-    smartFilter: null,
-    topicLabel: null,
-    myTopicSelector: null,
-  }
+  // Always relevance: match → time → quality
+  return sortSearchHits(hits, "relevance")
 }
 
 /**
@@ -183,37 +65,14 @@ export function useLibrarySearchEntryIds(): string[] {
   const session = useLibrarySearchSession()
   const query = session.query.trim()
   const entryRevision = useEntryStore((s) => Object.keys(s.data).length)
-  const tagsByEntryId = useEntryAiTagsStore((s) => s.data)
-  const myTopics = useAtomValue(myTopicsAtom)
+  // Translations often hold the Chinese title the user sees; re-run when they hydrate/update.
+  const translationRevision = useTranslationStore((s) => Object.keys(s.data).length)
 
   return useMemo(() => {
     void entryRevision
+    void translationRevision
     if (!query) return []
 
-    const constraints =
-      session.scopeMode === "current"
-        ? resolveCurrentScopeConstraints(session.scopeSnapshotFeedId, myTopics, 0)
-        : {
-            allowedFeedIds: null,
-            smartFilter: null,
-            topicLabel: null,
-            myTopicSelector: null,
-          }
-
-    return searchEntryIdsFromStore({
-      query,
-      sort: session.sort,
-      scopeMode: session.scopeMode,
-      ...constraints,
-      tagsByEntryId,
-    })
-  }, [
-    entryRevision,
-    myTopics,
-    query,
-    session.scopeMode,
-    session.scopeSnapshotFeedId,
-    session.sort,
-    tagsByEntryId,
-  ])
+    return searchEntryIdsFromStore({ query })
+  }, [entryRevision, translationRevision, query])
 }

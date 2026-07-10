@@ -13,34 +13,53 @@ import {
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { getRouteParams } from "~/hooks/biz/useRouteParams"
 
+import { feedColumnStyles } from "./styles"
+
 const SEARCH_DEBOUNCE_MS = 250
 
+type SidebarSearchInputProps = {
+  /** Called when Cmd+K focuses search (e.g. expand parent section). */
+  onRequestExpand?: () => void
+  /** Peer selection with Today / Unread / Starred — active when search session has a query. */
+  isActive?: boolean
+  className?: string
+}
+
 /**
- * Primary library search entry (Step 1): sits under the sidebar header.
- * Cmd+K focuses this input; results render in the middle column.
- *
- * Input value is local + debounced into the search session so typing stays
- * smooth (full-library scan must not run on every keystroke).
+ * Library search as a peer row to Today / Unread / Starred (UI option D).
+ * Mutually exclusive: when active, smart-feed rows are not highlighted.
  */
-export const SidebarSearchInput = () => {
+export const SidebarSearchInput = ({
+  onRequestExpand,
+  isActive = false,
+  className,
+}: SidebarSearchInputProps) => {
   const { t } = useTranslation("app")
   const committedQuery = useLibrarySearchQuery()
   const [draft, setDraft] = useState(committedQuery)
+  const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigateEntry = useNavigateEntry()
 
-  // External clears (header clear / sidebar nav) sync draft back.
+  const hasText = draft.trim().length > 0
+  /** Row selected when search results are showing (committed query), not merely focus. */
+  const rowActive = isActive || committedQuery.trim().length > 0
+
   useEffect(() => {
     setDraft(committedQuery)
   }, [committedQuery])
 
   useEffect(() => {
     return EventBus.subscribe(LIBRARY_SEARCH_FOCUS_EVENT, () => {
-      inputRef.current?.focus()
-      inputRef.current?.select()
+      onRequestExpand?.()
+      // Expand first, then focus on next frame so input is visible.
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      })
     })
-  }, [])
+  }, [onRequestExpand])
 
   useEffect(() => {
     return () => {
@@ -68,18 +87,28 @@ export const SidebarSearchInput = () => {
 
   return (
     <div
-      className="mx-2 mb-1 mt-1 shrink-0"
-      onClick={(e) => e.stopPropagation()}
+      data-active={rowActive}
+      className={cn(
+        // Peer row under "Find" — same geometry as Today / Unread / Starred
+        "group/search mt-1 flex h-8 shrink-0 gap-2 px-2.5",
+        feedColumnStyles.item,
+        focused && !rowActive && "bg-theme-item-hover/50",
+        className,
+      )}
+      onClick={(e) => {
+        e.stopPropagation()
+        inputRef.current?.focus()
+      }}
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <div
-        className={cn(
-          "flex h-8 items-center gap-1.5 rounded-lg border border-transparent bg-fill-secondary px-2",
-          "focus-within:border-border focus-within:bg-background",
-        )}
-      >
-        <i className="i-lucide-search size-3.5 shrink-0 text-text-tertiary" />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <i
+          className={cn(
+            "i-lucide-search size-4 shrink-0",
+            rowActive ? "text-text-secondary" : "text-text-tertiary",
+          )}
+        />
         <input
           ref={inputRef}
           type="text"
@@ -90,7 +119,12 @@ export const SidebarSearchInput = () => {
           spellCheck={false}
           value={draft}
           placeholder={t("search.library_placeholder")}
-          className="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-tertiary"
+          className={cn(
+            "min-w-0 flex-1 bg-transparent text-base font-medium !leading-loose text-text outline-none lg:text-sm",
+            "placeholder:font-medium placeholder:text-text-tertiary",
+          )}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onChange={(e) => {
             const { value } = e.target
             setDraft(value)
@@ -100,7 +134,6 @@ export const SidebarSearchInput = () => {
             }, SEARCH_DEBOUNCE_MS)
           }}
           onKeyDown={(e) => {
-            // Keep Focusable / timeline hotkeys from eating letters while typing.
             e.stopPropagation()
             if (e.key === "Escape") {
               if (draft.trim() || committedQuery.trim()) {
@@ -121,17 +154,21 @@ export const SidebarSearchInput = () => {
             }
           }}
         />
-        {draft.trim().length > 0 && (
-          <button
-            type="button"
-            className="center size-5 shrink-0 rounded text-text-tertiary hover:text-text"
-            aria-label={t("search.clear")}
-            onClick={clearAndRestore}
-          >
-            <i className="i-lucide-x size-3.5" />
-          </button>
-        )}
       </div>
+      {hasText && (
+        <button
+          type="button"
+          className="center ml-2 size-5 shrink-0 rounded text-text-tertiary opacity-70 hover:opacity-100"
+          aria-label={t("search.clear")}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation()
+            clearAndRestore()
+          }}
+        >
+          <i className="i-lucide-x size-3.5" />
+        </button>
+      )}
     </div>
   )
 }

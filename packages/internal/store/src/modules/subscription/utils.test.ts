@@ -30,7 +30,39 @@ describe("inferSubscriptionViewFromFeed", () => {
     ).toBe(FeedViewType.Videos)
   })
 
-  it("uses Articles view for non-YouTube feeds", () => {
+  it("uses Audios view for xiaoyuzhou / podcast feeds", () => {
+    expect(
+      inferSubscriptionViewFromFeed({
+        url: "https://rsshub.bestblogs.dev/xiaoyuzhou/podcast/626b46ea9cbbf0451cf5a962",
+        siteUrl: "https://www.xiaoyuzhoufm.com/podcast/626b46ea9cbbf0451cf5a962",
+      }),
+    ).toBe(FeedViewType.Audios)
+
+    expect(
+      inferSubscriptionViewFromFeed({
+        url: "https://feeds.buzzsprout.com/123.rss",
+        siteUrl: null,
+      }),
+    ).toBe(FeedViewType.Audios)
+  })
+
+  it("uses SocialMedia view for X / Twitter feeds", () => {
+    expect(
+      inferSubscriptionViewFromFeed({
+        url: "https://rsshub.app/twitter/user/OpenAI",
+        siteUrl: "https://x.com/OpenAI",
+      }),
+    ).toBe(FeedViewType.SocialMedia)
+
+    expect(
+      inferSubscriptionViewFromFeed({
+        url: "https://nitter.net/elonmusk/rss",
+        siteUrl: null,
+      }),
+    ).toBe(FeedViewType.SocialMedia)
+  })
+
+  it("uses Articles view for non-media feeds", () => {
     expect(
       inferSubscriptionViewFromFeed({
         url: "https://example.com/rss.xml",
@@ -60,6 +92,30 @@ describe("getCorrectedSubscriptionView", () => {
         url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC1234567890",
         siteUrl: "https://www.youtube.com/@example",
         title: "YouTube Channel",
+        description: null,
+        errorAt: null,
+        errorMessage: null,
+        image: null,
+        ownerUserId: null,
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: "feed-3",
+        url: "https://rsshub.bestblogs.dev/xiaoyuzhou/podcast/626b46ea9cbbf0451cf5a962",
+        siteUrl: "https://www.xiaoyuzhoufm.com/podcast/626b46ea9cbbf0451cf5a962",
+        title: "张小珺商业访谈录",
+        description: null,
+        errorAt: null,
+        errorMessage: null,
+        image: null,
+        ownerUserId: null,
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: "feed-4",
+        url: "https://rsshub.app/twitter/user/OpenAI",
+        siteUrl: "https://x.com/OpenAI",
+        title: "OpenAI on X",
         description: null,
         errorAt: null,
         errorMessage: null,
@@ -103,7 +159,29 @@ describe("getCorrectedSubscriptionView", () => {
     ).toBe(FeedViewType.Videos)
   })
 
-  it("does not change non-YouTube subscriptions already outside Videos view", () => {
+  it("moves podcast feeds into Audios view (fix misclassified Articles)", () => {
+    expect(
+      getCorrectedSubscriptionView(
+        createSubscription({
+          feedId: "feed-3",
+          view: FeedViewType.Articles,
+        }),
+      ),
+    ).toBe(FeedViewType.Audios)
+  })
+
+  it("moves X / Twitter feeds into SocialMedia view (fix misclassified Articles)", () => {
+    expect(
+      getCorrectedSubscriptionView(
+        createSubscription({
+          feedId: "feed-4",
+          view: FeedViewType.Articles,
+        }),
+      ),
+    ).toBe(FeedViewType.SocialMedia)
+  })
+
+  it("does not change non-media subscriptions already outside strong types", () => {
     expect(
       getCorrectedSubscriptionView(
         createSubscription({

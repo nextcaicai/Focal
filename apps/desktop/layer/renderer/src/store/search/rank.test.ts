@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { scoreKeywordMatch, sortSearchHits } from "./rank"
+import { scoreEntryWithTranslations, scoreKeywordMatch, sortSearchHits } from "./rank"
 
 describe("scoreKeywordMatch", () => {
   it("ranks title exact highest", () => {
@@ -38,6 +38,50 @@ describe("scoreKeywordMatch", () => {
 
   it("returns 0 when no field matches", () => {
     expect(scoreKeywordMatch({ id: "1", title: "Hello", publishedAt: 0 }, "claude")).toBe(0)
+  })
+
+  it("matches CJK prefix/substring in title", () => {
+    // Title starts with query → prefix tier (90)
+    expect(
+      scoreKeywordMatch(
+        { id: "1", title: "上下文卸载是一个被低估的AI应用场景", publishedAt: 0 },
+        "上下文",
+      ),
+    ).toBe(90)
+    expect(
+      scoreKeywordMatch({ id: "2", title: "谈谈上下文工程的实践", publishedAt: 0 }, "上下文"),
+    ).toBe(80)
+  })
+})
+
+describe("scoreEntryWithTranslations", () => {
+  it("matches translated Chinese title when original is English", () => {
+    expect(
+      scoreEntryWithTranslations(
+        {
+          id: "1",
+          title: "Context offload: an underrated use case",
+          description: "Alessio's email monitor setup",
+          publishedAt: 0,
+        },
+        "上下文",
+        {
+          "zh-CN": {
+            title: "上下文卸载是一个被低估的AI应用场景",
+            description: null,
+            content: null,
+          },
+        },
+      ),
+    ).toBe(90)
+  })
+
+  it("returns 0 when neither original nor translation matches", () => {
+    expect(
+      scoreEntryWithTranslations({ id: "1", title: "Hello world", publishedAt: 0 }, "上下文", {
+        "zh-CN": { title: "你好世界", description: null, content: null },
+      }),
+    ).toBe(0)
   })
 })
 

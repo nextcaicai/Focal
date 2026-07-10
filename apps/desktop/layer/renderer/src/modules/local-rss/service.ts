@@ -429,7 +429,13 @@ export async function upsertLocalRssSubscription({
   const userId = whoami()?.id ?? LOCAL_USER_ID
   const subscriptionView = Number(subscription.view)
   const inferredView = inferSubscriptionViewFromFeed(feed)
-  const view = inferredView === FeedViewType.Videos ? inferredView : subscriptionView
+  // Strong type signals override form defaults (Articles).
+  const view =
+    inferredView === FeedViewType.Videos ||
+    inferredView === FeedViewType.Audios ||
+    inferredView === FeedViewType.SocialMedia
+      ? inferredView
+      : subscriptionView
 
   await subscriptionActions.upsertMany([
     {

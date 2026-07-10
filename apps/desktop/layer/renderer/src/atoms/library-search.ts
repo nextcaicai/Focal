@@ -3,29 +3,19 @@ import { atom } from "jotai"
 
 import { createAtomHooks, jotaiStore } from "~/lib/jotai"
 
-export type LibrarySearchScopeMode = "all" | "current"
-export type LibrarySearchSort = "relevance" | "latest"
-
 export type LibrarySearchPreviousScope = {
   feedId: string
 }
 
 type LibrarySearchSession = {
   query: string
-  scopeMode: LibrarySearchScopeMode
-  sort: LibrarySearchSort
-  /** Route feedId when search became active (for restore + "current" scope). */
+  /** Route feedId when search became active (for restore on clear). */
   previousScope: LibrarySearchPreviousScope | null
-  /** feedId snapshot used when scopeMode is "current". */
-  scopeSnapshotFeedId: string | null
 }
 
 const defaultSession = (): LibrarySearchSession => ({
   query: "",
-  scopeMode: "all",
-  sort: "relevance",
   previousScope: null,
-  scopeSnapshotFeedId: null,
 })
 
 const librarySearchSessionAtom = atom<LibrarySearchSession>(defaultSession())
@@ -61,7 +51,6 @@ export const setLibrarySearchQuery = (
       ...prev,
       query: next,
       previousScope: null,
-      scopeSnapshotFeedId: null,
     })
     return
   }
@@ -72,7 +61,6 @@ export const setLibrarySearchQuery = (
       ...prev,
       query: next,
       previousScope: feedId ? { feedId } : null,
-      scopeSnapshotFeedId: feedId,
     })
     return
   }
@@ -85,14 +73,6 @@ export const setLibrarySearchQuery = (
 
 export const clearLibrarySearch = () => {
   setLibrarySearchSession(defaultSession())
-}
-
-export const setLibrarySearchScopeMode = (scopeMode: LibrarySearchScopeMode) => {
-  patchLibrarySearchSession({ scopeMode })
-}
-
-export const setLibrarySearchSort = (sort: LibrarySearchSort) => {
-  patchLibrarySearchSession({ sort })
 }
 
 /** Focus the sidebar library search input (Cmd+K). */

@@ -113,6 +113,10 @@ class SubscriptionActions implements Hydratable, Resetable {
     )
   }
 
+  /**
+   * Fix feed views misclassified as Articles (or wrong media type), e.g.
+   * podcasts stuck on Articles, non-YouTube on Videos. Runs on hydrate.
+   */
   async correctMisclassifiedVideoSubscriptions() {
     if (!LOCAL_RSS_MODE) return
 
