@@ -27,6 +27,8 @@ import {
 import { isSupportedLocalRssUrl, LOCAL_RSS_URL_MESSAGE } from "./url"
 
 export const LOCAL_RSS_DEFAULT_FEEDS_SEEDED_KEY = "local-rss:default-feeds-seeded"
+/** One-shot migration: import RSS-window history for existing subscriptions. */
+export const LOCAL_RSS_HISTORY_BACKFILL_V1_KEY = "local-rss:history-backfill-v1"
 export const DEFAULT_LOCAL_RSS_FEED_URLS = [
   "https://api.xgo.ing/rss/user/edf707b5c0b248579085f66d7a3c5524",
   "https://rsshub.bestblogs.dev/xiaoyuzhou/podcast/626b46ea9cbbf0451cf5a962",
@@ -34,6 +36,21 @@ export const DEFAULT_LOCAL_RSS_FEED_URLS = [
   "https://www.youtube.com/feeds/videos.xml?channel_id=UCcefcZRL2oaA_uBNeo5UOWg",
   "https://1q43.blog/feed",
 ] as const
+
+/**
+ * How many newest entries stay unread (and may enter the default AI pipeline)
+ * on first subscription. Does NOT limit how many entries are stored.
+ */
+export const INITIAL_SUBSCRIPTION_UNREAD_COUNT = 5
+
+export type LocalRssIngestReason = "initial" | "refresh" | "historyBackfill"
+
+export type RefreshLocalRssFeedResult = {
+  feed: FeedSchema
+  entries: EntrySchema[]
+  /** Entry ids that were not already in local store/DB before this ingest. */
+  newlyIngestedCount: number
+}
 
 const toDate = (value: Date | string | null | undefined) => {
   if (!value) return null
@@ -45,33 +62,18 @@ const normalizeFeed = (feed: RssPreviewFeed): FeedSchema => ({
   updatedAt: toDate(feed.updatedAt),
 })
 
-// Number of newest entries to keep as unread when a feed is first subscribed.
-export const INITIAL_SUBSCRIPTION_UNREAD_COUNT = 5
-
 /**
- * localStorage helpers for persisting the "historical cutoff" per feed.
- *
- * On initial subscription we only save the N newest entries to the DB.
- * We record the publishedAt of the oldest kept entry so that future
- * refreshes can silently discard entries older than that boundary,
- * preventing them from cycling back as unread when evicted by the DB cap.
+ * Legacy per-feed cutoff used to drop older window entries from ingest.
+ * P0 no longer discards by cutoff; we clear it on initial/backfill so old
+ * restrictive values do not block corpus growth if any residual checks remain.
  */
 const getHistoricalCutoffKey = (feedId: string) => `local-rss:history-cutoff:${feedId}`
 
-const readHistoricalCutoff = (feedId: string): Date | null => {
+const clearHistoricalCutoff = (feedId: string) => {
   try {
-    const value = localStorage.getItem(getHistoricalCutoffKey(feedId))
-    return value ? new Date(value) : null
+    localStorage.removeItem(getHistoricalCutoffKey(feedId))
   } catch {
-    return null
-  }
-}
-
-const writeHistoricalCutoff = (feedId: string, cutoff: Date) => {
-  try {
-    localStorage.setItem(getHistoricalCutoffKey(feedId), cutoff.toISOString())
-  } catch {
-    // Ignore storage failures; the next subscription will try again.
+    // Ignore storage failures.
   }
 }
 
@@ -85,6 +87,32 @@ const normalizeEntry = (entry: RssPreviewEntry): EntrySchema => {
     readabilityUpdatedAt: toDate(entry.readabilityUpdatedAt),
     read: existingEntry?.read ?? entry.read,
   }
+}
+
+const sortEntriesByPublishedDesc = (entries: EntrySchema[]) =>
+  [...entries].sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))
+
+const collectKnownEntryIds = async (entryIds: string[]) => {
+  const storeData = useEntryStore.getState().data
+  const known = new Set<string>()
+  const missingFromStore: string[] = []
+
+  for (const id of entryIds) {
+    if (storeData[id]) {
+      known.add(id)
+    } else {
+      missingFromStore.push(id)
+    }
+  }
+
+  if (missingFromStore.length > 0) {
+    const persisted = await EntryService.getEntryMany(missingFromStore)
+    for (const entry of persisted) {
+      known.add(entry.id)
+    }
+  }
+
+  return known
 }
 
 const mergeStoredEntryState = async (entries: EntrySchema[]) => {
@@ -244,56 +272,69 @@ const applyLocalActionsToEntries = async ({
   }
 }
 
+const resolveIngestReason = (options?: {
+  isInitialSubscription?: boolean
+  reason?: LocalRssIngestReason
+}): LocalRssIngestReason => {
+  if (options?.reason) return options.reason
+  if (options?.isInitialSubscription) return "initial"
+  return "refresh"
+}
+
+/**
+ * Fetch a feed and upsert entries into the local DB.
+ *
+ * Ingest depth, unread policy, and enrichment are separate:
+ * - initial: full RSS window in DB; newest N unread + enrichable; rest read, no AI
+ * - refresh: full window; only newly seen entries unread + enrichable
+ * - historyBackfill: full window; newly seen entries forced read; no AI
+ */
 export async function refreshLocalRssFeed(
   feed: Pick<FeedModel, "id" | "url">,
   options?: {
     /**
-     * Set true when the user is subscribing to this feed for the first time.
-     * Only the newest INITIAL_SUBSCRIPTION_UNREAD_COUNT entries are kept unread
-     * and sent to AI enrichment; all older historical entries are marked as read
-     * so the user does not see a backlog flood and BYOK costs stay minimal.
+     * @deprecated Prefer `reason: "initial"`. Kept for call-site compatibility.
      */
     isInitialSubscription?: boolean
+    reason?: LocalRssIngestReason
   },
-) {
-  const { isInitialSubscription = false } = options ?? {}
+): Promise<RefreshLocalRssFeedResult> {
+  const reason = resolveIngestReason(options)
   const result = await requestPreview(feed.url)
   const nextFeed = normalizeFeed(result.feed)
   let entries = result.entries.map(normalizeEntry)
 
-  let initialUnreadIds: Set<string> | undefined
-  if (isInitialSubscription) {
-    // Keep only the N newest entries. Historical backlog is intentionally NOT saved to the DB
-    // so a first-time subscription does not flood the timeline or trigger unnecessary BYOK work.
-    const sorted = [...entries].sort(
-      (a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0),
+  // Always keep the full current RSS window (no soft cap).
+  entries = sortEntriesByPublishedDesc(entries)
+
+  const knownEntryIds = await collectKnownEntryIds(entries.map((entry) => entry.id))
+  const newlySeenIds = new Set(
+    entries.filter((entry) => !knownEntryIds.has(entry.id)).map((e) => e.id),
+  )
+
+  let unreadIdsForEnrichment: Set<string> | undefined
+
+  if (reason === "initial") {
+    // Newest N unread for timeline + AI; everything else stored as read.
+    const sorted = entries
+    unreadIdsForEnrichment = new Set(
+      sorted.slice(0, INITIAL_SUBSCRIPTION_UNREAD_COUNT).map((entry) => entry.id),
     )
-    entries = sorted.slice(0, INITIAL_SUBSCRIPTION_UNREAD_COUNT)
-    initialUnreadIds = new Set(entries.map((e) => e.id))
-
-    // Record the publishedAt of the oldest kept entry as the historical cutoff.
-    // Future refreshes will silently discard anything older than this boundary.
-    const oldestKept = entries.at(-1)
-    if (oldestKept?.publishedAt) {
-      writeHistoricalCutoff(feed.id, new Date(oldestKept.publishedAt.getTime() - 1))
-    }
-  } else {
-    // On regular refreshes, entries predating the historical cutoff are discarded entirely
-    // (not saved to DB) because they predate the user's subscription baseline.
-    const historicalCutoff = readHistoricalCutoff(feed.id)
-
-    if (historicalCutoff) {
-      const storeData = useEntryStore.getState().data
-      entries = entries.filter((entry) => {
-        // Always keep entries already in the memory store (their state is known).
-        if (storeData[entry.id]) return true
-        // Discard entries that predate the subscription cutoff.
-        if (entry.publishedAt && entry.publishedAt <= historicalCutoff) return false
-        // Keep genuinely new entries (published after the cutoff).
-        return true
-      })
-    }
+    entries = sorted.map((entry) => ({
+      ...entry,
+      read: unreadIdsForEnrichment!.has(entry.id) ? false : true,
+    }))
+    clearHistoricalCutoff(feed.id)
+  } else if (reason === "historyBackfill") {
+    // Import missing window entries as read; never flood timeline or BYOK.
+    entries = entries.map((entry) => {
+      if (knownEntryIds.has(entry.id)) return entry
+      return { ...entry, read: true }
+    })
+    clearHistoricalCutoff(feed.id)
   }
+  // reason === "refresh": do not drop older window items; merge keeps read state;
+  // brand-new ids stay unread (feed default read:false) and get enrichment below.
 
   const nextFeedWithIdentity = {
     ...nextFeed,
@@ -307,8 +348,25 @@ export async function refreshLocalRssFeed(
   const entriesWithFeedId = await mergeStoredEntryState(
     entries.map((entry) => ({ ...entry, feedId: feed.id })),
   )
+
+  // Re-apply unread / history policy after merge (merge prefers stored read state).
+  const finalEntries = (() => {
+    if (reason === "initial" && unreadIdsForEnrichment) {
+      return entriesWithFeedId.map((entry) => ({
+        ...entry,
+        read: !unreadIdsForEnrichment!.has(entry.id),
+      }))
+    }
+    if (reason === "historyBackfill") {
+      return entriesWithFeedId.map((entry) =>
+        newlySeenIds.has(entry.id) ? { ...entry, read: true } : entry,
+      )
+    }
+    return entriesWithFeedId
+  })()
+
   const actionResult = await applyLocalActionsToEntries({
-    entries: entriesWithFeedId,
+    entries: finalEntries,
     feed: {
       ...nextFeedWithIdentity,
       type: "feed",
@@ -320,15 +378,20 @@ export async function refreshLocalRssFeed(
   await entryActions.upsertMany(actionResult.entries)
   const ingestedEntryIds = actionResult.entries.map((entry) => entry.id)
 
-  if (isInitialSubscription && initialUnreadIds) {
-    // Only enrich the newest entries that are kept unread; skip AI for the entire backlog.
-    const enrichIds = ingestedEntryIds.filter((id) => initialUnreadIds!.has(id))
+  if (reason === "historyBackfill") {
+    // Corpus only — no BYOK. Rank may still help if scores are cheap/local.
+    triggerEntryRankFromIngest(ingestedEntryIds.filter((id) => newlySeenIds.has(id)))
+  } else if (reason === "initial" && unreadIdsForEnrichment) {
+    const enrichIds = ingestedEntryIds.filter((id) => unreadIdsForEnrichment!.has(id))
     triggerEntryEnrichmentFromIngest(enrichIds)
     triggerEntryRankFromIngest(ingestedEntryIds)
   } else {
-    triggerEntryEnrichmentFromIngest(ingestedEntryIds)
-    triggerEntryRankFromIngest(ingestedEntryIds)
+    // refresh: enrich only newly seen entries to avoid re-queueing the full window
+    const enrichIds = ingestedEntryIds.filter((id) => newlySeenIds.has(id))
+    triggerEntryEnrichmentFromIngest(enrichIds)
+    triggerEntryRankFromIngest(enrichIds)
   }
+
   void Promise.all(
     actionResult.sideEffects.map((result) =>
       runLocalActionSideEffects(result, {
@@ -350,8 +413,9 @@ export async function refreshLocalRssFeed(
   await syncUnreadCountForFeed(feed.id)
 
   return {
-    feed: nextFeed,
-    entries,
+    feed: nextFeedWithIdentity,
+    entries: actionResult.entries,
+    newlyIngestedCount: newlySeenIds.size,
   }
 }
 
@@ -384,8 +448,18 @@ export async function upsertLocalRssSubscription({
     },
   ])
 
-  await refreshLocalRssFeed(feed, { isInitialSubscription: true })
+  await refreshLocalRssFeed(feed, { reason: "initial" })
   await invalidateEntriesQuery({ views: [view] })
+}
+
+/**
+ * Import all entries currently available in the feed window that are missing
+ * locally. Imported entries are read and do not trigger AI enrichment.
+ */
+export async function importAvailableHistoryForFeed(
+  feed: Pick<FeedModel, "id" | "url">,
+): Promise<RefreshLocalRssFeedResult> {
+  return refreshLocalRssFeed(feed, { reason: "historyBackfill" })
 }
 
 const readDefaultFeedsSeeded = () => {
@@ -401,6 +475,22 @@ const writeDefaultFeedsSeeded = () => {
     localStorage.setItem(LOCAL_RSS_DEFAULT_FEEDS_SEEDED_KEY, "1")
   } catch {
     // Ignore storage failures; existing subscriptions still prevent duplicate seeding.
+  }
+}
+
+const readHistoryBackfillV1Done = () => {
+  try {
+    return localStorage.getItem(LOCAL_RSS_HISTORY_BACKFILL_V1_KEY) === "done"
+  } catch {
+    return false
+  }
+}
+
+const writeHistoryBackfillV1Done = () => {
+  try {
+    localStorage.setItem(LOCAL_RSS_HISTORY_BACKFILL_V1_KEY, "done")
+  } catch {
+    // Ignore; next startup will retry.
   }
 }
 
@@ -476,7 +566,7 @@ export async function refreshAllLocalRssFeeds(): Promise<{
     if (!feed?.id || !feed.url) continue
 
     try {
-      await refreshLocalRssFeed(feed)
+      await refreshLocalRssFeed(feed, { reason: "refresh" })
       successCount += 1
     } catch (error) {
       failureCount += 1
@@ -488,4 +578,87 @@ export async function refreshAllLocalRssFeeds(): Promise<{
   }
 
   return { successCount, failureCount }
+}
+
+export type HistoryBackfillResult = {
+  /** False when migration already completed (flag set). */
+  ran: boolean
+  feedCount: number
+  successCount: number
+  failureCount: number
+  newlyIngestedCount: number
+}
+
+/**
+ * One-shot upgrade migration: for every local feed subscription, import the
+ * current RSS window's missing entries as read without AI.
+ * Silent; caller shows a light toast when ran && newlyIngestedCount path as needed.
+ */
+export async function backfillAvailableHistoryForExistingSubscriptions(options?: {
+  /** When true, run even if the v1 done flag is set (manual full retry). */
+  force?: boolean
+}): Promise<HistoryBackfillResult> {
+  if (!options?.force && readHistoryBackfillV1Done()) {
+    return {
+      ran: false,
+      feedCount: 0,
+      successCount: 0,
+      failureCount: 0,
+      newlyIngestedCount: 0,
+    }
+  }
+
+  const subscriptions = Object.values(useSubscriptionStore.getState().data).filter(
+    (subscription) => subscription.type === "feed" && subscription.feedId,
+  )
+
+  let successCount = 0
+  let failureCount = 0
+  let newlyIngestedCount = 0
+  let feedCount = 0
+
+  for (const subscription of subscriptions) {
+    const feed = getFeedByIdOrUrl({ id: subscription.feedId ?? undefined })
+    if (!feed?.id || !feed.url) continue
+
+    feedCount += 1
+    try {
+      const result = await importAvailableHistoryForFeed(feed)
+      successCount += 1
+      newlyIngestedCount += result.newlyIngestedCount
+    } catch (error) {
+      failureCount += 1
+      console.warn("[local-rss] History backfill failed for feed", {
+        feedId: feed.id,
+        url: feed.url,
+        error,
+      })
+    }
+  }
+
+  // Mark done even with partial failures so we do not hammer every startup;
+  // users can re-run per feed via "Import available history".
+  writeHistoryBackfillV1Done()
+
+  return {
+    ran: true,
+    feedCount,
+    successCount,
+    failureCount,
+    newlyIngestedCount,
+  }
+}
+
+/** Mark the one-shot history backfill as completed (e.g. after fresh seed). */
+export const markHistoryBackfillV1Done = () => {
+  writeHistoryBackfillV1Done()
+}
+
+/** Test helper: clear the v1 backfill done flag. */
+export const resetHistoryBackfillV1FlagForTests = () => {
+  try {
+    localStorage.removeItem(LOCAL_RSS_HISTORY_BACKFILL_V1_KEY)
+  } catch {
+    // ignore
+  }
 }

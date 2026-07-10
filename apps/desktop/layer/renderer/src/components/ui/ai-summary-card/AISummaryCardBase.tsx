@@ -30,6 +30,8 @@ interface AISummaryCardBaseProps {
   showAskAIButton?: boolean
   /** Callback when Ask AI button is clicked */
   onAskAI?: () => void
+  /** Custom empty-state body (replaces default "not available" message) */
+  emptyContent?: ReactNode
 
   error?: Error | null
 }
@@ -61,6 +63,7 @@ export const AISummaryCardBase: React.FC<AISummaryCardBaseProps> = ({
   showCopyButton = true,
   showAskAIButton = false,
   onAskAI,
+  emptyContent,
 }) => {
   const { t } = useTranslation("app")
   const aiEnabled = useFeature("ai")
@@ -176,7 +179,7 @@ export const AISummaryCardBase: React.FC<AISummaryCardBaseProps> = ({
             {String(content)}
           </Markdown>
         ) : (
-          <DefaultEmptyState message={t("ai.summary_not_available")} />
+          (emptyContent ?? <DefaultEmptyState message={t("ai.summary_not_available")} />)
         )}
       </AutoResizeHeight>
 

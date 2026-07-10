@@ -1,7 +1,9 @@
 import type { FeedViewType } from "@follow/constants"
+import { getViewList } from "@follow/constants"
 import { IN_ELECTRON, LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { env } from "@follow/shared/env.desktop"
 import { entryEnrichmentService } from "@follow/store/enrichment/service"
+import { invalidateEntriesQuery } from "@follow/store/entry/hooks"
 import { getFeedById } from "@follow/store/feed/getter"
 import { useFeedById } from "@follow/store/feed/hooks"
 import { useInboxById, useIsInbox } from "@follow/store/inbox/hooks"
@@ -33,6 +35,7 @@ import { useCommandShortcuts } from "~/modules/command/hooks/use-command-binding
 import { FeedForm } from "~/modules/discover/FeedForm"
 import { InboxForm } from "~/modules/discover/InboxForm"
 import { ListForm } from "~/modules/discover/ListForm"
+import { importAvailableHistoryForFeed } from "~/modules/local-rss/service"
 import { useConfirmUnsubscribeSubscriptionModal } from "~/modules/modal/hooks/useConfirmUnsubscribeSubscriptionModal"
 import { useCategoryCreationModal } from "~/modules/settings/tabs/lists/hooks"
 import { ListCreationModalContent } from "~/modules/settings/tabs/lists/modals"
@@ -105,6 +108,40 @@ export const useFeedActions = ({
         supportMultipleSelection: true,
         requiresLogin: true,
       }),
+      LOCAL_RSS_MODE &&
+        related.type === "feed" &&
+        !isMultipleSelection &&
+        feed?.url &&
+        new MenuItemText({
+          label: t("sidebar.feed_actions.import_available_history"),
+          disabled: isEntryList,
+          click: () => {
+            const feedRef = { id: feedId, url: feed.url! }
+            const toastId = toast.loading(
+              t("sidebar.feed_actions.import_available_history_loading"),
+            )
+            void importAvailableHistoryForFeed(feedRef)
+              .then(async (result) => {
+                toast.dismiss(toastId)
+                if (result.newlyIngestedCount > 0) {
+                  const views = getViewList({ includeAll: true }).map((view) => view.view)
+                  await invalidateEntriesQuery({ views })
+                  toast.success(
+                    t("sidebar.feed_actions.import_available_history_success", {
+                      count: result.newlyIngestedCount,
+                    }),
+                  )
+                } else {
+                  toast.message(t("sidebar.feed_actions.import_available_history_empty"))
+                }
+              })
+              .catch((error) => {
+                console.warn("[local-rss] Import available history failed:", error)
+                toast.dismiss(toastId)
+                toast.error(t("sidebar.feed_actions.import_available_history_failed"))
+              })
+          },
+        }),
       LOCAL_RSS_MODE &&
         qualityScoreEnabled &&
         related.type === "feed" &&

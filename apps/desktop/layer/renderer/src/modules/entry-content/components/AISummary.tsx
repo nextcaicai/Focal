@@ -1,5 +1,8 @@
+import { MotionButtonBase } from "@follow/components/ui/button/index.js"
 import { useEntry } from "@follow/store/entry/hooks"
-import { usePrefetchSummary } from "@follow/store/summary/hooks"
+import { usePrefetchSummary, useSummary } from "@follow/store/summary/hooks"
+import { cn } from "@follow/utils/utils"
+import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useShowAISummary } from "~/atoms/ai-summary"
@@ -17,21 +20,31 @@ export function AISummary({ entryId }: { entryId: string }) {
   const showAISummary = useShowAISummary(summarySetting)
 
   const actionLanguage = useActionLanguage()
+  const target = isInReadabilitySuccess ? "readabilityContent" : "content"
 
-  // AI Chat panel state
-  const aiChatPanelStyle = useAIChatPanelStyle()
-  const isAIPanelVisible = useAIPanelVisibility()
+  // Existing summary from store (ingest pipeline or prior generate). Display only — no auto BYOK.
+  const cached = useSummary(entryId, actionLanguage)
+  const cachedText =
+    target === "readabilityContent"
+      ? cached?.readabilitySummary || cached?.summary
+      : cached?.summary || cached?.readabilitySummary
+
+  // Button-triggered generation only (P0: open article does not auto-spend tokens).
+  const [requested, setRequested] = useState(false)
 
   const summary = usePrefetchSummary({
     actionLanguage,
     entryId,
-    target: isInReadabilitySuccess ? "readabilityContent" : "content",
-    enabled: showAISummary,
+    target,
+    enabled: showAISummary && requested,
   })
 
-  // Show Ask AI button when:
-  // 1. Panel style is floating AND panel is not visible
-  // 2. OR panel style is fixed (since fixed panel can be toggled)
+  const displayContent = summary.data ?? cachedText ?? null
+  const isLoading = requested && summary.isLoading
+
+  const aiChatPanelStyle = useAIChatPanelStyle()
+  const isAIPanelVisible = useAIPanelVisibility()
+
   const shouldShowAskAI =
     (aiChatPanelStyle === AIChatPanelStyle.Floating && !isAIPanelVisible) ||
     aiChatPanelStyle === AIChatPanelStyle.Fixed
@@ -40,19 +53,42 @@ export function AISummary({ entryId }: { entryId: string }) {
     openEntryAIChat()
   }
 
+  const handleGenerate = useCallback(() => {
+    setRequested(true)
+  }, [])
+
   if (!showAISummary) {
     return null
   }
 
   return (
     <AISummaryCardBase
-      content={summary.data}
-      isLoading={summary.isLoading}
+      content={displayContent}
+      isLoading={isLoading}
       className="my-8"
       title={t("entry_content.ai_summary")}
       showAskAIButton={shouldShowAskAI}
       onAskAI={handleAskAI}
       error={summary.error}
+      emptyContent={
+        <div className="flex flex-col items-center gap-3 text-center">
+          <p className="text-sm text-text-secondary">{t("entry_content.ai_summary_empty_hint")}</p>
+          <MotionButtonBase
+            onClick={handleGenerate}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium",
+              "bg-gradient-to-r from-purple-500/10 to-blue-500/10",
+              "border border-purple-200/30 dark:border-purple-800/30",
+              "text-purple-600 dark:text-purple-400",
+              "hover:from-purple-500/20 hover:to-blue-500/20",
+              "transition-all duration-200",
+            )}
+          >
+            <i className="i-focal-ai text-base" />
+            <span>{t("entry_content.generate_ai_summary")}</span>
+          </MotionButtonBase>
+        </div>
+      }
     />
   )
 }

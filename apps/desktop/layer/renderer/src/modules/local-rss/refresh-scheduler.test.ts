@@ -15,11 +15,15 @@ const {
   refreshAllLocalRssFeedsMock,
   seedDefaultLocalRssFeedsIfNeededMock,
   invalidateEntriesQueryMock,
+  backfillAvailableHistoryForExistingSubscriptionsMock,
+  markHistoryBackfillV1DoneMock,
 } = vi.hoisted(() => ({
   getGeneralSettingsMock: vi.fn(),
   refreshAllLocalRssFeedsMock: vi.fn(),
   seedDefaultLocalRssFeedsIfNeededMock: vi.fn(),
   invalidateEntriesQueryMock: vi.fn(),
+  backfillAvailableHistoryForExistingSubscriptionsMock: vi.fn(),
+  markHistoryBackfillV1DoneMock: vi.fn(),
 }))
 
 vi.mock("~/atoms/settings/general", () => ({
@@ -29,6 +33,21 @@ vi.mock("~/atoms/settings/general", () => ({
 vi.mock("./service", () => ({
   refreshAllLocalRssFeeds: refreshAllLocalRssFeedsMock,
   seedDefaultLocalRssFeedsIfNeeded: seedDefaultLocalRssFeedsIfNeededMock,
+  backfillAvailableHistoryForExistingSubscriptions:
+    backfillAvailableHistoryForExistingSubscriptionsMock,
+  markHistoryBackfillV1Done: markHistoryBackfillV1DoneMock,
+}))
+
+vi.mock("sonner", () => ({
+  toast: {
+    message: vi.fn(),
+  },
+}))
+
+vi.mock("~/i18n", () => ({
+  getI18n: () => ({
+    t: (key: string) => key,
+  }),
 }))
 
 vi.mock("@follow/store/entry/hooks", () => ({
@@ -43,8 +62,42 @@ vi.mock("@follow/constants", async (importOriginal) => {
   }
 })
 
+const ensureLocalStorage = () => {
+  if (globalThis.localStorage !== undefined) return
+
+  const store = new Map<string, string>()
+  const storage = {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key: string) {
+      return store.has(key) ? store.get(key)! : null
+    },
+    key(index: number) {
+      return [...store.keys()][index] ?? null
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+    setItem(key: string, value: string) {
+      store.set(key, String(value))
+    },
+  } satisfies Storage
+
+  Object.defineProperty(globalThis, "localStorage", {
+    value: storage,
+    configurable: true,
+    writable: true,
+  })
+}
+
 describe("localRssRefreshScheduler", () => {
   beforeEach(() => {
+    ensureLocalStorage()
+    localStorage.clear()
     resetLocalRssRefreshSchedulerForTests()
     getGeneralSettingsMock.mockReturnValue({
       ...defaultGeneralSettings,
@@ -58,10 +111,18 @@ describe("localRssRefreshScheduler", () => {
       successCount: 0,
       failureCount: 0,
     })
+    backfillAvailableHistoryForExistingSubscriptionsMock.mockResolvedValue({
+      ran: false,
+      feedCount: 0,
+      successCount: 0,
+      failureCount: 0,
+      newlyIngestedCount: 0,
+    })
     invalidateEntriesQueryMock.mockResolvedValue(void 0)
   })
 
   afterEach(() => {
+    resetLocalRssRefreshSchedulerForTests()
     vi.clearAllMocks()
   })
 
@@ -100,6 +161,11 @@ describe("localRssRefreshScheduler", () => {
     )
 
     const firstRefresh = runLocalRssRefresh("manual")
+    // Wait until the first run holds the lock and reaches the long-running refresh.
+    await vi.waitFor(() => {
+      expect(refreshAllLocalRssFeedsMock).toHaveBeenCalled()
+    })
+
     const secondRefresh = await runLocalRssRefresh("manual")
 
     expect(secondRefresh.skipped).toBe(true)

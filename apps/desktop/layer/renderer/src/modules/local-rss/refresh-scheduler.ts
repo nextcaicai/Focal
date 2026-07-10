@@ -2,10 +2,17 @@ import { getViewList } from "@follow/constants"
 import type { RssRefreshIntervalMinutes } from "@follow/shared/settings/interface"
 import { invalidateEntriesQuery } from "@follow/store/entry/hooks"
 import { useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
 import { getGeneralSettings } from "~/atoms/settings/general"
+import { getI18n } from "~/i18n"
 
-import { refreshAllLocalRssFeeds, seedDefaultLocalRssFeedsIfNeeded } from "./service"
+import {
+  backfillAvailableHistoryForExistingSubscriptions,
+  markHistoryBackfillV1Done,
+  refreshAllLocalRssFeeds,
+  seedDefaultLocalRssFeedsIfNeeded,
+} from "./service"
 
 export const RSS_REFRESH_INTERVAL_OPTIONS = [
   15, 30, 60, 120,
@@ -112,6 +119,50 @@ const invalidateAllEntryViews = async () => {
   await invalidateEntriesQuery({ views })
 }
 
+const notifyHistoryBackfillIfNeeded = (result: {
+  ran: boolean
+  newlyIngestedCount: number
+  successCount: number
+  feedCount: number
+}) => {
+  if (!result.ran || result.feedCount === 0) return
+
+  // Light toast after silent migration (design option A).
+  const { t } = getI18n()
+  toast.message(t("app:notify.local_rss_history_backfill_done"), {
+    description:
+      result.newlyIngestedCount > 0
+        ? t("app:notify.local_rss_history_backfill_done_detail", {
+            count: result.newlyIngestedCount,
+          })
+        : t("app:notify.local_rss_history_backfill_done_none"),
+    duration: 4000,
+  })
+}
+
+/**
+ * Upgrade migration: import available RSS-window history for existing feeds.
+ * Safe to call often — no-ops after the v1 flag is set.
+ */
+export async function runLocalRssHistoryBackfillIfNeeded(): Promise<{
+  ran: boolean
+  newlyIngestedCount: number
+}> {
+  try {
+    const result = await backfillAvailableHistoryForExistingSubscriptions()
+    if (result.ran) {
+      if (result.newlyIngestedCount > 0) {
+        await invalidateAllEntryViews()
+      }
+      notifyHistoryBackfillIfNeeded(result)
+    }
+    return { ran: result.ran, newlyIngestedCount: result.newlyIngestedCount }
+  } catch (error) {
+    console.warn("[local-rss] History backfill migration failed:", error)
+    return { ran: false, newlyIngestedCount: 0 }
+  }
+}
+
 export async function runLocalRssRefresh(
   reason: RssRefreshReason,
 ): Promise<{ skipped: boolean; successCount?: number; failureCount?: number }> {
@@ -131,12 +182,18 @@ export async function runLocalRssRefresh(
     if (seedResult.seeded) {
       markRefreshed()
       await invalidateAllEntryViews()
+      // Fresh seed already ingests the full window as initial; skip upgrade migration.
+      markHistoryBackfillV1Done()
       return {
         skipped: false,
         successCount: seedResult.successCount,
         failureCount: seedResult.failureCount,
       }
     }
+
+    // Ensure one-shot history import runs before normal refresh so missing
+    // window entries are ingested as read instead of flooding as unread.
+    await runLocalRssHistoryBackfillIfNeeded()
 
     const { successCount, failureCount } = await refreshAllLocalRssFeeds()
 
@@ -169,12 +226,16 @@ export async function runLocalRssStartup(): Promise<{
     if (seedResult.seeded) {
       markRefreshed()
       await invalidateAllEntryViews()
+      markHistoryBackfillV1Done()
       return {
         skipped: false,
         successCount: seedResult.successCount,
         failureCount: seedResult.failureCount,
       }
     }
+
+    // Silent history backfill on upgrade even when interval refresh is skipped.
+    await runLocalRssHistoryBackfillIfNeeded()
   } finally {
     isRefreshing = false
     emit()
@@ -206,6 +267,10 @@ export const resetLocalRssRefreshSchedulerForTests = () => {
   lastRefreshedAt = null
   lastRefreshedAtLoaded = false
   cachedSnapshot = { isRefreshing: false, lastRefreshedAt: null }
-  localStorage.removeItem(RSS_LAST_REFRESHED_AT_KEY)
+  try {
+    localStorage.removeItem(RSS_LAST_REFRESHED_AT_KEY)
+  } catch {
+    // ignore missing storage in non-browser test envs
+  }
   listeners.clear()
 }
