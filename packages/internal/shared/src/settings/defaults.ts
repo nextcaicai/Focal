@@ -10,9 +10,11 @@ export const defaultGeneralSettings: GeneralSettings = {
   language: "en",
   translation: false,
   translationMode: "bilingual",
-  summary: true,
-  autoTag: true,
-  qualityScore: true,
+  // AI auto-actions stay off until the user configures BYOK and opts in.
+  // Keeps Focal usable as a plain local RSS reader with no enrichment noise.
+  summary: false,
+  autoTag: false,
+  qualityScore: false,
   actionLanguage: "default",
 
   sendAnonymousData: true,

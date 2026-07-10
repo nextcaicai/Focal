@@ -16,28 +16,20 @@ import { UsageAnalysisSection } from "./ai/usage"
 const SettingBuilder = createSettingBuilder(useAISettingValue)
 const defineSettingItem = createDefineSettingItem("ai", useAISettingValue, setAISetting)
 
+/**
+ * Settings > AI layout (dependency-first):
+ * 1. BYOK credentials
+ * 2. Embedding credentials (local RSS)
+ * 3. Automatic AI action toggles
+ * 4. Chat UI preferences
+ * 5. Security footer
+ */
 export const SettingAI = () => {
   const { t } = useTranslation("ai")
 
   return (
     <div className="mt-4">
-      <SettingBuilder
-        settings={[
-          {
-            type: "title",
-            value: t("features.title"),
-          },
-
-          PanelStyleSection,
-          defineSettingItem("autoScrollWhenStreaming", {
-            label: t("settings.autoScrollWhenStreaming.label"),
-            description: t("settings.autoScrollWhenStreaming.description"),
-          }),
-        ]}
-      />
-
-      <AIActionSettingsSection />
-
+      {/* 1–2. Providers first: credentials before capability toggles */}
       <SettingBuilder
         settings={[
           ...(LOCAL_RSS_MODE
@@ -65,6 +57,25 @@ export const SettingAI = () => {
                 EmbeddingSection,
               ] as const)
             : []),
+        ]}
+      />
+
+      {/* 3. What to run automatically (requires providers above) */}
+      <AIActionSettingsSection />
+
+      {/* 4. Chat surface preferences */}
+      <SettingBuilder
+        settings={[
+          {
+            type: "title",
+            value: t("features.title"),
+          },
+
+          PanelStyleSection,
+          defineSettingItem("autoScrollWhenStreaming", {
+            label: t("settings.autoScrollWhenStreaming.label"),
+            description: t("settings.autoScrollWhenStreaming.description"),
+          }),
 
           ...(LOCAL_RSS_MODE
             ? []
@@ -75,6 +86,7 @@ export const SettingAI = () => {
                 },
                 UsageAnalysisSection,
               ] as const)),
+
           AISecurityDisclosureSection,
         ]}
       />
