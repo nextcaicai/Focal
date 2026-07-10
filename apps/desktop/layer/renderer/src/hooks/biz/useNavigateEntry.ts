@@ -7,6 +7,7 @@ import { useCallback } from "react"
 import { toast } from "sonner"
 
 import { disableShowAISummaryOnce } from "~/atoms/ai-summary"
+import { clearLibrarySearch, getLibrarySearchSession } from "~/atoms/library-search"
 import { setPreviewBackPath } from "~/atoms/preview"
 import { resetShowSourceContent } from "~/atoms/source-content"
 import { ROUTE_ENTRY_PENDING, ROUTE_FEED_PENDING } from "~/constants"
@@ -48,6 +49,17 @@ export const navigateEntry = (options: NavigateEntryOptions) => {
   const route = getReadonlyRoute()
   const currentPath = route.location.pathname + route.location.search
   if (path === currentPath) return
+
+  // Scope navigation (sidebar feed/smart feed/etc.) exits library search.
+  // Selecting an entry only passes entryId — keep the search result list.
+  if (getLibrarySearchSession().query.trim() && options.feedId !== undefined) {
+    const isSelectingEntry =
+      options.entryId != null && options.entryId !== ROUTE_ENTRY_PENDING && options.entryId !== null
+    // Feed list clicks typically set entryId null/pending; still clear.
+    if (!isSelectingEntry) {
+      clearLibrarySearch()
+    }
+  }
 
   if (backPath) {
     setPreviewBackPath(backPath)

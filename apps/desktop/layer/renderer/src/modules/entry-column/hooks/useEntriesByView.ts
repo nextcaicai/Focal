@@ -26,6 +26,7 @@ import { debounce } from "es-toolkit/compat"
 import { useAtomValue } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { useLibrarySearchActive } from "~/atoms/library-search"
 import { useActionLanguage, useGeneralSettingKey } from "~/atoms/settings/general"
 import { ROUTE_FEED_PENDING } from "~/constants/app"
 import { useFeature } from "~/hooks/biz/useFeature"
@@ -47,6 +48,7 @@ import {
   selectedStarredGroupAtom,
   starredGroupAssignmentsAtom,
 } from "~/modules/starred-groups/store"
+import { useLibrarySearchEntryIds } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
 import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
@@ -161,6 +163,8 @@ const sortEntryIdsByPublishedAtDesc = (entryIds: string[]) => {
 }
 
 const useLocalEntries = (): UseEntriesReturn => {
+  const librarySearchActive = useLibrarySearchActive()
+  const librarySearchEntryIds = useLibrarySearchEntryIds()
   const { feedId, view, inboxId, listId, isCollection } = useRouteParams()
   const smartFeed = getSmartFeedScope(feedId)
   const topicLabel = getTopicLabelFromFeedId(feedId)
@@ -312,6 +316,9 @@ const useLocalEntries = (): UseEntriesReturn => {
   }, [allEntries, effectiveUnreadOnly, localQueryKey])
 
   const sortedEntries = useMemo(() => {
+    // Library search takes over the middle column list while active.
+    if (librarySearchActive) return librarySearchEntryIds
+
     void rankingRevision
 
     if (!allEntries?.length) return allEntries ?? []
@@ -319,7 +326,14 @@ const useLocalEntries = (): UseEntriesReturn => {
     if (!recommendedTimelineEnabled) return latestEntries
 
     return sortEntryIdsByRecommended(latestEntries)
-  }, [allEntries, isVirtualScope, rankingRevision, recommendedTimelineEnabled])
+  }, [
+    allEntries,
+    isVirtualScope,
+    librarySearchActive,
+    librarySearchEntryIds,
+    rankingRevision,
+    recommendedTimelineEnabled,
+  ])
 
   const [page, setPage] = useState(0)
   const pageSize = 30
@@ -349,7 +363,14 @@ const useLocalEntries = (): UseEntriesReturn => {
 
   useEffect(() => {
     setPage(0)
-  }, [view, feedId, recommendedTimelineEnabled, selectedStarredGroupId])
+  }, [
+    view,
+    feedId,
+    recommendedTimelineEnabled,
+    selectedStarredGroupId,
+    librarySearchActive,
+    librarySearchEntryIds,
+  ])
 
   return {
     entriesIds: entries,

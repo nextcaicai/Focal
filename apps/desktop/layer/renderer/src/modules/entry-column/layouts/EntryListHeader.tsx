@@ -25,12 +25,20 @@ import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
 
+import {
+  clearLibrarySearch,
+  setLibrarySearchScopeMode,
+  setLibrarySearchSort,
+  useLibrarySearchActive,
+  useLibrarySearchSession,
+} from "~/atoms/library-search"
 import { previewBackPath } from "~/atoms/preview"
 import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { useSubscriptionColumnShow } from "~/atoms/sidebar"
 import { ROUTE_ENTRY_PENDING } from "~/constants"
 import { useFeature } from "~/hooks/biz/useFeature"
 import { useFollow } from "~/hooks/biz/useFollow"
+import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { getRouteParams, useRouteParams } from "~/hooks/biz/useRouteParams"
 import { useLoginModal } from "~/hooks/common"
 import { useSendAIShortcut } from "~/modules/ai-chat/hooks/useSendAIShortcut"
@@ -40,6 +48,7 @@ import { useCommandShortcut } from "~/modules/command/hooks/use-command-binding"
 import { EntryHeader } from "~/modules/entry-content/components/entry-header"
 import { FeedIcon } from "~/modules/feed/feed-icon"
 import { useFeedHeaderIcon, useFeedHeaderTitle } from "~/store/feed/hooks"
+import { useLibrarySearchEntryIds } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
 import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
@@ -52,6 +61,10 @@ import { SwitchToMasonryButton } from "./buttons/SwitchToMasonryButton"
 export const EntryListHeader: FC = () => {
   const { entryId, view } = useRouteParams()
   const { t } = useTranslation()
+  const navigateEntry = useNavigateEntry()
+  const librarySearchActive = useLibrarySearchActive()
+  const librarySearchSession = useLibrarySearchSession()
+  const librarySearchCount = useLibrarySearchEntryIds().length
 
   const unreadOnly = useGeneralSettingKey("unreadOnly")
   const [aiTimelineEnabled, setAiTimelineEnabled] = useAtom(aiTimelineEnabledAtom)
@@ -72,6 +85,92 @@ export const EntryListHeader: FC = () => {
   const currentTimelineUnreadCount = useCurrentTimelineUnreadCount()
   const hasCurrentTimelineUnread = currentTimelineUnreadCount > 0
   const disableUnreadOnlyToggle = !unreadOnly && !hasCurrentTimelineUnread
+
+  const handleClearLibrarySearch = useCallback(() => {
+    const previous = librarySearchSession.previousScope
+    clearLibrarySearch()
+    if (previous?.feedId) {
+      navigateEntry({ feedId: previous.feedId, entryId: null })
+    }
+  }, [librarySearchSession.previousScope, navigateEntry])
+
+  const chipClass = (active: boolean) =>
+    cn(
+      "no-drag-region pointer-events-auto h-6 shrink-0 rounded-md px-2 text-xs transition-colors",
+      active
+        ? "bg-fill text-text shadow-sm"
+        : "text-text-secondary hover:bg-fill-secondary hover:text-text",
+    )
+
+  const searchTitleInfo = librarySearchActive && (
+    <div
+      className={clsx(
+        "no-drag-region pointer-events-auto flex min-w-0 flex-1 flex-col justify-center gap-1.5",
+        "-ml-1",
+      )}
+      onClick={stopPropagation}
+      onPointerDown={stopPropagation}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <i className="i-lucide-search size-3.5 shrink-0 text-text-secondary" />
+        <EllipsisHorizontalTextWithTooltip className="min-w-0 flex-1 truncate text-sm font-semibold">
+          {t("search.results_title", {
+            query: librarySearchSession.query.trim(),
+            count: librarySearchCount,
+          })}
+        </EllipsisHorizontalTextWithTooltip>
+        <button
+          type="button"
+          className="no-drag-region pointer-events-auto shrink-0 rounded-md px-2 py-1 text-xs text-text-secondary hover:bg-fill-secondary hover:text-text"
+          onClick={handleClearLibrarySearch}
+        >
+          {t("search.clear")}
+        </button>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <div
+          className="no-drag-region pointer-events-auto flex h-7 items-center rounded-md bg-fill-secondary p-0.5"
+          role="group"
+          aria-label={t("search.scope_all")}
+        >
+          <button
+            type="button"
+            className={chipClass(librarySearchSession.scopeMode === "all")}
+            onClick={() => setLibrarySearchScopeMode("all")}
+          >
+            {t("search.scope_all")}
+          </button>
+          <button
+            type="button"
+            className={chipClass(librarySearchSession.scopeMode === "current")}
+            onClick={() => setLibrarySearchScopeMode("current")}
+          >
+            {t("search.scope_current")}
+          </button>
+        </div>
+        <div
+          className="no-drag-region pointer-events-auto flex h-7 items-center rounded-md bg-fill-secondary p-0.5"
+          role="group"
+          aria-label={t("search.sort_relevance")}
+        >
+          <button
+            type="button"
+            className={chipClass(librarySearchSession.sort === "relevance")}
+            onClick={() => setLibrarySearchSort("relevance")}
+          >
+            {t("search.sort_relevance")}
+          </button>
+          <button
+            type="button"
+            className={chipClass(librarySearchSession.sort === "latest")}
+            onClick={() => setLibrarySearchSort("latest")}
+          >
+            {t("search.sort_latest")}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 
   const titleInfo = !!headerTitle && (
     <div className={clsx("flex min-w-0 flex-1 flex-col justify-center overflow-hidden", "-ml-3")}>
@@ -205,17 +304,27 @@ export const EntryListHeader: FC = () => {
         "flex w-full flex-col pr-2.5 pt-2 duration-200 @[700px]:pr-3 @[1024px]:pr-4",
         titleStyleBasedView[view],
         !feedColumnShow && "macos:pl-[calc(var(--fo-macos-traffic-light-width,0px)+3.75rem)]",
-        isPreview
-          ? "h-top-header-in-preview-with-border-b px-2.5 @[700px]:px-3 @[1024px]:px-4"
-          : "h-top-header-with-border-b",
-        view === FeedViewType.All &&
+        // Search header needs two rows — do not clamp to single-line top header height.
+        librarySearchActive
+          ? "min-h-top-header border-b border-border pb-2"
+          : isPreview
+            ? "h-top-header-in-preview-with-border-b px-2.5 @[700px]:px-3 @[1024px]:px-4"
+            : "h-top-header-with-border-b",
+        !librarySearchActive &&
+          view === FeedViewType.All &&
           "border-b border-transparent data-[scrolled-beyond-threshold=true]:border-b-border",
       )}
       data-scrolled-beyond-threshold={isScrolledBeyondThresholdValue}
     >
       <div className="flex w-full min-w-0 items-center justify-between gap-2">
-        {isPreview ? <PreviewHeaderInfoWrapper>{titleInfo}</PreviewHeaderInfoWrapper> : titleInfo}
-        {!isPreview && (
+        {librarySearchActive ? (
+          searchTitleInfo
+        ) : isPreview ? (
+          <PreviewHeaderInfoWrapper>{titleInfo}</PreviewHeaderInfoWrapper>
+        ) : (
+          titleInfo
+        )}
+        {!isPreview && !librarySearchActive && (
           <div
             className={cn(
               "relative z-[1] flex shrink-0 items-center gap-2 text-text-secondary",

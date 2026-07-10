@@ -19,6 +19,7 @@ import { useBackHome } from "~/hooks/biz/useNavigateEntry"
 import { WindowUnderBlur } from "../../components/ui/background"
 import { getSelectedFeedIds, resetSelectedFeedIds, setSelectedFeedIds } from "./atom"
 import { useShouldFreeUpSpace } from "./hook"
+import { SidebarSearchInput } from "./SidebarSearchInput"
 import { SubscriptionListGuard } from "./subscription-list/SubscriptionListGuard"
 import { SubscriptionColumnFooter } from "./SubscriptionColumnFooter"
 import { SubscriptionColumnHeader } from "./SubscriptionColumnHeader"
@@ -61,6 +62,7 @@ export function SubscriptionColumn({
       }, [navigateBackHome])}
     >
       <SubscriptionColumnHeader />
+      <SidebarSearchInput />
       {!feedColumnShow && (
         <RootPortal to={rootContainerElement}>
           <ActionButton

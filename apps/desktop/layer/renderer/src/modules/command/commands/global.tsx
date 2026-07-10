@@ -1,7 +1,7 @@
 import { EventBus } from "@follow/utils/event-bus"
 import { useTranslation } from "react-i18next"
 
-import { setAppSearchOpen } from "~/atoms/app"
+import { focusLibrarySearchInput } from "~/atoms/library-search"
 import { getAIPanelVisibility, setAIPanelVisibility } from "~/atoms/settings/ai"
 import { useShortcutsModal } from "~/modules/modal/hooks/useShortcutsModal"
 
@@ -65,7 +65,7 @@ export const useRegisterGlobalCommands = () => {
       },
       icon: <i className="i-lucide-search" />,
       run: () => {
-        setAppSearchOpen(true)
+        focusLibrarySearchInput()
       },
       category,
     },

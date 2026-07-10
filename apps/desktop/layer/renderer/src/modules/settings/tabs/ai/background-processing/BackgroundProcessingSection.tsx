@@ -287,6 +287,7 @@ export const ByokProcessingSection = () => {
   const isBusy = useByokProcessingBusy()
   const qualityScoreCoverage = useQualityScoreCoverageStats()
   const qualityScoreEnabled = useGeneralSettingKey("qualityScore")
+  const enhancedSettings = useGeneralSettingKey("enhancedSettings")
   const [isRescoring, setIsRescoring] = useState(false)
   const {
     visibleError,
@@ -371,7 +372,7 @@ export const ByokProcessingSection = () => {
         </div>
       }
       footer={
-        qualityScoreEnabled ? (
+        qualityScoreEnabled && enhancedSettings ? (
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -417,6 +418,7 @@ export const EmbeddingProcessingSection = () => {
   const status = useEmbeddingJobStatus()
   const coverage = useEmbeddingCoverageStats()
   const isBusy = useEmbeddingProcessingBusy()
+  const enhancedSettings = useGeneralSettingKey("enhancedSettings")
   const [isRebuilding, setIsRebuilding] = useState(false)
 
   const handleRebuild = async () => {
@@ -466,21 +468,23 @@ export const EmbeddingProcessingSection = () => {
         </div>
       }
       footer={
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isBusy || isRebuilding || coverage.eligibleCount === 0}
-            onClick={() => void handleRebuild()}
-          >
-            {isRebuilding
-              ? t("embedding_processing.rebuild.running")
-              : t("embedding_processing.rebuild.action")}
-          </Button>
-          <p className="text-xs leading-relaxed text-text-tertiary">
-            {t("embedding_processing.rebuild.hint")}
-          </p>
-        </div>
+        enhancedSettings ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isBusy || isRebuilding || coverage.eligibleCount === 0}
+              onClick={() => void handleRebuild()}
+            >
+              {isRebuilding
+                ? t("embedding_processing.rebuild.running")
+                : t("embedding_processing.rebuild.action")}
+            </Button>
+            <p className="text-xs leading-relaxed text-text-tertiary">
+              {t("embedding_processing.rebuild.hint")}
+            </p>
+          </div>
+        ) : null
       }
       renderActiveJob={(entryId) => <EmbeddingActiveJobRow entryId={entryId} />}
     />

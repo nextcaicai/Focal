@@ -16,7 +16,6 @@ import { EnvironmentIndicator } from "~/modules/app/EnvironmentIndicator"
 import { DebugRegistry } from "~/modules/debug/registry"
 import { EntriesProvider } from "~/modules/entry-column/context/EntriesContext"
 import { CmdF } from "~/modules/panel/cmdf"
-import { SearchCmdK } from "~/modules/panel/cmdk"
 import { CmdNTrigger } from "~/modules/panel/cmdn"
 import { AppNotificationContainer } from "~/modules/upgrade/lazy/index"
 
@@ -183,7 +182,6 @@ export function MainDestopLayout() {
         </main>
       </EntriesProvider>
 
-      <SearchCmdK />
       <CmdNTrigger />
       {IN_ELECTRON && <CmdF />}
     </RootContainer>
