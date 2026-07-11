@@ -15,6 +15,11 @@ import { sortEntryIdsByRecommended } from "@follow/store/entry/sort"
 import { entryActions, entrySyncServices, useEntryStore } from "@follow/store/entry/store"
 import type { UseEntriesReturn } from "@follow/store/entry/types"
 import { fallbackReturn } from "@follow/store/entry/utils"
+import {
+  buildSemanticScoreByEntryId,
+  SEMANTIC_TOPIC_MIN_SCORE,
+} from "@follow/store/entry-embedding/semantic-search"
+import { useEntryEmbeddingStore } from "@follow/store/entry-embedding/store"
 import { useEntryRankScoreStore } from "@follow/store/entry-rank-score/store"
 import { useEntryAiTagsStore } from "@follow/store/entry-tags/store"
 import { useFolderFeedsByFeedId } from "@follow/store/subscription/hooks"
@@ -27,9 +32,11 @@ import { useAtomValue } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useLibrarySearchActive } from "~/atoms/library-search"
+import { getAISettings } from "~/atoms/settings/ai"
 import { useActionLanguage, useGeneralSettingKey } from "~/atoms/settings/general"
 import { ROUTE_FEED_PENDING } from "~/constants/app"
 import { useFeature } from "~/hooks/biz/useFeature"
+import { useQueryEmbeddingVector } from "~/hooks/biz/useQueryEmbeddingVector"
 import { useRouteParams } from "~/hooks/biz/useRouteParams"
 import {
   getMyTopicIdFromFeedId,
@@ -37,6 +44,7 @@ import {
   getTopicLabelFromFeedId,
 } from "~/lib/timeline-scope"
 import {
+  triggerEntryEmbeddingLibraryBackfill,
   triggerEntryEnrichmentBackfill,
   triggerEntryRankBackfill,
 } from "~/modules/entry-enrichment/trigger"
@@ -174,6 +182,16 @@ const useLocalEntries = (): UseEntriesReturn => {
     () => (myTopicId ? myTopics.find((topic) => topic.id === myTopicId) : undefined),
     [myTopicId, myTopics],
   )
+  const keywordTopicQuery =
+    myTopic?.selector.type === "keyword" ? myTopic.selector.query.trim() : ""
+  const keywordTopicQueryVector = useQueryEmbeddingVector(keywordTopicQuery)
+  const embeddingData = useEntryEmbeddingStore((state) => state.data)
+  const keywordTopicSemanticScores = useMemo(() => {
+    if (!keywordTopicQuery || !keywordTopicQueryVector) return null
+    return buildSemanticScoreByEntryId(keywordTopicQueryVector, embeddingData, {
+      minScore: SEMANTIC_TOPIC_MIN_SCORE,
+    })
+  }, [keywordTopicQuery, keywordTopicQueryVector, embeddingData])
   const selectedStarredGroupId = useAtomValue(selectedStarredGroupAtom)
   const starredGroupAssignments = useAtomValue(starredGroupAssignmentsAtom)
   const isVirtualScope = !!smartFeed || !!topicLabel || !!myTopic
@@ -272,7 +290,11 @@ const useLocalEntries = (): UseEntriesReturn => {
             return tagsByEntryId[entryId]?.some((tag) => tag.label === topicLabel) ?? false
           }
           if (myTopic) {
-            return matchEntryBySelector(myTopic.selector, entry, tagsByEntryId[entryId])
+            return matchEntryBySelector(myTopic.selector, entry, tagsByEntryId[entryId], {
+              entryId,
+              semanticScores: keywordTopicSemanticScores,
+              semanticMinScore: SEMANTIC_TOPIC_MIN_SCORE,
+            })
           }
           if (smartFeed === "starred") {
             return doesEntryMatchStarredGroupFilter({
@@ -304,6 +326,7 @@ const useLocalEntries = (): UseEntriesReturn => {
         tagsByEntryId,
         topicLabel,
         myTopic,
+        keywordTopicSemanticScores,
       ],
     ),
   )
@@ -495,6 +518,7 @@ export const useEntriesByView = ({ onReset }: { onReset?: () => void }) => {
 }
 
 const ENRICHMENT_RETRY_MS = 45_000
+const EMBEDDING_LIBRARY_BACKFILL_MS = 60_000
 
 const useEntryEnrichmentBackfill = (
   entryIds: string[],
@@ -509,18 +533,34 @@ const useEntryEnrichmentBackfill = (
   const entryIdsKey = useMemo(() => entryIds.join("\0"), [entryIds])
 
   useEffect(() => {
-    if (!summaryEnabled && !translationEnabled && !autoTagEnabled && !qualityScoreEnabled) return
-    if (entryIds.length === 0) return
+    const embeddingEnabled = LOCAL_RSS_MODE && (getAISettings().embedding?.enabled ?? false)
+    const byokEnabled =
+      summaryEnabled || translationEnabled || autoTagEnabled || qualityScoreEnabled
+
+    if (!byokEnabled && !embeddingEnabled) return
+    if (entryIds.length === 0 && !embeddingEnabled) return
 
     let cancelled = false
 
     const runBackfill = () => {
       if (cancelled) return
-      triggerEntryEnrichmentBackfill(entryIds)
+      if (
+        (byokEnabled || embeddingEnabled) && // Visible set: BYOK unread-only inside trigger; embedding includes read.
+        entryIds.length > 0
+      ) {
+        triggerEntryEnrichmentBackfill(entryIds)
+      }
+      if (embeddingEnabled) {
+        // Full library gap-fill so historical/read entries enter the semantic index.
+        triggerEntryEmbeddingLibraryBackfill()
+      }
     }
 
     runBackfill()
-    const retryTimer = setInterval(runBackfill, ENRICHMENT_RETRY_MS)
+    const retryTimer = setInterval(
+      runBackfill,
+      embeddingEnabled && !byokEnabled ? EMBEDDING_LIBRARY_BACKFILL_MS : ENRICHMENT_RETRY_MS,
+    )
 
     return () => {
       cancelled = true

@@ -36,27 +36,29 @@ export const triggerEntryEnrichmentFromIngest = (entryIds: string[]) => {
   }
 
   if (isEmbeddingEnabled()) {
+    // New ingest: embed regardless of read state (ingest rows are usually unread).
     entryEmbeddingJobService.enqueueFromIngest({ entryIds })
   }
 }
 
+/**
+ * BYOK enrichment: unread only (token-sensitive).
+ * Embedding: all provided ids (read + unread) — model is free / local-cost for users who enable it.
+ */
 export const triggerEntryEnrichmentBackfill = (entryIds: string[]) => {
   if (entryIds.length === 0) return
 
-  // Backfill only unread entries. Already-read content won't benefit from AI enrichment
-  // (the user won't see summaries/tags for content they've already consumed), and skipping
-  // them avoids unnecessary BYOK token usage — especially important after initial feed
-  // subscription where historical entries are pre-marked as read.
   const entryData = useEntryStore.getState().data
   const unreadIds = entryIds.filter((id) => {
     const entry = entryData[id]
     return entry && !entry.read
   })
 
-  if (unreadIds.length === 0) return
-
   const byokPhases = getByokPhases()
-  if (byokPhases.length > 0) {
+  if (byokPhases.length > 0 && unreadIds.length > 0) {
+    // Backfill only unread entries for LLM phases. Already-read content won't benefit
+    // from AI enrichment, and skipping them avoids unnecessary BYOK token usage —
+    // especially after initial feed subscription where historical entries are pre-marked as read.
     entryEnrichmentService.backfillVisible({
       entryIds: unreadIds,
       actionLanguage: getActionLanguage(),
@@ -66,8 +68,15 @@ export const triggerEntryEnrichmentBackfill = (entryIds: string[]) => {
   }
 
   if (isEmbeddingEnabled()) {
-    entryEmbeddingJobService.backfillVisible({ entryIds: unreadIds })
+    // Semantic index needs historical coverage: embed read + unread in the visible set.
+    entryEmbeddingJobService.backfillVisible({ entryIds })
   }
+}
+
+/** Full-library gap-fill for embeddings (read + unread). Safe to call repeatedly. */
+export const triggerEntryEmbeddingLibraryBackfill = () => {
+  if (!isEmbeddingEnabled()) return 0
+  return entryEmbeddingJobService.enqueueAllMissing()
 }
 
 export const triggerEntryRankFromIngest = (entryIds: string[]) => {

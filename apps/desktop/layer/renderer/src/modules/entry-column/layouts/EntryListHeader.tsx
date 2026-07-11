@@ -6,6 +6,10 @@ import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { DEFAULT_SUMMARIZE_TIMELINE_SHORTCUT_ID } from "@follow/shared/settings/defaults"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
 import { useEntryStore } from "@follow/store/entry/store"
+import {
+  useEmbeddingCoverageStats,
+  useEmbeddingProcessingBusy,
+} from "@follow/store/entry-embedding/hooks"
 import { getFeedById } from "@follow/store/feed/getter"
 import { folderFeedsByFeedIdSelector } from "@follow/store/subscription/selectors"
 import { useSubscriptionStore } from "@follow/store/subscription/store"
@@ -31,6 +35,7 @@ import {
   useLibrarySearchSession,
 } from "~/atoms/library-search"
 import { previewBackPath } from "~/atoms/preview"
+import { useAISettingKey } from "~/atoms/settings/ai"
 import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { useSubscriptionColumnShow } from "~/atoms/sidebar"
 import { ROUTE_ENTRY_PENDING } from "~/constants"
@@ -63,6 +68,10 @@ export const EntryListHeader: FC = () => {
   const librarySearchActive = useLibrarySearchActive()
   const librarySearchSession = useLibrarySearchSession()
   const librarySearchCount = useLibrarySearchEntryIds().length
+  const embeddingCoverage = useEmbeddingCoverageStats()
+  const embeddingBusy = useEmbeddingProcessingBusy()
+  const embeddingSettings = useAISettingKey("embedding")
+  const embeddingEnabled = LOCAL_RSS_MODE && (embeddingSettings?.enabled ?? false)
 
   const unreadOnly = useGeneralSettingKey("unreadOnly")
   const [aiTimelineEnabled, setAiTimelineEnabled] = useAtom(aiTimelineEnabledAtom)
@@ -92,6 +101,20 @@ export const EntryListHeader: FC = () => {
     }
   }, [librarySearchSession.previousScope, navigateEntry])
 
+  const semanticIndexLabel = (() => {
+    if (!embeddingEnabled || embeddingCoverage.eligibleCount === 0) return null
+    if (embeddingBusy || embeddingCoverage.backlogCount > 0) {
+      return t("search.semantic_index.building", {
+        covered: embeddingCoverage.coveredCount,
+        total: embeddingCoverage.eligibleCount,
+      })
+    }
+    return t("search.semantic_index.ready", {
+      covered: embeddingCoverage.coveredCount,
+      total: embeddingCoverage.eligibleCount,
+    })
+  })()
+
   const searchTitleInfo = librarySearchActive && (
     <div
       className={clsx(
@@ -111,6 +134,11 @@ export const EntryListHeader: FC = () => {
           })}
         </EllipsisHorizontalTextWithTooltip>
       </div>
+      {semanticIndexLabel ? (
+        <span className="pl-6 text-xs text-text-tertiary" title={semanticIndexLabel}>
+          {semanticIndexLabel}
+        </span>
+      ) : null}
     </div>
   )
 

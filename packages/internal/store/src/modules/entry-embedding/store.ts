@@ -90,7 +90,7 @@ export const entryEmbeddingActions = new EntryEmbeddingActions()
 class EntryEmbeddingSyncService {
   async generateEmbedding({ entryId, force = false }: { entryId: string; force?: boolean }) {
     const entry = getEntry(entryId)
-    if (!entry || entry.read) return null
+    if (!entry) return null
     if (!hasEmbeddingEligibleText(entry)) return null
 
     const existing = entryEmbeddingActions.getEmbedding(entryId)

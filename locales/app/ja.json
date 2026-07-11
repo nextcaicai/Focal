@@ -446,6 +446,8 @@
   "search.placeholder": "検索...",
   "search.result_count_local_mode": "（ローカルモード）",
   "search.results_title": "「{{query}}」· {{count}} 件",
+  "search.semantic_index.building": "セマンティック索引を構築中 {{covered}}/{{total}} · 未完了分はキーワード一致",
+  "search.semantic_index.ready": "セマンティック索引 {{covered}}/{{total}}",
   "search.tooltip.local_search": "この検索は、ローカルで利用可能なデータを対象としています。最新データを含めるために再取得を試してください。",
   "share.actions": "アクション",
   "share.copy_failed": "リンクのコピーに失敗しました",

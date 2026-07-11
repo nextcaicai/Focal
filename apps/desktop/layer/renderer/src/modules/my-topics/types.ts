@@ -1,8 +1,9 @@
 import type { EntryAiTagLabel } from "@follow/shared/entry-ai-tags"
 
 /**
- * A topic is a content selector. Phase 1 supports AI tag buckets and keyword
- * queries; semantic / manual selectors are deferred to later phases.
+ * A topic is a content selector. Supports AI tag buckets and keyword queries.
+ * Keyword topics use title match + semantic similarity when embeddings exist
+ * (Phase 2). Dedicated semantic / manual selectors remain deferred.
  */
 export type TopicSelector =
   | { type: "aiTag"; label: EntryAiTagLabel }

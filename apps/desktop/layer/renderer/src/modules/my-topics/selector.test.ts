@@ -45,6 +45,26 @@ describe("matchEntryBySelector", () => {
     )
     expect(matchEntryBySelector({ type: "keyword", query: "gpt" }, { title: null }, [])).toBe(false)
   })
+
+  it("matches keyword via semantic score when title does not contain the query", () => {
+    const semanticScores = new Map<string, number>([["entry-1", 0.72]])
+    expect(
+      matchEntryBySelector(
+        { type: "keyword", query: "智能体" },
+        { title: "Building multi-step agents with tools" },
+        [],
+        { entryId: "entry-1", semanticScores, semanticMinScore: 0.34 },
+      ),
+    ).toBe(true)
+    expect(
+      matchEntryBySelector(
+        { type: "keyword", query: "智能体" },
+        { title: "Building multi-step agents with tools" },
+        [],
+        { entryId: "entry-2", semanticScores, semanticMinScore: 0.34 },
+      ),
+    ).toBe(false)
+  })
 })
 
 describe("getTopicStatus", () => {

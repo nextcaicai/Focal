@@ -446,6 +446,8 @@
   "search.placeholder": "搜索...",
   "search.result_count_local_mode": "（本地模式）",
   "search.results_title": "搜索「{{query}}」· {{count}} 篇",
+  "search.semantic_index.building": "语义索引建立中 {{covered}}/{{total}} · 未完成部分先按关键词匹配",
+  "search.semantic_index.ready": "语义索引 {{covered}}/{{total}}",
   "search.tooltip.local_search": "当前搜索仅包含本地可用数据，尝试重新搜索得到更多结果。",
   "share.actions": "操作",
   "share.copy_failed": "复制链接失败",

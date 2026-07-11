@@ -156,6 +156,26 @@ vi.mock("~/atoms/library-search", () => ({
   useLibrarySearchSession: () => ({ query: "", previousScope: null }),
 }))
 
+vi.mock("@follow/store/entry-embedding/hooks", () => ({
+  useEmbeddingCoverageStats: () => ({
+    backlogCount: 0,
+    coveredCount: 0,
+    eligibleCount: 0,
+  }),
+  useEmbeddingProcessingBusy: () => false,
+}))
+
+vi.mock("~/atoms/settings/ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/atoms/settings/ai")>()
+  return {
+    ...actual,
+    useAISettingKey: (key: string) => {
+      if (key === "embedding") return { enabled: false }
+      return actual.useAISettingKey(key as never)
+    },
+  }
+})
+
 vi.mock("~/atoms/settings/general", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/atoms/settings/general")>()
   return {

@@ -3,6 +3,7 @@ import { getSubscriptionByEntryId } from "../subscription/getter"
 import {
   entryNeedsEmbedding,
   getEmbeddingCoverageStats,
+  listMissingEmbeddingEntryIds,
   listRebuildEligibleEntryIds,
 } from "./backlog"
 import { embeddingJobStatusActions } from "./status-store"
@@ -35,6 +36,21 @@ class EntryEmbeddingJobService {
 
   backfillVisible(options: EmbeddingJobEnqueueOptions) {
     this.enqueueMissing(options)
+  }
+
+  /**
+   * Queue every subscribed entry that still needs an embedding (read + unread).
+   * Does not wipe existing vectors — only fills gaps / refreshes stale hashes.
+   */
+  enqueueAllMissing() {
+    const entryIds = listMissingEmbeddingEntryIds()
+    if (entryIds.length === 0) {
+      this.publishStatus()
+      return 0
+    }
+
+    this.enqueueMissing({ entryIds })
+    return entryIds.length
   }
 
   async rebuildAll() {

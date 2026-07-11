@@ -87,14 +87,16 @@ describe("embedding backlog", () => {
     })
   })
 
-  test("counts missing and stale entries as backlog", () => {
+  test("counts missing and stale entries as backlog, including read history", () => {
     expect(entryNeedsEmbedding("entry-missing")).toBe(true)
+    // Covered row has a stale sourceHash in fixtures → still needs re-embed.
     expect(entryNeedsEmbedding("entry-covered")).toBe(true)
-    expect(entryNeedsEmbedding("entry-read")).toBe(false)
+    // Read entries are eligible for the semantic index.
+    expect(entryNeedsEmbedding("entry-read")).toBe(true)
 
     const stats = getEmbeddingCoverageStats(() => false)
-    expect(stats.eligibleCount).toBe(2)
-    expect(stats.backlogCount).toBe(2)
+    expect(stats.eligibleCount).toBe(3)
+    expect(stats.backlogCount).toBe(3)
     expect(stats.coveredCount).toBe(0)
   })
 })
