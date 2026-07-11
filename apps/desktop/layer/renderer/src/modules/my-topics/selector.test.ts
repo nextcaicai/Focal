@@ -6,15 +6,21 @@ import type { MyTopic } from "./types"
 describe("matchEntryBySelector", () => {
   it("matches aiTag when the entry carries the tag", () => {
     expect(
-      matchEntryBySelector({ type: "aiTag", label: "AI" }, { title: "x" }, [{ label: "AI" }]),
+      matchEntryBySelector({ type: "aiTag", label: "Agent 智能体" }, { title: "x" }, [
+        { label: "Agent 智能体" },
+      ]),
     ).toBe(true)
   })
 
   it("does not match aiTag when the tag is absent", () => {
     expect(
-      matchEntryBySelector({ type: "aiTag", label: "AI" }, { title: "x" }, [{ label: "产品" }]),
+      matchEntryBySelector({ type: "aiTag", label: "Agent 智能体" }, { title: "x" }, [
+        { label: "编码与开发" },
+      ]),
     ).toBe(false)
-    expect(matchEntryBySelector({ type: "aiTag", label: "AI" }, { title: "x" })).toBe(false)
+    expect(matchEntryBySelector({ type: "aiTag", label: "Agent 智能体" }, { title: "x" })).toBe(
+      false,
+    )
   })
 
   it("matches keyword case-insensitively on the title", () => {
@@ -45,7 +51,7 @@ describe("getTopicStatus", () => {
   const base: MyTopic = {
     id: "t",
     name: "t",
-    selector: { type: "aiTag", label: "AI" },
+    selector: { type: "aiTag", label: "Agent 智能体" },
     pinned: false,
     createdAt: 0,
     lastOpenedAt: 0,
@@ -69,17 +75,23 @@ describe("getTopicStatus", () => {
 
 describe("isSameSelector", () => {
   it("compares aiTag by label and keyword by normalized query", () => {
-    expect(isSameSelector({ type: "aiTag", label: "AI" }, { type: "aiTag", label: "AI" })).toBe(
-      true,
-    )
-    expect(isSameSelector({ type: "aiTag", label: "AI" }, { type: "aiTag", label: "产品" })).toBe(
-      false,
-    )
+    expect(
+      isSameSelector(
+        { type: "aiTag", label: "Agent 智能体" },
+        { type: "aiTag", label: "Agent 智能体" },
+      ),
+    ).toBe(true)
+    expect(
+      isSameSelector(
+        { type: "aiTag", label: "Agent 智能体" },
+        { type: "aiTag", label: "编码与开发" },
+      ),
+    ).toBe(false)
     expect(
       isSameSelector({ type: "keyword", query: "GPT " }, { type: "keyword", query: "gpt" }),
     ).toBe(true)
-    expect(isSameSelector({ type: "aiTag", label: "AI" }, { type: "keyword", query: "AI" })).toBe(
-      false,
-    )
+    expect(
+      isSameSelector({ type: "aiTag", label: "Agent 智能体" }, { type: "keyword", query: "Agent" }),
+    ).toBe(false)
   })
 })

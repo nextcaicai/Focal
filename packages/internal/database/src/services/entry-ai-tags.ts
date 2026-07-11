@@ -26,6 +26,9 @@ class EntryAiTagsServiceStatic implements Resetable {
           tags: data.tags,
           contentType: data.contentType ?? null,
           contentTypeConfidence: data.contentTypeConfidence ?? null,
+          domain: data.domain ?? null,
+          domainConfidence: data.domainConfidence ?? null,
+          taxonomyVersion: data.taxonomyVersion ?? null,
           updatedAt: now,
         },
       })

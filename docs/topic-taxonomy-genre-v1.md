@@ -1,6 +1,6 @@
 # 内容形态词表 v1（Genre · 轴 A）
 
-> 状态：方案真源（未接入代码；与代码中 `ENTRY_CONTENT_TYPE_CANDIDATES` 对齐并小幅扩展）  
+> 状态：方案真源；**已接入代码**（`ENTRY_CONTENT_TYPE_CANDIDATES` + `ENTRY_TAXONOMY_VERSION = 1`）  
 > 范围：仅 **轴 A · 内容形态**（9 词，闭集、**单选**）  
 > 问题：这篇 **怎么写 / 以什么体裁被消费**？（不是关于什么、不是哪个领域）  
 > 配套：`topic-taxonomy-domain-v1.md`（B）、`topic-taxonomy-topics-v1.md`（C）

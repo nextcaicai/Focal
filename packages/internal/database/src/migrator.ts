@@ -42,8 +42,65 @@ interface SQLiteMigrationRow {
   created_at: number | string
 }
 
+type SQLiteTableInfoRow = [
+  cid: number,
+  name: string,
+  type: string,
+  notNull: number,
+  defaultValue: unknown,
+  primaryKey: number,
+]
+
 const ADD_COLUMN_RE = /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+ADD\s+[`"]?(\w+)[`"]?\s+/i
 const DROP_COLUMN_RE = /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+DROP COLUMN\s+[`"]?(\w+)[`"]?\s*;?$/i
+
+function getAddedColumnsByTable(queries: readonly string[]) {
+  const expectedByTable = new Map<string, Set<string>>()
+
+  for (const query of queries) {
+    const match = query.trim().match(ADD_COLUMN_RE)
+    const tableName = match?.[1]
+    const columnName = match?.[2]
+    if (!tableName || !columnName) continue
+
+    const columns = expectedByTable.get(tableName) ?? new Set<string>()
+    columns.add(columnName)
+    expectedByTable.set(tableName, columns)
+  }
+
+  return expectedByTable
+}
+
+function assertExpectedColumns(
+  tableName: string,
+  expectedColumns: ReadonlySet<string>,
+  actualColumns: ReadonlySet<string>,
+) {
+  const missingColumns = [...expectedColumns].filter((column) => !actualColumns.has(column))
+  if (missingColumns.length > 0) {
+    throw new Error(
+      `Migration verification failed: ${tableName} is missing columns ${missingColumns.join(", ")}`,
+    )
+  }
+}
+
+async function verifyAddedColumns(
+  db: {
+    values: <TResult extends unknown[]>(query: SQL) => MaybePromise<TResult[]>
+  },
+  queries: readonly string[],
+) {
+  const expectedByTable = getAddedColumnsByTable(queries)
+
+  for (const [tableName, expectedColumns] of expectedByTable) {
+    const escapedTableName = tableName.replaceAll("`", "``")
+    const rows = await db.values<SQLiteTableInfoRow>(
+      sql.raw(`PRAGMA table_info(\`${escapedTableName}\`)`),
+    )
+    const actualColumns = new Set(rows.map((row) => row[1]))
+    assertExpectedColumns(tableName, expectedColumns, actualColumns)
+  }
+}
 
 // Adapted from Drizzle's SQLite migrator.
 async function readMigrationFiles({
@@ -104,18 +161,41 @@ export async function migrate<_TSchema extends Record<string, unknown>>(
 
   const lastDbMigration = dbMigrations[0] ?? undefined
 
-  const queriesToRun: string[] = []
+  // Apply pending migrations one statement at a time.
+  // Never delete/recreate the database here — callers must not wipe on failure.
   for (const migration of migrations) {
-    if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-      queriesToRun.push(
-        ...migration.sql,
-        `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
-      )
+    if (lastDbMigration && Number(lastDbMigration[2])! >= migration.folderMillis) {
+      continue
     }
-  }
 
-  for (const query of queriesToRun) {
-    await db.run(sql.raw(query))
+    for (const rawQuery of migration.sql) {
+      const query = rawQuery.trim()
+      if (!query) continue
+
+      try {
+        await db.run(sql.raw(query))
+      } catch (error) {
+        // Idempotent ADD COLUMN: if a previous partial run already added it, continue.
+        // Any other SQL error must surface — do not wipe the database.
+        const message = error instanceof Error ? error.message : String(error)
+        const isDuplicateColumn =
+          /duplicate column name/i.test(message) || /already exists/i.test(message)
+        if (isDuplicateColumn && ADD_COLUMN_RE.test(query)) {
+          continue
+        }
+        throw error
+      }
+    }
+
+    // The desktop SQLite adapter must never turn a failed ALTER into a completed migration.
+    // Verify schema postconditions before recording the migration marker.
+    await verifyAddedColumns(db, migration.sql)
+
+    await db.run(
+      sql.raw(
+        `INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES('${migration.hash}', '${migration.folderMillis}')`,
+      ),
+    )
   }
 }
 
@@ -123,6 +203,13 @@ function getTableColumns(db: SQLiteMigrationDatabase, tableName: string): Set<st
   const escapedTableName = tableName.replaceAll("`", "``")
   const columns = db.getAllSync<SQLiteColumnInfo>(`PRAGMA table_info(\`${escapedTableName}\`)`)
   return new Set(columns.map((column) => column.name))
+}
+
+function verifyAddedColumnsSync(db: SQLiteMigrationDatabase, queries: readonly string[]): void {
+  const expectedByTable = getAddedColumnsByTable(queries)
+  for (const [tableName, expectedColumns] of expectedByTable) {
+    assertExpectedColumns(tableName, expectedColumns, getTableColumns(db, tableName))
+  }
 }
 
 function shouldSkipMigrationQuery(db: SQLiteMigrationDatabase, query: string): boolean {
@@ -182,6 +269,8 @@ export async function migrateExpoSQLite(db: SQLiteMigrationDatabase, config: Mig
       }
       db.execSync(query)
     }
+
+    verifyAddedColumnsSync(db, migration.sql)
 
     const escapedHash = migration.hash.replaceAll("'", "''")
     db.execSync(

@@ -1,5 +1,9 @@
 import type { FeedViewType } from "@follow/constants"
-import type { EntryAiTagAssignment, EntryContentType } from "@follow/shared/entry-ai-tags"
+import type {
+  EntryAiTagAssignment,
+  EntryContentType,
+  EntryDomain,
+} from "@follow/shared/entry-ai-tags"
 import type { EntryEmbeddingRecord } from "@follow/shared/entry-embedding"
 import type { EntryQualityScoreRecord } from "@follow/shared/entry-quality-score"
 import type { EntryRankRecord } from "@follow/shared/entry-rank-score"
@@ -139,6 +143,9 @@ export const entryAiTagsTable = sqliteTable("entry_ai_tags", {
   tags: text("tags", { mode: "json" }).$type<EntryAiTagAssignment[]>().notNull(),
   contentType: text("content_type").$type<EntryContentType>(),
   contentTypeConfidence: real("content_type_confidence"),
+  domain: text("domain").$type<EntryDomain>(),
+  domainConfidence: real("domain_confidence"),
+  taxonomyVersion: integer("taxonomy_version"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

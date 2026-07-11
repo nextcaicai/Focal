@@ -142,6 +142,11 @@ export type TagGeneratorResult = {
     label: string
     confidence: number
   } | null
+  // Domain label (axis B), same call. Validated downstream.
+  domain?: {
+    label: string
+    confidence: number
+  } | null
 }
 
 export type TagGenerator = (input: TagGeneratorInput) => Promise<TagGeneratorResult>

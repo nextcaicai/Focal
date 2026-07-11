@@ -304,10 +304,9 @@ class EntryEnrichmentService {
         })
       }
       case "tags": {
-        const tags = entryAiTagsActions.getTags(entryId)
-        if (!tags?.length) return true
-        // Backfill contentType for entries tagged before the field existed.
-        return !entryAiTagsActions.getContentType(entryId)
+        // Missing tags, missing genre/domain, or pre-v1 taxonomy → work
+        // (offline map for legacy rows; LLM only for never-tagged).
+        return entryAiTagsActions.needsTaxonomyWork(entryId)
       }
       case "qualityScore": {
         const entry = getEntry(entryId)

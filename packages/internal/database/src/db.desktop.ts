@@ -59,7 +59,7 @@ export async function initializeDB() {
         return { rows }
       } catch (error) {
         console.error(`Error executing SQL: ${sql} with params:${params}`, error)
-        return { rows: [] }
+        throw error
       } finally {
         releaseLock && releaseLock()
       }
@@ -76,10 +76,11 @@ export async function migrateDB() {
   try {
     await migrate(db, migrations)
   } catch (error) {
+    // NEVER wipe / recreate the database on migration failure.
+    // Prefer a hard error over silent data loss when a migration is missing
+    // or invalid (e.g. journal entry without a matching migrations.js import).
     console.error("Failed to migrate database:", error)
-
-    await deleteDB()
-    await migrate(db, migrations)
+    throw error
   }
 }
 export async function getDBFile() {
@@ -112,6 +113,18 @@ export async function exportDB() {
   URL.revokeObjectURL(fileUrl)
 }
 
+/**
+ * Explicit full wipe of the WA-SQLite IndexedDB backend.
+ * Only call from deliberate user actions (e.g. "clear local data"), never from
+ * automatic recovery / migration failure paths.
+ */
 export async function deleteDB() {
-  indexedDB.deleteDatabase(IDB_NAME)
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(IDB_NAME)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error ?? new Error("Failed to delete database"))
+    request.onblocked = () => {
+      console.warn("deleteDB: delete blocked; waiting for other connections to close")
+    }
+  })
 }

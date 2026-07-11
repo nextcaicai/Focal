@@ -9,3 +9,7 @@ export const useEntryAiTags = (entryId: string) => {
 export const useEntryContentType = (entryId: string) => {
   return useEntryAiTagsStore(useCallback((state) => state.contentType[entryId], [entryId]))
 }
+
+export const useEntryDomain = (entryId: string) => {
+  return useEntryAiTagsStore(useCallback((state) => state.domain[entryId], [entryId]))
+}

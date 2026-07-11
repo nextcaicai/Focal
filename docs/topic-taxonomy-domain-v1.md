@@ -1,6 +1,6 @@
 # 领域词表 v1（Domain · 轴 B）
 
-> 状态：方案真源（未接入代码）  
+> 状态：方案真源；**已接入代码**（`ENTRY_DOMAIN_CANDIDATES`，库字段 `domain` / `domain_confidence`）  
 > 范围：仅 **轴 B · 领域**（7 词，闭集、**单选**）  
 > 配套：议题主题见 `topic-taxonomy-topics-v1.md`（轴 C）  
 > 原则：B 回答「这篇落在哪个大盘」；C 回答「在 AI 向议题树里的哪几片叶子」；二者正交，C 可空。

@@ -9,8 +9,8 @@ vi.mock("@follow/shared/constants", () => ({
 }))
 
 vi.mock("@follow/store/entry-tags/hooks", () => ({
-  useEntryAiTags: () => [{ label: "AI" }],
-  useEntryContentType: () => ({ label: "News" }),
+  useEntryAiTags: () => [{ label: "Agent 智能体" }],
+  useEntryContentType: () => ({ label: "分析" }),
 }))
 
 describe("EntryAiTagChips", () => {

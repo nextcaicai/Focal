@@ -8,17 +8,17 @@ const seedTime = Date.now()
 
 export const DEFAULT_MY_TOPICS: MyTopic[] = [
   {
-    id: "seed-ai",
-    name: "AI",
-    selector: { type: "aiTag", label: "AI" },
+    id: "seed-agent",
+    name: "Agent 智能体",
+    selector: { type: "aiTag", label: "Agent 智能体" },
     pinned: false,
     createdAt: seedTime,
     lastOpenedAt: seedTime,
   },
   {
-    id: "seed-product",
-    name: "产品",
-    selector: { type: "aiTag", label: "产品" },
+    id: "seed-coding",
+    name: "编码与开发",
+    selector: { type: "aiTag", label: "编码与开发" },
     pinned: false,
     createdAt: seedTime,
     lastOpenedAt: seedTime,

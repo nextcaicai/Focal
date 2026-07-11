@@ -1,6 +1,7 @@
 import {
   ENTRY_AI_TAG_CANDIDATES,
   ENTRY_CONTENT_TYPE_CANDIDATES,
+  ENTRY_DOMAIN_CANDIDATES,
   MAX_ENTRY_AI_TAGS,
 } from "@follow/shared/entry-ai-tags"
 import type { TagGenerator } from "@follow/store/context"
@@ -53,6 +54,27 @@ const parseTagResponse = (raw: string) => {
   }
 }
 
+const parseLabeledConfidence = (
+  parsed: object,
+  key: "contentType" | "domain",
+): { label: string; confidence: number } | null => {
+  if (!(key in parsed)) return null
+
+  const raw = (parsed as Record<string, unknown>)[key]
+  if (!raw || typeof raw !== "object") return null
+
+  const record = raw as Record<string, unknown>
+  if (typeof record.label !== "string") return null
+
+  const confidenceValue =
+    typeof record.confidence === "number" ? record.confidence : Number(record.confidence)
+
+  return {
+    label: record.label,
+    confidence: Number.isFinite(confidenceValue) ? confidenceValue : 0,
+  }
+}
+
 export const generateLocalByokTags: TagGenerator = async (input) => {
   const source = buildTagSource(input)
   if (!source.trim()) {
@@ -74,8 +96,9 @@ export const generateLocalByokTags: TagGenerator = async (input) => {
     throw new Error("The selected LLM provider is not supported.")
   }
 
-  const candidateLabels = ENTRY_AI_TAG_CANDIDATES.join("、")
+  const topicLabels = ENTRY_AI_TAG_CANDIDATES.join("、")
   const contentTypeLabels = ENTRY_CONTENT_TYPE_CANDIDATES.join("、")
+  const domainLabels = ENTRY_DOMAIN_CANDIDATES.join("、")
   const data = await requestOpenAICompatibleChatCompletion({
     baseURL: resolvedProvider.baseURL,
     apiKey: resolvedProvider.apiKey ?? undefined,
@@ -86,34 +109,47 @@ export const generateLocalByokTags: TagGenerator = async (input) => {
         {
           role: "system",
           content:
-            "You classify RSS reader entries. Return JSON only. Never invent labels outside the allowed list.",
+            "You classify RSS reader entries on three closed axes. Return JSON only. Never invent labels outside the allowed lists.",
         },
         {
           role: "user",
-          content: `Classify this entry on two axes.
+          content: `Classify this entry on three orthogonal axes.
 
-Axis 1 — topic tags, using ONLY labels from this list: ${candidateLabels}.
-Axis 2 — contentType (the genre/how it is written), exactly ONE label from this list: ${contentTypeLabels}.
-
-contentType guidance:
-- 快讯: short news/announcement of a single event (released, launched, funded)
-- 合集: digest/roundup covering many unrelated items (daily/weekly newsletter)
-- 教程: how-to / step-by-step guide
-- 实测: hands-on test/review with results, screenshots, benchmarks
-- 分析: in-depth analysis explaining why/how
-- 观点: opinion/commentary/prediction with the author's stance
-- 论文: academic paper or paper walkthrough
+Axis A — contentType (genre / how it is written), exactly ONE from: ${contentTypeLabels}.
+- 快讯: short factual news of a single event
+- 发布: official product/model/feature release or changelog
+- 合集: digest/roundup of many items (daily/weekly)
+- 教程: how-to / step-by-step
+- 实测: hands-on test/review with results
+- 分析: in-depth explanation of why/how
+- 观点: opinion, commentary, interview voice
+- 论文: academic paper or preprint-style research writing
 - 其他: none clearly fits
 
-Return JSON in this shape:
-{"tags":[{"label":"AI","confidence":0.86,"reason":"一句话说明为什么选这个标签"}],"contentType":{"label":"分析","confidence":0.8}}
+Axis B — domain (which world it sits in), exactly ONE from: ${domainLabels}.
+- AI 与模型: models, algorithms, capabilities, training/inference science
+- 产品与工程: building/shipping products, tools, engineering practice
+- 商业与产业: funding, markets, competition, commercialization
+- 设计与体验: UX/UI, design systems, experience
+- 人文与生活: culture, lifestyle, non-hard-tech humanistic pieces
+- 社会与政策: law, regulation, public governance
+- 其他: unclear or multi-topic digest with no main domain
+
+Axis C — topic tags, 0 to ${MAX_ENTRY_AI_TAGS} labels from: ${topicLabels}.
+- Prefer fewer high-confidence tags
+- Empty tags is OK only when truly no closed-set fit (not when 创作与个人成长 / 人物与访谈 fits)
+- 创作与个人成长: creator craft, writing/podcasting practice, career transition, self-improvement narratives (not pure model tech)
+- Do NOT use domain or genre words as topic tags
+- "论文" is contentType only, not a topic tag
+
+Return JSON:
+{"contentType":{"label":"分析","confidence":0.8},"domain":{"label":"AI 与模型","confidence":0.85},"tags":[{"label":"Agent 智能体","confidence":0.86,"reason":"一句话说明为什么选这个标签"}]}
 
 Rules:
-- Select 0 to ${MAX_ENTRY_AI_TAGS} topic labels; each label must exactly match one allowed topic label
-- contentType.label must exactly match one allowed contentType label; pick 其他 when unsure
-- all confidence values must be between 0 and 1
-- reason must be one short sentence in Chinese and must not copy the summary verbatim
-- prefer fewer high-confidence labels over many weak labels
+- Every label must exactly match an allowed string (full-width spaces and wording included)
+- confidence in [0,1]; prefer confidence ≥ 0.55 or omit the topic tag
+- reason: one short Chinese sentence, do not copy the summary verbatim
+- pick 其他 for A or B when unsure
 
 Entry:
 ${source}`,
@@ -129,19 +165,24 @@ ${source}`,
   }
 
   const parsed = parseTagResponse(content)
-  if (!parsed || typeof parsed !== "object" || !("tags" in parsed) || !Array.isArray(parsed.tags)) {
+  if (!parsed || typeof parsed !== "object") {
     return { tags: [] }
   }
 
+  const tagsRaw =
+    "tags" in parsed && Array.isArray((parsed as { tags: unknown }).tags)
+      ? (parsed as { tags: unknown[] }).tags
+      : []
+
   return {
-    tags: parsed.tags
+    tags: tagsRaw
       .filter((tag): tag is { label: string; confidence: number; reason: string } => {
         return (
           !!tag &&
           typeof tag === "object" &&
-          typeof tag.label === "string" &&
-          typeof tag.confidence === "number" &&
-          typeof tag.reason === "string"
+          typeof (tag as { label?: unknown }).label === "string" &&
+          typeof (tag as { confidence?: unknown }).confidence === "number" &&
+          typeof (tag as { reason?: unknown }).reason === "string"
         )
       })
       .map((tag) => ({
@@ -149,24 +190,7 @@ ${source}`,
         confidence: tag.confidence,
         reason: tag.reason,
       })),
-    contentType: parseContentType(parsed),
-  }
-}
-
-const parseContentType = (parsed: object): { label: string; confidence: number } | null => {
-  if (!("contentType" in parsed)) return null
-
-  const raw = (parsed as { contentType: unknown }).contentType
-  if (!raw || typeof raw !== "object") return null
-
-  const record = raw as Record<string, unknown>
-  if (typeof record.label !== "string") return null
-
-  const confidenceValue =
-    typeof record.confidence === "number" ? record.confidence : Number(record.confidence)
-
-  return {
-    label: record.label,
-    confidence: Number.isFinite(confidenceValue) ? confidenceValue : 0,
+    contentType: parseLabeledConfidence(parsed, "contentType"),
+    domain: parseLabeledConfidence(parsed, "domain"),
   }
 }
