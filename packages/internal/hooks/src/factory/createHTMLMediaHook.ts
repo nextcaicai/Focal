@@ -270,7 +270,7 @@ export default function createHTMLMediaHook<T extends HTMLAudioElement | HTMLVid
       if (props.autoPlay && el.paused) {
         controls.play()
       }
-    }, [props.src])
+    }, [controls, props.autoPlay, props.src, setState])
 
     return [element, state, controls, ref] as const
   }

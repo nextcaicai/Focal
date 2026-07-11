@@ -43,7 +43,7 @@ const useFeedSubscriptionOptions = () => {
 export const RescoreFeedsModalContent = ({ onSuccess }: { onSuccess: () => void }) => {
   const { t } = useTranslation("ai")
   const feedOptions = useFeedSubscriptionOptions()
-  const [selectedFeedIds, setSelectedFeedIds] = useState<Set<string>>(new Set())
+  const [selectedFeedIds, setSelectedFeedIds] = useState<Set<string>>(() => new Set())
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const eligibleEntryCount = useMemo(

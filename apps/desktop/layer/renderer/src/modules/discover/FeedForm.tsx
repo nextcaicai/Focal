@@ -93,18 +93,32 @@ export const FeedForm: Component<{
     }
   }, [feedQuery.data?.feed.url, feedQuery.isError, feedQuery.isLoading, id, url])
 
-  const feedInnerFormProps = {
-    defaultValues,
-    id,
-    url,
-    onSuccess,
-    isLoading: feedQuery.isLoading,
-    subscriptionData: feedQuery.data?.subscription,
-    feed,
-    analytics: feedQuery.data?.analytics,
-    placeholderRef,
-    inlineActions: isCompactLayout,
-  } as const
+  const feedInnerFormProps = useMemo(
+    () =>
+      ({
+        defaultValues,
+        id,
+        url,
+        onSuccess,
+        isLoading: feedQuery.isLoading,
+        subscriptionData: feedQuery.data?.subscription,
+        feed,
+        analytics: feedQuery.data?.analytics,
+        placeholderRef,
+        inlineActions: isCompactLayout,
+      }) as const,
+    [
+      defaultValues,
+      feed,
+      feedQuery.data?.analytics,
+      feedQuery.data?.subscription,
+      feedQuery.isLoading,
+      id,
+      isCompactLayout,
+      onSuccess,
+      url,
+    ],
+  )
 
   return (
     <div
@@ -176,19 +190,13 @@ export const FeedForm: Component<{
           }
         }
       }, [
-        defaultValues,
         feed,
-        feedQuery.data?.analytics,
-        feedQuery.data?.subscription,
         feedQuery.error,
         feedQuery.isLoading,
-        id,
         feedInnerFormProps,
         isCompactLayout,
         isInModal,
-        onSuccess,
         t,
-        url,
       ])}
       {!isCompactLayout && <div ref={placeholderRef} />}
     </div>

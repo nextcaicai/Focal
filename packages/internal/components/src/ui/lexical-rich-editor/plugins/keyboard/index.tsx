@@ -46,6 +46,10 @@ export function KeyboardPlugin({ onKeyDown }: KeyboardPluginProps) {
     })
 
     return () => {
+      const rootElement = editor.getRootElement()
+      if (rootElement) {
+        rootElement.removeEventListener("keydown", handleKeyDown)
+      }
       removeEnterCommand()
       removeRootListener()
     }

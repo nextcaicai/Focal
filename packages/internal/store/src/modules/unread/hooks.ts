@@ -45,6 +45,8 @@ export const useSyncUnreadWhenUnMatch = (entryIds: string[]) => {
     if (hasUnreadMismatch) {
       unreadSyncService.resetFromRemote()
     }
+    // Entry ids are compared structurally to avoid repeating remote reconciliation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryIds.toString()])
 }
 
@@ -76,6 +78,8 @@ export const useUnreadByIds = (ids: string[]): number => {
       (state) => {
         return unreadCountIdsSelector(ids)(state)
       },
+      // Ids are compared structurally so equivalent arrays keep a stable selector.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [ids?.toString()],
     ),
   )
@@ -106,6 +110,8 @@ export const useSortedIdsByUnread = (ids: string[], isDesc?: boolean) => {
           }
           return a.localeCompare(b)
         }),
+      // Ids are compared structurally so equivalent arrays keep a stable selector.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [ids.toString(), isDesc],
     ),
   )

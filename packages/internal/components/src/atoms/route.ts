@@ -31,6 +31,8 @@ export const useReadonlyRouteSelector = <T>(
   selector: (route: RouteAtom) => T,
   deps: any[] = noop,
 ): T =>
+  // Callers explicitly declare the selector dependencies, matching useCallback's interface.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useAtomValue(useMemo(() => selectAtom(routeAtom, (route) => selector(route), shallow), deps))
 export const useReadonlyRoute = () => useAtomValue(routeAtom)
 

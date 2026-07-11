@@ -109,23 +109,31 @@ export const FileUploadPlugin: LexicalPluginFC = () => {
 
   // Set up event listeners
   useEffect(() => {
+    const removeEventListeners = (rootElement: HTMLElement) => {
+      if (finalConfig.enableDragDrop) {
+        rootElement.removeEventListener("dragenter", handleDragEnter)
+        rootElement.removeEventListener("dragover", handleDragOver)
+        rootElement.removeEventListener("dragleave", handleDragLeave)
+        rootElement.removeEventListener("drop", handleDrop)
+      }
+
+      if (finalConfig.enablePaste) {
+        rootElement.removeEventListener("paste", handlePasteEvent)
+      }
+    }
+
+    let activeRootElement: HTMLElement | null = null
     const removeRootListener = editor.registerRootListener((rootElement, prevRootElement) => {
       // Remove previous listeners
       if (prevRootElement) {
-        if (finalConfig.enableDragDrop) {
-          prevRootElement.removeEventListener("dragenter", handleDragEnter)
-          prevRootElement.removeEventListener("dragover", handleDragOver)
-          prevRootElement.removeEventListener("dragleave", handleDragLeave)
-          prevRootElement.removeEventListener("drop", handleDrop)
-        }
-
-        if (finalConfig.enablePaste) {
-          prevRootElement.removeEventListener("paste", handlePasteEvent)
-        }
+        removeEventListeners(prevRootElement)
       }
+
+      activeRootElement = rootElement
 
       // Add new listeners
       if (rootElement) {
+        /* eslint-disable @eslint-react/web-api/no-leaked-event-listener -- Lexical can replace its root; removeEventListeners handles both replacement and effect cleanup. */
         if (finalConfig.enableDragDrop) {
           rootElement.addEventListener("dragenter", handleDragEnter, { passive: false })
           rootElement.addEventListener("dragover", handleDragOver, { passive: false })
@@ -136,10 +144,16 @@ export const FileUploadPlugin: LexicalPluginFC = () => {
         if (finalConfig.enablePaste) {
           rootElement.addEventListener("paste", handlePasteEvent, { passive: false })
         }
+        /* eslint-enable @eslint-react/web-api/no-leaked-event-listener */
       }
     })
 
-    return removeRootListener
+    return () => {
+      if (activeRootElement) {
+        removeEventListeners(activeRootElement)
+      }
+      removeRootListener()
+    }
   }, [
     editor,
     finalConfig,

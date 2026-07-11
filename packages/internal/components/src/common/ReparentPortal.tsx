@@ -40,8 +40,6 @@ export function ReparentPortal({
   const hostEl = useMemo(() => {
     const el = document.createElement(hostTag)
     if (debugName) el.dataset.reparentPortal = debugName
-    if (hostClassName != null) el.className = hostClassName
-    if (hostStyle != null) Object.assign(el.style, hostStyle)
 
     return el
   }, [hostTag, debugName])

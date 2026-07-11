@@ -1,6 +1,7 @@
 import { nextFrame } from "@follow/utils/dom"
 import { throttle } from "es-toolkit/compat"
 import { useCallback, useLayoutEffect, useRef, useState } from "react"
+import { useEventCallback } from "usehooks-ts"
 
 import { getCurrentColumn } from "./utils"
 
@@ -10,6 +11,7 @@ export const useMasonryColumn = (gutter: number, onReady?: (column: number) => a
   const containerRef = useRef<HTMLDivElement>(null)
   const [currentColumn, setCurrentColumn] = useState(1)
   const [currentItemWidth, setCurrentItemWidth] = useState(0)
+  const notifyReady = useEventCallback((column: number) => onReady?.(column))
 
   useLayoutEffect(() => {
     let readyCallOnce = false
@@ -29,7 +31,7 @@ export const useMasonryColumn = (gutter: number, onReady?: (column: number) => a
       nextFrame(() => {
         if (readyCallOnce) return
         readyCallOnce = true
-        onReady?.(column)
+        notifyReady(column)
       })
     }
     const recal = throttle(handler, 1000 / 12)
@@ -56,7 +58,7 @@ export const useMasonryColumn = (gutter: number, onReady?: (column: number) => a
     return () => {
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [gutter, notifyReady])
 
   return {
     containerRef,

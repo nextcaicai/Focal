@@ -107,6 +107,8 @@ export const useFeedEntrySearchService = (options: SearchServiceOptions = {}) =>
   // Create Fuse instance for fuzzy search
   const fuse = useMemo(() => {
     return new Fuse(allItems, fuseOptions)
+    // Compare caller-provided options structurally to avoid rebuilding Fuse for equivalent objects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allItems, JSON.stringify(fuseOptions)])
 
   // Calculate type ratios for proportional result distribution

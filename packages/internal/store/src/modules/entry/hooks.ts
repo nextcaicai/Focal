@@ -219,6 +219,8 @@ export const useEntryIdsByFeedId = (feedId: string | undefined | null) => {
 
 export const useEntryIdsByFeedIds = (feedIds: string[] | undefined) => {
   return useEntryStore(
+    // Feed ids are compared structurally so equivalent arrays keep a stable selector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useCallback((state) => getEntryIdsByFeedIdsSelector(state)(feedIds), [feedIds?.toString()]),
   )
 }

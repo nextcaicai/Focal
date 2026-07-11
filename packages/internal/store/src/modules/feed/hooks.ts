@@ -29,7 +29,7 @@ export function useFeedById<T>(
         if (!feed) return
         return selector(feed)
       },
-      [id],
+      [id, selector],
     ),
   )
 }
@@ -57,7 +57,9 @@ export function useFeedsByIds<T>(
         }
         return feeds
       },
-      [ids?.toString()],
+      // Ids are compared structurally; selector identity still participates normally.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [ids?.toString(), selector],
     ),
   )
 }

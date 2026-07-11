@@ -53,6 +53,15 @@ vi.mock("~/hooks/biz/useRouteParams", () => ({
     selector({ feedId: "" }),
 }))
 
+vi.mock("~/atoms/library-search", () => ({
+  clearLibrarySearch: vi.fn(),
+  getLibrarySearchSession: () => ({ query: "", previousScope: null }),
+  LIBRARY_SEARCH_FOCUS_EVENT: "library-search:focus",
+  setLibrarySearchQuery: vi.fn(),
+  useLibrarySearchActive: () => false,
+  useLibrarySearchQuery: () => "",
+}))
+
 vi.mock("~/atoms/settings/ui", () => ({
   useUISettingKey: () => true,
 }))

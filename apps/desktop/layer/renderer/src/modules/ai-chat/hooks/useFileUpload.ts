@@ -167,6 +167,7 @@ export function useFileUpload(
       showErrorToast,
       uploadSuccessMessage,
       uploadErrorMessagePrefix,
+      t,
     ],
   )
 

@@ -191,7 +191,7 @@ const ActionShareButton = ({ variant = "button" }: { variant?: "button" | "heade
       toast.error(t("actions.action_card.summary.copy_failed"))
       console.error(error)
     }
-  }, [focalPrefix])
+  }, [focalPrefix, t])
 
   const handleImportFromClipboard = useCallback(async () => {
     try {
@@ -221,7 +221,7 @@ const ActionShareButton = ({ variant = "button" }: { variant?: "button" | "heade
       }
       console.error(error)
     }
-  }, [focalPrefix])
+  }, [focalPrefix, t])
 
   const openShareRules = () => {
     present({
@@ -367,7 +367,7 @@ const ActionSaveFooter = () => {
         onClick={() => mutation.mutate()}
       >
         {!mutation.isPending && <i className="i-focal-check-circle mr-2 size-4" />}
-        {mutation.isPending ? t("actions.saving") : t("actions.save_and_apply")}
+        <span>{mutation.isPending ? t("actions.saving") : t("actions.save_and_apply")}</span>
       </Button>
     </div>
   )

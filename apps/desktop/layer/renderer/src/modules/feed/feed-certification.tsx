@@ -40,7 +40,9 @@ export const FeedCertification = ({
           <TooltipContent className="px-4 py-2">
             <div className="flex items-center text-base font-semibold">
               <i className="i-focal-certificate-fill mr-2 size-4 shrink-0 text-orange-500" />
-              {type === "feed" ? t("feed_item.claimed_feed") : t("feed_item.claimed_list")}
+              <span>
+                {type === "feed" ? t("feed_item.claimed_feed") : t("feed_item.claimed_list")}
+              </span>
             </div>
             <div>{t("feed_item.claimed_by_you")}</div>
           </TooltipContent>
@@ -56,7 +58,9 @@ export const FeedCertification = ({
           <TooltipContent className="px-4 py-2">
             <div className="flex items-center text-base font-semibold">
               <i className="i-focal-certificate-fill mr-2 shrink-0 text-amber-500" />
-              {type === "feed" ? t("feed_item.claimed_feed") : t("feed_item.claimed_list")}
+              <span>
+                {type === "feed" ? t("feed_item.claimed_feed") : t("feed_item.claimed_list")}
+              </span>
             </div>
             <div className="mt-1 flex items-center gap-1.5">
               <span>{t("feed_item.claimed_by_owner")}</span>

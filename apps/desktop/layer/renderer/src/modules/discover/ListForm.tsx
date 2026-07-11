@@ -68,7 +68,7 @@ export const ListForm: Component<{
         isError: feedQuery.isError,
       })
     }
-  }, [feedQuery.isLoading])
+  }, [feedQuery.isError, feedQuery.isLoading, id])
 
   return (
     <div
@@ -194,7 +194,7 @@ const ListInnerForm = ({
 
   useEffect(() => {
     setClickOutSideToDismiss(!form.formState.isDirty)
-  }, [form.formState.isDirty])
+  }, [form.formState.isDirty, setClickOutSideToDismiss])
 
   useEffect(() => {
     if (subscription) {
@@ -205,7 +205,7 @@ const ListInnerForm = ({
       typeof subscription.hideFromTimeline === "boolean" &&
         form.setValue("hideFromTimeline", subscription.hideFromTimeline)
     }
-  }, [subscription])
+  }, [form, subscription])
 
   const followMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema> & { TOTPCode?: string }) => {

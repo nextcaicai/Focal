@@ -38,7 +38,7 @@ const CmdNPanel = () => {
         form.control._setValid()
       }
     })
-  }, [])
+  }, [form])
 
   const { present, dismissAll } = useModalStack()
 

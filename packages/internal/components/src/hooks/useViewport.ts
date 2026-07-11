@@ -10,6 +10,8 @@ export const useViewport = <T>(selector: (value: ExtractAtomValue<typeof viewpor
   useAtomValue(
     selectAtom(
       viewportAtom,
+      // selectAtom reads this selector during render; useEventCallback is incompatible.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       useCallback((atomValue) => selector(atomValue), []),
       shallow,
     ),

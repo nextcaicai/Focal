@@ -32,6 +32,7 @@ type Result = [(element: HTMLOrSVGElement | null) => void, RectReadOnly, () => v
 type State = {
   element: HTMLOrSVGElement | null
   scrollContainers: HTMLOrSVGElement[] | null
+  scrollChange: (() => void) | null
   resizeObserver: ResizeObserver | null
   lastBounds: RectReadOnly
 }
@@ -63,6 +64,7 @@ export function useMeasure({ debounce, scroll, offsetSize }: Options = defaultOp
   const state = useRef<State>({
     element: null,
     scrollContainers: null,
+    scrollChange: null,
     resizeObserver: null,
     lastBounds: bounds,
   })
@@ -123,12 +125,14 @@ export function useMeasure({ debounce, scroll, offsetSize }: Options = defaultOp
 
   // cleanup current scroll-listeners / observers
   function removeListeners() {
-    if (state.current.scrollContainers) {
+    const activeScrollChange = state.current.scrollChange
+    if (state.current.scrollContainers && activeScrollChange) {
       state.current.scrollContainers.forEach((element) =>
-        element.removeEventListener("scroll", scrollChange, true),
+        element.removeEventListener("scroll", activeScrollChange, true),
       )
-      state.current.scrollContainers = null
     }
+    state.current.scrollContainers = null
+    state.current.scrollChange = null
 
     if (state.current.resizeObserver) {
       state.current.resizeObserver.disconnect()
@@ -139,6 +143,7 @@ export function useMeasure({ debounce, scroll, offsetSize }: Options = defaultOp
   // add scroll-listeners / observers
   function addListeners() {
     if (!state.current.element) return
+    state.current.scrollChange = scrollChange
     state.current.resizeObserver = new ResizeObserver(scrollChange)
     state.current.resizeObserver!.observe(state.current.element)
     if (scroll && state.current.scrollContainers) {
@@ -168,9 +173,11 @@ export function useMeasure({ debounce, scroll, offsetSize }: Options = defaultOp
   useEffect(() => {
     removeListeners()
     addListeners()
+    // Listener helpers intentionally bind the handlers created for this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scroll, scrollChange, resizeChange])
 
-  // remove all listeners when the components unmounts
+  // The active handler is stored in state so unmount removes the listener actually in use.
   useEffect(() => removeListeners, [])
   return [ref, bounds, forceRefresh]
 }

@@ -1,6 +1,6 @@
 import type { PrimitiveAtom } from "jotai"
 import { atom } from "jotai"
-import { createContext, use, useMemo } from "react"
+import { createContext, use, useState } from "react"
 
 import { createAtomHooks } from "~/lib/jotai"
 
@@ -12,9 +12,7 @@ export const SettingTabProvider = ({
   children: React.ReactNode
   initialTab?: string
 }) => {
-  const ctxValue = useMemo(() => {
-    return createAtomHooks(atom(initialTab ?? ""))
-  }, [])
+  const [ctxValue] = useState(() => createAtomHooks(atom(initialTab ?? "")))
   return <SettingTabContext value={ctxValue}>{children}</SettingTabContext>
 }
 

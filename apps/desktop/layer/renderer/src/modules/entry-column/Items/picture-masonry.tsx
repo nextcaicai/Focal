@@ -74,13 +74,14 @@ export const PictureMasonry: FC<MasonryProps> = (props) => {
     })
     return imageActions.fetchDimensionsFromDb(images)
   })
+  /* eslint-disable react-hooks/exhaustive-deps -- Recompute only when the entry-id sequence changes structurally. */
   useLayoutEffect(() => {
     restoreDimensions().finally(() => {
       startTransition(() => {
         setIsInitDim(true)
       })
     })
-  }, [restoreDimensions])
+  }, [JSON.stringify(data)])
 
   useLayoutEffect(() => {
     const images: StoreImageType[] = []
@@ -104,6 +105,7 @@ export const PictureMasonry: FC<MasonryProps> = (props) => {
       imageActions.saveImages(images)
     }
   }, [JSON.stringify(data)])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const { containerRef, currentColumn, currentItemWidth } = useMasonryColumn(gutter, () => {
     setIsInitLayout(true)
@@ -131,7 +133,7 @@ export const PictureMasonry: FC<MasonryProps> = (props) => {
     // }
 
     return result
-  }, [cacheMap, data, props.hasNextPage])
+  }, [cacheMap, data])
 
   const [masonryItemsRadio, setMasonryItemsRadio] = useState<Record<string, number>>({})
   const maybeLoadMore = useInfiniteLoader(props.endReached, {
@@ -258,7 +260,6 @@ export const PictureMasonry: FC<MasonryProps> = (props) => {
 
   const [firstScreenReady, setFirstScreenReady] = useState(false)
   useEffect(() => {
-    if (firstScreenReady) return
     const timer = setTimeout(() => {
       setFirstScreenReady(true)
     }, FirstScreenReadyCountDown)

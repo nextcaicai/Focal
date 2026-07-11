@@ -150,9 +150,19 @@ vi.mock("~/atoms/preview", () => ({
   previewBackPath: () => "",
 }))
 
-vi.mock("~/atoms/settings/general", () => ({
-  useGeneralSettingKey: () => false,
+vi.mock("~/atoms/library-search", () => ({
+  clearLibrarySearch: vi.fn(),
+  useLibrarySearchActive: () => false,
+  useLibrarySearchSession: () => ({ query: "", previousScope: null }),
 }))
+
+vi.mock("~/atoms/settings/general", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/atoms/settings/general")>()
+  return {
+    ...actual,
+    useGeneralSettingKey: () => false,
+  }
+})
 
 vi.mock("~/atoms/sidebar", () => ({
   useSubscriptionColumnShow: () => true,

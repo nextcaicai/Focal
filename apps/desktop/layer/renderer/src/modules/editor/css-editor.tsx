@@ -20,6 +20,8 @@ export const CSSEditor: Component<{
   defaultValue?: string
 }> = ({ onChange, className, defaultValue }) => {
   const ref = useRef<HTMLDivElement>(null)
+  const defaultValueRef = useRef(defaultValue)
+  defaultValueRef.current = defaultValue
 
   const isDark = useIsDark()
 
@@ -35,7 +37,7 @@ export const CSSEditor: Component<{
       selection?.removeAllRanges()
       selection?.addRange(range)
 
-      ref.current.textContent = defaultValue ?? ""
+      ref.current.textContent = defaultValueRef.current ?? ""
       const { dispose: disposeShiki } = createPlainShiki(shiki).mount(ref.current, {
         lang: "css",
         themes: {

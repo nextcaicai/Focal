@@ -77,6 +77,8 @@ export const AICopilotMedia: React.FC = () => {
       setShowRecommendations(false)
       for (let i = 0; i < chatScript.length; i++) {
         timers.push(
+          // Timer handles are collected and cleared by the effect cleanup below.
+          // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout
           window.setTimeout(() => {
             if (disposed) return
             setVisibleCount((v) => Math.min(v + 1, chatScript.length))
@@ -86,6 +88,8 @@ export const AICopilotMedia: React.FC = () => {
       // Show recommendations after last message
       const lastMessageDelay = stepDelays[chatScript.length - 1] || 2400
       timers.push(
+        // Timer handles are collected and cleared by the effect cleanup below.
+        // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout
         window.setTimeout(() => {
           if (disposed) return
           setShowRecommendations(true)

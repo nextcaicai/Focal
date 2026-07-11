@@ -64,6 +64,6 @@ export const useFollow = () => {
         },
       })
     },
-    [present],
+    [navigate, present],
   )
 }

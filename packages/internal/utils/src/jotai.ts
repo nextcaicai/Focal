@@ -48,6 +48,8 @@ const createAtomSelector = <T>(atom: Atom<T>) => {
     useAtomValue(
       selectAtom(
         atom,
+        // This hook deliberately exposes a useCallback-style dependency interface.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         useCallback((a) => selector(a as T), deps),
         shallow,
       ),

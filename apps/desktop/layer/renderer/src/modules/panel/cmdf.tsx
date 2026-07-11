@@ -107,9 +107,10 @@ const CmdFImpl: FC<{
   const nativeSearch = useDebounceCallback(nativeSearchImpl, 500)
   useLayoutEffect(() => {
     inputRef.current?.focus()
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       inputRef.current?.focus()
     })
+    return () => clearTimeout(focusTimer)
   }, [isSearching])
   const handleScroll = useCallback(() => {
     const $input = inputRef.current
