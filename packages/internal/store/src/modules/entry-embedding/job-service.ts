@@ -19,8 +19,22 @@ export type EmbeddingJobEnqueueOptions = {
   prepend?: boolean
 }
 
+/** Keep first occurrence order; drop later duplicates. Pure helper for tests. */
+export const dedupeQueuePreserveOrder = (queue: readonly string[]): string[] => {
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const id of queue) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    next.push(id)
+  }
+  return next
+}
+
 class EntryEmbeddingJobService {
   private queue: string[] = []
+  /** IDs waiting in queue or currently executing — O(1) membership for enqueue dedupe. */
+  private inFlightIds = new Set<string>()
   private pendingSince = new Map<string, number>()
   private activeJobs = new Map<string, { entryId: string; startedAt: string }>()
   private cancelledActiveEntryIds = new Set<string>()
@@ -45,6 +59,8 @@ class EntryEmbeddingJobService {
   enqueueAllMissing() {
     const entryIds = listMissingEmbeddingEntryIds()
     if (entryIds.length === 0) {
+      // Still compact any historically bloated queue.
+      this.compactQueueIfNeeded()
       this.publishStatus()
       return 0
     }
@@ -63,7 +79,7 @@ class EntryEmbeddingJobService {
   }
 
   isEntryInPipeline(entryId: string) {
-    if (this.queue.includes(entryId)) return true
+    if (this.inFlightIds.has(entryId)) return true
     if (this.activeJobs.has(entryId)) return true
     return this.isPending(entryId)
   }
@@ -77,6 +93,7 @@ class EntryEmbeddingJobService {
     this.queue = this.queue.filter((entryId) => {
       if (!this.isEntryFromFeedIds(entryId, feedIdSet)) return true
 
+      this.inFlightIds.delete(entryId)
       this.clearPending(entryId)
       cancelledCount += 1
       return false
@@ -107,11 +124,30 @@ class EntryEmbeddingJobService {
     return getEmbeddingCoverageStats((entryId) => this.isEntryInPipeline(entryId))
   }
 
+  /** Test helper: wipe in-memory queue state. */
+  resetForTest() {
+    this.queue = []
+    this.inFlightIds.clear()
+    this.pendingSince.clear()
+    this.activeJobs.clear()
+    this.cancelledActiveEntryIds.clear()
+    this.isDraining = false
+    this.lastError = null
+    this.publishStatus()
+  }
+
   private enqueueMissing({ entryIds, prepend = false }: EmbeddingJobEnqueueOptions) {
+    // Heal queues bloated by historical re-enqueue after pending TTL expiry.
+    this.compactQueueIfNeeded()
+
     const jobs = this.buildJobs(entryIds)
     if (jobs.length === 0) {
       this.publishStatus()
       return
+    }
+
+    for (const entryId of jobs) {
+      this.inFlightIds.add(entryId)
     }
 
     if (prepend) {
@@ -121,6 +157,29 @@ class EntryEmbeddingJobService {
     }
     this.publishStatus()
     void this.drain()
+  }
+
+  /**
+   * Drop duplicate entryIds already sitting in the queue (keep first).
+   * Returns true when the queue shrank.
+   */
+  private compactQueueIfNeeded() {
+    const before = this.queue.length
+    if (before <= 1) return false
+
+    const compact = dedupeQueuePreserveOrder(this.queue)
+    if (compact.length === before) return false
+
+    this.queue = compact
+    this.rebuildInFlightFromQueueAndActive()
+    return true
+  }
+
+  private rebuildInFlightFromQueueAndActive() {
+    this.inFlightIds = new Set(this.queue)
+    for (const entryId of this.activeJobs.keys()) {
+      this.inFlightIds.add(entryId)
+    }
   }
 
   private publishStatus() {
@@ -146,6 +205,8 @@ class EntryEmbeddingJobService {
       if (seenIds.has(entryId)) continue
       seenIds.add(entryId)
 
+      // Hard dedupe: already queued or running (independent of pending TTL).
+      if (this.inFlightIds.has(entryId) || this.activeJobs.has(entryId)) continue
       if (this.isPending(entryId)) continue
       if (!this.isEntryStillSubscribed(entryId)) continue
       if (!entryNeedsEmbedding(entryId)) continue
@@ -240,6 +301,7 @@ class EntryEmbeddingJobService {
 
   private async processJob(entryId: string) {
     if (this.isEntryCancelled(entryId)) {
+      this.inFlightIds.delete(entryId)
       this.clearPending(entryId)
       this.cancelledActiveEntryIds.delete(entryId)
       this.publishStatus()
@@ -266,6 +328,7 @@ class EntryEmbeddingJobService {
       }
     } finally {
       this.activeJobs.delete(entryId)
+      this.inFlightIds.delete(entryId)
       this.cancelledActiveEntryIds.delete(entryId)
       this.clearPending(entryId)
       this.publishStatus()
