@@ -153,8 +153,10 @@ const SubscriptionImpl = ({ ref, className, view, isSubscriptionLoading }: Subsc
 
   useRegisterCommand()
 
+  const showEmptyFeeds = !hasFeedsSectionContent && !isSubscriptionLoading
+
   return (
-    <div className={cn(className, "font-medium")}>
+    <div className={cn(className, "relative font-medium")}>
       <Selecto
         className="!border-orange-400 !bg-orange-400/60"
         ref={selectoRef}
@@ -308,13 +310,14 @@ const SubscriptionImpl = ({ ref, className, view, isSubscriptionLoading }: Subsc
                 />
               ) : isSubscriptionLoading ? (
                 <SubscriptionListSkeleton />
-              ) : (
-                <EmptyFeedList />
-              )}
+              ) : null}
             </div>
           </>
         )}
       </ScrollArea.ScrollArea>
+
+      {/* Centered over the full list column so it lines up with mid/content empty copy. */}
+      {showEmptyFeeds && <EmptyFeedList />}
     </div>
   )
 }
