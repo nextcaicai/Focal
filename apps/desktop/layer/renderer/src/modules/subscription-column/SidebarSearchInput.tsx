@@ -89,7 +89,7 @@ export const SidebarSearchInput = ({
     <div
       data-active={rowActive}
       className={cn(
-        // Peer row under "Find" — same geometry as Today / Unread / Starred
+        // Peer row under "Browse" — same geometry as Today / Unread / Starred
         "group/search mt-1 flex h-8 shrink-0 gap-2 px-2.5",
         feedColumnStyles.item,
         focused && !rowActive && "bg-theme-item-hover/50",

@@ -540,7 +540,7 @@
   "sidebar.feed_column.create_group_button": "グループを作成",
   "sidebar.feed_column.create_group_modal.title": "新しいグループを作成",
   "sidebar.feed_column.toggle": "フィード列の表示切り替え",
-  "sidebar.find.title": "探す",
+  "sidebar.find.title": "閲覧",
   "sidebar.local_rss_status_refreshing": "購読を更新中…",
   "sidebar.select_sort_method": "並べ替え方法を選択",
   "sidebar.smart_feeds.all_unread": "すべての未読",

@@ -514,7 +514,7 @@
   "sidebar.feed_column.context_menu.ungroup_category_confirmation": "Dissocier la catégorie {{folderName}} ?",
   "sidebar.feed_column.context_menu.unsubscribe_category": "Se désabonner de tout dans la catégorie",
   "sidebar.feed_column.toggle": "Afficher/Masquer la colonne",
-  "sidebar.find.title": "Rechercher",
+  "sidebar.find.title": "Parcourir",
   "sidebar.select_sort_method": "Sélectionner une méthode de tri",
   "sidebar.smart_feeds.all_unread": "Tous les non lus",
   "sidebar.smart_feeds.title": "Flux intelligents",

@@ -540,7 +540,7 @@
   "sidebar.feed_column.create_group_button": "创建分组",
   "sidebar.feed_column.create_group_modal.title": "创建新分组",
   "sidebar.feed_column.toggle": "切换订阅栏",
-  "sidebar.find.title": "查找",
+  "sidebar.find.title": "浏览",
   "sidebar.local_rss_status_refreshing": "正在更新订阅…",
   "sidebar.select_sort_method": "选择排序方法",
   "sidebar.smart_feeds.all_unread": "全部未读",

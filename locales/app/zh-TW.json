@@ -515,7 +515,7 @@
   "sidebar.feed_column.context_menu.ungroup_category_confirmation": "取消分類「{{folderName}}」的分組？",
   "sidebar.feed_column.context_menu.unsubscribe_category": "取消分類內所有訂閱",
   "sidebar.feed_column.toggle": "切換訂閱欄",
-  "sidebar.find.title": "尋找",
+  "sidebar.find.title": "瀏覽",
   "sidebar.select_sort_method": "選擇排序方式",
   "sidebar.smart_feeds.all_unread": "全部未讀",
   "sidebar.smart_feeds.title": "智慧摘要",

@@ -189,7 +189,7 @@ export const TimelineScopeItems = memo(() => {
   const toggleSmartFeeds = useCallback(() => {
     setSmartFeedsCollapsed((current) => !current)
   }, [setSmartFeedsCollapsed])
-  const expandFindSection = useCallback(() => {
+  const expandBrowseSection = useCallback(() => {
     setSmartFeedsCollapsed(false)
   }, [setSmartFeedsCollapsed])
 
@@ -198,7 +198,7 @@ export const TimelineScopeItems = memo(() => {
 
   return (
     <>
-      {/* Option D: search + smart feeds share one "Find" section; mutually exclusive selection */}
+      {/* Search + smart feeds share one "Browse" section; mutually exclusive selection */}
       <CollapsibleSectionHeader
         className="mt-0"
         isOpen={smartFeedsOpen}
@@ -208,7 +208,10 @@ export const TimelineScopeItems = memo(() => {
       </CollapsibleSectionHeader>
       {smartFeedsOpen && (
         <>
-          <SidebarSearchInput onRequestExpand={expandFindSection} isActive={librarySearchActive} />
+          <SidebarSearchInput
+            onRequestExpand={expandBrowseSection}
+            isActive={librarySearchActive}
+          />
           <ScopeItem
             feedId={SMART_FEED_TODAY}
             icon={todayIcon}
