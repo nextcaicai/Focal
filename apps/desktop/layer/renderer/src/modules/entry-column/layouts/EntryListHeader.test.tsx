@@ -154,6 +154,11 @@ vi.mock("~/atoms/library-search", () => ({
   clearLibrarySearch: vi.fn(),
   useLibrarySearchActive: () => false,
   useLibrarySearchSession: () => ({ query: "", previousScope: null }),
+  useLibrarySearchTotalHits: () => 0,
+}))
+
+vi.mock("~/store/search/library-search", () => ({
+  useLibrarySearchResultCount: () => 0,
 }))
 
 vi.mock("@follow/store/entry-embedding/hooks", () => ({

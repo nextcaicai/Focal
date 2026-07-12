@@ -1,6 +1,43 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveSemanticSearchEntryIds, SEMANTIC_KEYWORD_PREFILTER_MAX } from "./library-search"
+import {
+  LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN,
+  resolveMinQueryLengthForSearch,
+  resolveSemanticSearchEntryIds,
+  SEMANTIC_KEYWORD_PREFILTER_MAX,
+  shouldRunLibrarySemanticSearch,
+} from "./library-search"
+
+describe("resolveMinQueryLengthForSearch", () => {
+  it("requires at least 2 latin characters", () => {
+    expect(resolveMinQueryLengthForSearch("c")).toBe(2)
+    expect(resolveMinQueryLengthForSearch("ch")).toBe(2)
+  })
+
+  it("allows single CJK character", () => {
+    expect(resolveMinQueryLengthForSearch("华")).toBe(1)
+  })
+})
+
+describe("shouldRunLibrarySemanticSearch", () => {
+  it("skips semantic when there are no keyword hits and query is short", () => {
+    expect(shouldRunLibrarySemanticSearch("mi'ni", 0, true)).toBe(false)
+    expect(shouldRunLibrarySemanticSearch("mannager", 0, true)).toBe(false)
+  })
+
+  it("runs semantic for long paraphrase queries without keyword hits", () => {
+    const longQuery = "a".repeat(LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN)
+    expect(shouldRunLibrarySemanticSearch(longQuery, 0, true)).toBe(true)
+  })
+
+  it("runs semantic when keyword hits exist", () => {
+    expect(shouldRunLibrarySemanticSearch("c", 10, true)).toBe(true)
+  })
+
+  it("does not run semantic without query vector", () => {
+    expect(shouldRunLibrarySemanticSearch("chatgpt", 5, false)).toBe(false)
+  })
+})
 
 describe("resolveSemanticSearchEntryIds", () => {
   it("returns undefined when no keyword hits (full semantic scan)", () => {

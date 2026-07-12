@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import { db } from "../db"
 import { entryEmbeddingsTable } from "../schemas"
@@ -11,19 +11,27 @@ class EntryEmbeddingServiceStatic implements Resetable {
   }
 
   async upsertEmbedding(data: EntryEmbeddingSchema) {
+    await this.upsertEmbeddings([data])
+  }
+
+  async upsertEmbeddings(records: EntryEmbeddingSchema[]) {
+    if (records.length === 0) return
+
     const now = new Date().toISOString()
 
     await db
       .insert(entryEmbeddingsTable)
-      .values({
-        ...data,
-        createdAt: data.createdAt ?? now,
-        updatedAt: now,
-      })
+      .values(
+        records.map((record) => ({
+          ...record,
+          createdAt: record.createdAt ?? now,
+          updatedAt: now,
+        })),
+      )
       .onConflictDoUpdate({
         target: entryEmbeddingsTable.entryId,
         set: {
-          data: data.data,
+          data: sql`excluded.data`,
           updatedAt: now,
         },
       })

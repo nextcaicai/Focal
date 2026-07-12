@@ -63,6 +63,8 @@ class EntryEmbeddingJobService {
   private lastError: { entryId: string; message: string; at: string } | null = null
 
   enqueueFromIngest(options: EmbeddingJobEnqueueOptions) {
+    if (!entryEmbeddingActions.isHydrated()) return
+
     this.enqueueMissing({
       ...options,
       prepend: true,
@@ -70,6 +72,8 @@ class EntryEmbeddingJobService {
   }
 
   backfillVisible(options: EmbeddingJobEnqueueOptions) {
+    if (!entryEmbeddingActions.isHydrated()) return
+
     this.enqueueMissing(options)
   }
 
@@ -78,6 +82,8 @@ class EntryEmbeddingJobService {
    * Does not wipe existing vectors — only fills gaps / refreshes stale hashes.
    */
   enqueueAllMissing() {
+    if (!entryEmbeddingActions.isHydrated()) return 0
+
     const entryIds = listMissingEmbeddingEntryIds()
     if (entryIds.length === 0) {
       // Still compact any historically bloated queue.
@@ -91,6 +97,8 @@ class EntryEmbeddingJobService {
   }
 
   async rebuildAll() {
+    if (!entryEmbeddingActions.isHydrated()) return 0
+
     const entryIds = listRebuildEligibleEntryIds()
     if (entryIds.length === 0) return 0
 

@@ -236,6 +236,10 @@ class EntryActions implements Hydratable, Resetable {
     })
   }
 
+  isEntryBodyDeferred(entryId: EntryId) {
+    return this.contentDeferredEntryIds.has(entryId)
+  }
+
   getFlattenMapEntries() {
     const state = get()
     return state.data
@@ -363,6 +367,12 @@ class EntryActions implements Hydratable, Resetable {
     if (entries.length === 0) return
     const { unreadOnly, hidePrivateSubscriptionsInTimeline } = options || {}
 
+    for (const entry of entries) {
+      if (entry.content != null || entry.readabilityContent != null) {
+        this.contentDeferredEntryIds.delete(entry.id)
+      }
+    }
+
     immerSet((draft) => {
       for (const entry of entries) {
         const nextEntry =
@@ -442,6 +452,10 @@ class EntryActions implements Hydratable, Resetable {
     readabilityContent?: string
     readabilityUpdatedAt?: Date
   }) {
+    if (content || readabilityContent) {
+      this.contentDeferredEntryIds.delete(entryId)
+    }
+
     immerSet((draft) => {
       const entry = draft.data[entryId]
       if (!entry) return

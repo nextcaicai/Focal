@@ -51,7 +51,7 @@ import { useCommandShortcut } from "~/modules/command/hooks/use-command-binding"
 import { EntryHeader } from "~/modules/entry-content/components/entry-header"
 import { FeedIcon } from "~/modules/feed/feed-icon"
 import { useFeedHeaderIcon, useFeedHeaderTitle } from "~/store/feed/hooks"
-import { useLibrarySearchEntryIds } from "~/store/search/library-search"
+import { useLibrarySearchResultCount } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
 import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
@@ -67,7 +67,7 @@ export const EntryListHeader: FC = () => {
   const navigateEntry = useNavigateEntry()
   const librarySearchActive = useLibrarySearchActive()
   const librarySearchSession = useLibrarySearchSession()
-  const librarySearchCount = useLibrarySearchEntryIds().length
+  const librarySearchCount = useLibrarySearchResultCount()
   const embeddingCoverage = useEmbeddingCoverageStats()
   const embeddingBusy = useEmbeddingProcessingBusy()
   const embeddingSettings = useAISettingKey("embedding")

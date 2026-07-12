@@ -1,6 +1,8 @@
 import { queryEmbeddingService } from "@follow/store/entry-embedding/query-embedding"
 import { useEffect, useState } from "react"
 
+import { resolveMinQueryLengthForSearch } from "~/store/search/library-search"
+
 /**
  * Embed a free-text query with the local embedding provider.
  * Returns null while loading, when embedding is disabled, or on failure.
@@ -13,7 +15,7 @@ export const useQueryEmbeddingVector = (query: string): number[] | null => {
   )
 
   useEffect(() => {
-    if (!normalized) {
+    if (!normalized || normalized.length < resolveMinQueryLengthForSearch(normalized)) {
       setVector(null)
       return
     }

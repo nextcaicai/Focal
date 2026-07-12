@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { dedupeQueuePreserveOrder, splitEmbeddingApiBatches } from "./job-service"
+import {
+  dedupeQueuePreserveOrder,
+  entryEmbeddingJobService,
+  splitEmbeddingApiBatches,
+} from "./job-service"
+import { entryEmbeddingActions } from "./store"
+
+beforeEach(() => {
+  vi.restoreAllMocks()
+  entryEmbeddingJobService.resetForTest()
+})
 
 describe("dedupeQueuePreserveOrder", () => {
   it("keeps first occurrence and drops later duplicates", () => {
@@ -28,5 +38,13 @@ describe("splitEmbeddingApiBatches", () => {
 
   it("returns empty array for empty input", () => {
     expect(splitEmbeddingApiBatches([], 32)).toEqual([])
+  })
+})
+
+describe("entryEmbeddingJobService", () => {
+  it("does not enqueue a library backfill before embeddings hydrate", () => {
+    vi.spyOn(entryEmbeddingActions, "isHydrated").mockReturnValue(false)
+
+    expect(entryEmbeddingJobService.enqueueAllMissing()).toBe(0)
   })
 })

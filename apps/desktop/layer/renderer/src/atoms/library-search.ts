@@ -20,8 +20,20 @@ const defaultSession = (): LibrarySearchSession => ({
 
 const librarySearchSessionAtom = atom<LibrarySearchSession>(defaultSession())
 
+/** Latest ranked search ids (capped for list rendering). Updated by useLibrarySearchEntryIds only. */
+export const librarySearchEntryIdsAtom = atom<string[]>([])
+
+/** Full hit count before display cap — for header title. */
+export const librarySearchTotalHitsAtom = atom(0)
+
 export const [, , useLibrarySearchSession, , getLibrarySearchSession, setLibrarySearchSession] =
   createAtomHooks(librarySearchSessionAtom)
+
+export const [, , useLibrarySearchTotalHits, useSetLibrarySearchTotalHits] = createAtomHooks(
+  librarySearchTotalHitsAtom,
+)
+
+export const [, , , useSetLibrarySearchEntryIds] = createAtomHooks(librarySearchEntryIdsAtom)
 
 export const useLibrarySearchQuery = () => useLibrarySearchSession().query
 export const useLibrarySearchActive = () => useLibrarySearchSession().query.trim().length > 0
@@ -91,4 +103,6 @@ export const focusLibrarySearchInput = () => {
 /** For tests */
 export const resetLibrarySearchSessionForTests = () => {
   jotaiStore.set(librarySearchSessionAtom, defaultSession())
+  jotaiStore.set(librarySearchEntryIdsAtom, [])
+  jotaiStore.set(librarySearchTotalHitsAtom, 0)
 }

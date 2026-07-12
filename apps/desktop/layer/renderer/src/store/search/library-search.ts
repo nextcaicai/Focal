@@ -7,9 +7,14 @@ import {
 import { useEntryEmbeddingStore } from "@follow/store/entry-embedding/store"
 import { entryQualityScoreActions } from "@follow/store/entry-quality-score/store"
 import { useTranslationStore } from "@follow/store/translation/store"
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 
-import { useLibrarySearchSession } from "~/atoms/library-search"
+import {
+  useLibrarySearchSession,
+  useLibrarySearchTotalHits,
+  useSetLibrarySearchEntryIds,
+  useSetLibrarySearchTotalHits,
+} from "~/atoms/library-search"
 import { useQueryEmbeddingVector } from "~/hooks/biz/useQueryEmbeddingVector"
 import { appLog } from "~/lib/log"
 
@@ -18,6 +23,10 @@ import { scoreEntryWithTranslations, sortSearchHits } from "./rank"
 const SEARCH_PERF_LOG_MS = 16
 /** Cap semantic cosine work when keyword hits exist (P1 prefilter). */
 export const SEMANTIC_KEYWORD_PREFILTER_MAX = 500
+/** Max rows rendered in the entry list during library search. */
+export const LIBRARY_SEARCH_DISPLAY_MAX = 300
+/** Skip full-library semantic when there are no keyword hits and query is shorter than this. */
+export const LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN = 12
 
 export type SearchEntryIdsOptions = {
   query: string
@@ -25,6 +34,24 @@ export type SearchEntryIdsOptions = {
   queryVector?: number[] | null
   /** entryId → embedding record from the embedding store. */
   embeddings?: Record<string, { vector: number[] } | undefined>
+}
+
+/** Minimum trimmed query length before running library search. */
+export const resolveMinQueryLengthForSearch = (query: string): number => {
+  const trimmed = query.trim()
+  if (!trimmed) return 1
+  return /[\u4e00-\u9fff]/.test(trimmed) ? 1 : 2
+}
+
+/** Avoid O(N) semantic scan for short typo queries with zero keyword hits. */
+export const shouldRunLibrarySemanticSearch = (
+  query: string,
+  keywordHitCount: number,
+  hasQueryVector: boolean,
+): boolean => {
+  if (!hasQueryVector) return false
+  if (keywordHitCount > 0) return true
+  return query.trim().length >= LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN
 }
 
 export const resolveSemanticSearchEntryIds = (
@@ -50,7 +77,7 @@ export const resolveSemanticSearchEntryIds = (
  */
 export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[] {
   const query = options.query.trim()
-  if (!query) return []
+  if (!query || query.length < resolveMinQueryLengthForSearch(query)) return []
 
   const totalStart = performance.now()
   const entries = entryActions.getFlattenMapEntries()
@@ -82,11 +109,17 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
   }
   const keywordMs = performance.now() - keywordStart
 
+  const runSemantic = shouldRunLibrarySemanticSearch(
+    query,
+    keywordScoresByEntryId.size,
+    hasQueryVector,
+  )
+
   const semanticStart = performance.now()
-  const semanticEntryIds = hasQueryVector
+  const semanticEntryIds = runSemantic
     ? resolveSemanticSearchEntryIds(keywordScoresByEntryId)
     : undefined
-  const semanticByEntry = hasQueryVector
+  const semanticByEntry = runSemantic
     ? buildSemanticScoreByEntryId(options.queryVector, options.embeddings ?? {}, {
         minScore: semanticMinScore,
         entryIds: semanticEntryIds,
@@ -146,7 +179,7 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
 
   if (totalMs >= SEARCH_PERF_LOG_MS) {
     appLog(
-      `[perf] search total ${totalMs.toFixed(0)}ms semantic=${semanticMs.toFixed(0)}ms keyword=${keywordMs.toFixed(0)}ms sort=${sortMs.toFixed(0)}ms hits=${sorted.length} entries=${Object.keys(entries).length} embeddings=${Object.keys(options.embeddings ?? {}).length} semanticScope=${semanticEntryIds?.size ?? "all"} vector=${hasQueryVector} query="${query}"`,
+      `[perf] search total ${totalMs.toFixed(0)}ms semantic=${semanticMs.toFixed(0)}ms keyword=${keywordMs.toFixed(0)}ms sort=${sortMs.toFixed(0)}ms hits=${sorted.length} entries=${Object.keys(entries).length} embeddings=${Object.keys(options.embeddings ?? {}).length} semanticScope=${semanticEntryIds?.size ?? (runSemantic ? "all" : "off")} vector=${hasQueryVector} query="${query}"`,
     )
   }
 
@@ -157,6 +190,8 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
  * Hook: ranked entry ids for the active library search session.
  * Progressive: keyword results first; semantic re-rank when query vector is ready.
  * Embedding store updates during the same query do not trigger a recompute (P1 snapshot).
+ *
+ * Call from a single consumer (useEntriesByView). Header reads count via useLibrarySearchResultCount.
  */
 export function useLibrarySearchEntryIds(): string[] {
   const session = useLibrarySearchSession()
@@ -164,8 +199,10 @@ export function useLibrarySearchEntryIds(): string[] {
   const queryVector = useQueryEmbeddingVector(query)
   const entryRevision = useEntryStore((s) => Object.keys(s.data).length)
   const translationRevision = useTranslationStore((s) => Object.keys(s.data).length)
+  const setEntryIds = useSetLibrarySearchEntryIds()
+  const setTotalHits = useSetLibrarySearchTotalHits()
 
-  return useMemo(() => {
+  const rankedEntryIds = useMemo(() => {
     void entryRevision
     void translationRevision
     if (!query) return []
@@ -178,4 +215,21 @@ export function useLibrarySearchEntryIds(): string[] {
       embeddings,
     })
   }, [entryRevision, translationRevision, query, queryVector])
+
+  const displayEntryIds = useMemo(
+    () => rankedEntryIds.slice(0, LIBRARY_SEARCH_DISPLAY_MAX),
+    [rankedEntryIds],
+  )
+
+  useEffect(() => {
+    setEntryIds(displayEntryIds)
+    setTotalHits(rankedEntryIds.length)
+  }, [displayEntryIds, rankedEntryIds.length, setEntryIds, setTotalHits])
+
+  return displayEntryIds
+}
+
+/** Header title hit count — avoids running a second full search. */
+export function useLibrarySearchResultCount(): number {
+  return useLibrarySearchTotalHits()
 }

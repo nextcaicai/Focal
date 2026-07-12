@@ -525,6 +525,7 @@ const useEntryEnrichmentBackfill = (
   actionLanguage: ReturnType<typeof useActionLanguage>,
   fetchedTime?: number,
 ) => {
+  const embeddingHydrated = useEntryEmbeddingStore((state) => state.hydrated)
   const summaryEnabled = useGeneralSettingKey("summary")
   const translationEnabled = useGeneralSettingKey("translation")
   const autoTagEnabled = useGeneralSettingKey("autoTag")
@@ -533,7 +534,8 @@ const useEntryEnrichmentBackfill = (
   const entryIdsKey = useMemo(() => entryIds.join("\0"), [entryIds])
 
   useEffect(() => {
-    const embeddingEnabled = LOCAL_RSS_MODE && (getAISettings().embedding?.enabled ?? false)
+    const embeddingEnabled =
+      LOCAL_RSS_MODE && embeddingHydrated && (getAISettings().embedding?.enabled ?? false)
     const byokEnabled =
       summaryEnabled || translationEnabled || autoTagEnabled || qualityScoreEnabled
 
@@ -569,6 +571,7 @@ const useEntryEnrichmentBackfill = (
   }, [
     actionLanguage,
     autoTagEnabled,
+    embeddingHydrated,
     entryIds,
     entryIdsKey,
     fetchedTime,

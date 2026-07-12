@@ -6,20 +6,23 @@ import { recordHydrateStoreDetail } from "../../hydrate-perf"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { getEntry } from "../entry/getter"
+import { entryActions } from "../entry/store"
 import { entryRankScoreSyncService } from "../entry-rank-score/store"
 import {
   buildEmbeddingSourceText,
   hasEmbeddingEligibleText,
   hashEmbeddingSourceText,
-  isEmbeddingStaleForEntry,
+  isEmbeddingCurrentForEntry,
 } from "./source-text"
 
 interface EntryEmbeddingState {
   data: Record<string, EntryEmbeddingRecord>
+  hydrated: boolean
 }
 
 const defaultState: EntryEmbeddingState = {
   data: {},
+  hydrated: false,
 }
 
 export const useEntryEmbeddingStore = createZustandStore<EntryEmbeddingState>("entry-embedding")(
@@ -41,6 +44,7 @@ class EntryEmbeddingActions implements Hydratable, Resetable {
       records.forEach((record) => {
         state.data[record.entryId] = record.data
       })
+      state.hydrated = true
     })
     const immerMs = performance.now() - immerStart
 
@@ -54,10 +58,14 @@ class EntryEmbeddingActions implements Hydratable, Resetable {
   async reset() {
     const tx = createTransaction()
     tx.store(() => {
-      set(defaultState)
+      set({ data: {}, hydrated: true })
     })
     tx.persist(() => entryEmbeddingService.reset())
     await tx.run()
+  }
+
+  isHydrated() {
+    return get().hydrated
   }
 
   upsertManyInSession(records: Array<{ entryId: string; data: EntryEmbeddingRecord }>) {
@@ -69,16 +77,14 @@ class EntryEmbeddingActions implements Hydratable, Resetable {
   }
 
   async upsertMany(records: Array<{ entryId: string; data: EntryEmbeddingRecord }>) {
-    this.upsertManyInSession(records)
-
-    await Promise.all(
-      records.map((record) =>
-        entryEmbeddingService.upsertEmbedding({
-          entryId: record.entryId,
-          data: record.data,
-        }),
-      ),
+    await entryEmbeddingService.upsertEmbeddings(
+      records.map((record) => ({
+        entryId: record.entryId,
+        data: record.data,
+      })),
     )
+
+    this.upsertManyInSession(records)
   }
 
   getEmbedding(entryId: string) {
@@ -110,17 +116,28 @@ class EntryEmbeddingSyncService {
     entryId: string,
     options?: { force?: boolean },
   ): Promise<EmbeddingWorkItem | null> {
-    const entry = getEntry(entryId)
+    let entry = getEntry(entryId)
     if (!entry) return null
-    if (!hasEmbeddingEligibleText(entry)) return null
 
     const existing = entryEmbeddingActions.getEmbedding(entryId)
-    if (!options?.force && existing && !isEmbeddingStaleForEntry(entry, existing)) {
+    const sourceDeferred = entryActions.isEntryBodyDeferred(entryId)
+    if (
+      !options?.force &&
+      existing &&
+      isEmbeddingCurrentForEntry(entry, existing, { sourceDeferred })
+    ) {
       return null
     }
 
-    if (existing) {
-      await entryEmbeddingActions.deleteEmbedding(entryId)
+    if (sourceDeferred) {
+      await entryActions.ensureEntryBodyLoaded(entryId)
+      entry = getEntry(entryId)
+      if (!entry) return null
+    }
+
+    if (!hasEmbeddingEligibleText(entry)) return null
+    if (!options?.force && existing && isEmbeddingCurrentForEntry(entry, existing)) {
+      return null
     }
 
     const sourceText = buildEmbeddingSourceText(entry)
@@ -153,7 +170,13 @@ class EntryEmbeddingSyncService {
       const entry = getEntry(entryId)
       if (!entry) return null
       const existing = entryEmbeddingActions.getEmbedding(entryId)
-      if (!force && existing && !isEmbeddingStaleForEntry(entry, existing)) {
+      if (
+        !force &&
+        existing &&
+        isEmbeddingCurrentForEntry(entry, existing, {
+          sourceDeferred: entryActions.isEntryBodyDeferred(entryId),
+        })
+      ) {
         return existing
       }
       return null

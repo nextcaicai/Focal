@@ -53,3 +53,14 @@ export const isEmbeddingStaleForEntry = (
 
   return embedding.sourceHash !== embeddingSourceHashForEntry(entry)
 }
+
+export const isEmbeddingCurrentForEntry = (
+  entry: EntryModel,
+  embedding: { sourceHash?: string },
+  options?: { sourceDeferred?: boolean },
+): boolean => {
+  if (!embedding.sourceHash) return false
+  if (options?.sourceDeferred) return true
+
+  return !isEmbeddingStaleForEntry(entry, embedding)
+}
