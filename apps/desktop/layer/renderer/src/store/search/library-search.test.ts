@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN,
+  applyEntityLookupDescriptionCap,
+  ENTITY_LOOKUP_DESCRIPTION_MAX,
+  KEYWORD_MATCH_DESCRIPTION_SCORE,
   resolveMinQueryLengthForSearch,
   resolveSemanticSearchEntryIds,
   SEMANTIC_KEYWORD_PREFILTER_MAX,
@@ -20,14 +22,10 @@ describe("resolveMinQueryLengthForSearch", () => {
 })
 
 describe("shouldRunLibrarySemanticSearch", () => {
-  it("skips semantic when there are no keyword hits and query is short", () => {
+  it("skips semantic when there are no keyword hits", () => {
     expect(shouldRunLibrarySemanticSearch("mi'ni", 0, true)).toBe(false)
     expect(shouldRunLibrarySemanticSearch("mannager", 0, true)).toBe(false)
-  })
-
-  it("runs semantic for long paraphrase queries without keyword hits", () => {
-    const longQuery = "a".repeat(LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN)
-    expect(shouldRunLibrarySemanticSearch(longQuery, 0, true)).toBe(true)
+    expect(shouldRunLibrarySemanticSearch("memoriiiiiii", 0, true)).toBe(false)
   })
 
   it("runs semantic when keyword hits exist for non-entity queries", () => {
@@ -44,8 +42,41 @@ describe("shouldRunLibrarySemanticSearch", () => {
   })
 })
 
+describe("applyEntityLookupDescriptionCap", () => {
+  const baseHit = (entryId: string, matchScore: number) => ({
+    entryId,
+    matchScore,
+    publishedAt: new Date("2026-01-01"),
+    qualityScore: null as number | null,
+  })
+
+  it("caps description-only hits for entity lookups", () => {
+    const keywordScores = new Map<string, number>()
+    const hits = []
+    for (let i = 0; i < 30; i++) {
+      const id = `desc-${i}`
+      keywordScores.set(id, KEYWORD_MATCH_DESCRIPTION_SCORE)
+      hits.push(baseHit(id, KEYWORD_MATCH_DESCRIPTION_SCORE))
+    }
+    keywordScores.set("title-1", 90)
+    hits.push(baseHit("title-1", 90))
+
+    const capped = applyEntityLookupDescriptionCap("codex", hits, keywordScores)
+    expect(capped).toHaveLength(ENTITY_LOOKUP_DESCRIPTION_MAX + 1)
+    expect(capped.some((hit) => hit.entryId === "title-1")).toBe(true)
+  })
+
+  it("does not cap non-entity queries", () => {
+    const keywordScores = new Map([["a", KEYWORD_MATCH_DESCRIPTION_SCORE]])
+    const hits = [baseHit("a", KEYWORD_MATCH_DESCRIPTION_SCORE)]
+    expect(applyEntityLookupDescriptionCap("neural network basics", hits, keywordScores)).toEqual(
+      hits,
+    )
+  })
+})
+
 describe("resolveSemanticSearchEntryIds", () => {
-  it("returns undefined when no keyword hits (full semantic scan)", () => {
+  it("returns undefined when no keyword hits (semantic off)", () => {
     expect(resolveSemanticSearchEntryIds(new Map())).toBeUndefined()
     expect(resolveSemanticSearchEntryIds(new Map([["a", 0]]))).toBeUndefined()
   })

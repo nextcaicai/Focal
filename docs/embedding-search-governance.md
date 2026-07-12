@@ -1,6 +1,6 @@
 # Embedding 与搜索治理方案
 
-> 状态：阶段 0–1 实现中（2026-07-12）  
+> 状态：阶段 0–1 已完成；阶段 2 实现中（2026-07-12）  
 > 范围：全库 embedding 带来的启动卡顿、使用变慢、搜索结果过多/过乱  
 > 关联文档：`docs/startup-search-performance-governance.md`（启动分层 P0/P1）  
 > 关联实现：`entry-embedding/backlog.ts`、`entry-enrichment/trigger.ts`、`library-search.ts`
@@ -69,38 +69,40 @@ Embedding 应对齐同一逻辑：
 阶段 0 止血 → 阶段 1 减负 → 阶段 2 搜得准 → 阶段 3 打磨（按需）
 ```
 
-### 阶段 0 — 止血（优先）
+### 阶段 0 — 止血（✅ 已完成）
 
-| 项                   | 改动方向                                              | 文件                                              |
-| -------------------- | ----------------------------------------------------- | ------------------------------------------------- |
-| P0 分层 hydration    | Phase 1 挡 `appIsReady`；embedding 进 Phase 2         | `hydrate.ts`、`hydrate-deferred.ts`               |
-| 实体词跳过 embedding | `isEntityLookupQuery` → 不调 query embed、不跑 cosine | `library-search.ts`、`useQueryEmbeddingVector.ts` |
-| 结果 cap             | 总命中 ≤80，展示 ≤50                                  | `library-search.ts`                               |
-| 纯语义上限           | 关键词分为 0 的命中 ≤20，排在关键词之后               | `library-search.ts`、`semantic-search.ts`         |
-| 搜索快照隔离         | 同 query 期间 embedding upsert 不重算                 | `library-search.ts`（P1）                         |
+| 项                   | 状态 | 改动方向                                              | 文件                                              |
+| -------------------- | ---- | ----------------------------------------------------- | ------------------------------------------------- |
+| P0 分层 hydration    | ✅   | Phase 1 挡 `appIsReady`；embedding 进 Phase 2         | `hydrate.ts`、`hydrate-deferred.ts`               |
+| 实体词跳过 embedding | ✅   | `isEntityLookupQuery` → 不调 query embed、不跑 cosine | `library-search.ts`、`useQueryEmbeddingVector.ts` |
+| 结果 cap             | ✅   | 总命中 ≤80，展示 ≤50                                  | `library-search.ts`                               |
+| 纯语义上限           | ✅   | 关键词分为 0 的命中 ≤20                               | `library-search.ts`                               |
+| 搜索快照隔离         | ✅   | 同 query 期间 embedding upsert 不重算                 | `library-search.ts`（P1）                         |
 
 **阶段 0 完成标准**：打开可交互；搜 `codex` 明显更快；列表不再刷几百条。
 
-### 阶段 1 — 减负（核心杠杆）
+### 阶段 1 — 减负（✅ 已完成）
 
-| 项                              | 改动方向                                                                     | 文件                          |
-| ------------------------------- | ---------------------------------------------------------------------------- | ----------------------------- |
-| `entryNeedsEmbedding` 尊重 read | 入库即已读 → 默认 `false`；未读 / 用户读过 → `true`                          | `backlog.ts`                  |
-| backfill 与 BYOK 对齐           | `triggerEntryEnrichmentBackfill` 中 embedding 只传 `unreadIds`（或等效策略） | `entry-enrichment/trigger.ts` |
-| 停止无差别全库补洞              | `enqueueAllMissing` / 设置页「重建全库」改为「补未索引活跃条目」             | `job-service.ts`、设置 UI     |
-| UI 文案                         | 进度改为「活跃条目索引」，非「全库含已读历史」                               | changelog / `EntryListHeader` |
+| 项                              | 状态 | 改动方向                            | 文件                            |
+| ------------------------------- | ---- | ----------------------------------- | ------------------------------- |
+| `entryNeedsEmbedding` 尊重 read | ✅   | 入库即已读 → 默认不索引             | `backlog.ts`                    |
+| backfill 与 BYOK 对齐           | ✅   | embedding backfill 只传 `unreadIds` | `entry-enrichment/trigger.ts`   |
+| 停止无差别全库补洞              | ✅   | `enqueueAllMissing` 仅未读缺口      | `job-service.ts`                |
+| UI 文案                         | ✅   | 设置页 + 搜索头改为「未读索引」     | `locales/ai/*`、`locales/app/*` |
 
 **阶段 1 完成标准**：backfill 队列与 API 压力大幅下降；Phase 2 hydrate 数据量显著减少。
 
 **不删除已有向量**；仅停止对新入库即已读条目的默认 indexing。
 
-### 阶段 2 — 搜得准
+### 阶段 2 — 搜得准（进行中）
 
-| 项                       | 改动方向                                              |
-| ------------------------ | ----------------------------------------------------- |
-| 短实体词摘要降权         | 标题命中优先；仅摘要命中（50 分）排后或限流           |
-| 搜索与展示对齐           | 标「摘要命中」或搜索纳入与列表一致的摘要源            |
-| （可选）embedding 源文本 | 搜索用 `title + description`，不含正文；渐进 re-embed |
+| 项                       | 状态 | 改动方向                                                  |
+| ------------------------ | ---- | --------------------------------------------------------- |
+| 零关键词 → 不跑语义      | ✅   | 仅 `keywordHitCount > 0` 时语义重排                       |
+| 实体词摘要命中 cap       | ✅   | description-only ≤20（`applyEntityLookupDescriptionCap`） |
+| 设置页 / 搜索头文案      | ✅   | 未读索引；全库关键词始终可用                              |
+| 搜索与展示对齐           | ⏳   | 标「摘要命中」或纳入 AI 摘要                              |
+| （可选）embedding 源文本 | ⏳   | title+description only；渐进 re-embed                     |
 
 ### 阶段 3 — 按需（库规模或 profiling 触发）
 
@@ -123,7 +125,7 @@ Embedding 应对齐同一逻辑：
 - 前置条件：用户开启 Settings > AI > Embedding
 - 范围：**仅已 embed 的条目**（阶段 1 后 ≈ 未读 + 用户交互过的）
 - 实体型 query（≤8 字等）：**关键词独占**，不调 query embedding
-- 长句 / 意译：关键词 + 语义 hybrid；纯语义命中严格限流
+- 长句 / 意译：仅当有关键词命中时做语义重排；零命中 = 空结果
 
 ### 5.3 明确非目标（本阶段）
 

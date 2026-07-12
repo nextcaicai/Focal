@@ -30,8 +30,10 @@ export const LIBRARY_SEARCH_DISPLAY_MAX = 50
 export const LIBRARY_SEARCH_TOTAL_MAX = 80
 /** Max pure-semantic rows (keywordScore === 0) appended after keyword hits. */
 export const LIBRARY_SEARCH_PURE_SEMANTIC_MAX = 20
-/** Skip full-library semantic when there are no keyword hits and query is shorter than this. */
-export const LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN = 12
+/** RSS description substring tier (see rank.ts). */
+export const KEYWORD_MATCH_DESCRIPTION_SCORE = 50
+/** Max description-only hits for entity lookup queries (codex, 华为). */
+export const ENTITY_LOOKUP_DESCRIPTION_MAX = 20
 
 export type SearchEntryIdsOptions = {
   query: string
@@ -48,7 +50,10 @@ export const resolveMinQueryLengthForSearch = (query: string): number => {
   return /[\u4e00-\u9fff]/.test(trimmed) ? 1 : 2
 }
 
-/** Avoid O(N) semantic scan for short typo queries with zero keyword hits. */
+/**
+ * Semantic re-rank runs only when keyword hits exist.
+ * Zero-hit queries stay keyword-only (avoids full-library noise on typos/gibberish).
+ */
 export const shouldRunLibrarySemanticSearch = (
   query: string,
   keywordHitCount: number,
@@ -56,8 +61,48 @@ export const shouldRunLibrarySemanticSearch = (
 ): boolean => {
   if (!hasQueryVector) return false
   if (isEntityLookupQuery(query)) return false
-  if (keywordHitCount > 0) return true
-  return query.trim().length >= LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN
+  return keywordHitCount > 0
+}
+
+type SearchHitRow = {
+  entryId: string
+  matchScore: number
+  publishedAt: Date
+  qualityScore: number | null
+}
+
+/** Entity lookups: keep all title hits; cap RSS-description-only rows. */
+export const applyEntityLookupDescriptionCap = (
+  query: string,
+  hits: SearchHitRow[],
+  keywordScoresByEntryId: Map<string, number>,
+): SearchHitRow[] => {
+  if (!isEntityLookupQuery(query)) return hits
+
+  const strong: SearchHitRow[] = []
+  const descriptionOnly: SearchHitRow[] = []
+
+  for (const hit of hits) {
+    const keywordScore = keywordScoresByEntryId.get(hit.entryId) ?? 0
+    if (keywordScore === KEYWORD_MATCH_DESCRIPTION_SCORE) {
+      descriptionOnly.push(hit)
+    } else {
+      strong.push(hit)
+    }
+  }
+
+  if (descriptionOnly.length <= ENTITY_LOOKUP_DESCRIPTION_MAX) {
+    return hits
+  }
+
+  const rankedIds = sortSearchHits(descriptionOnly, "relevance").slice(
+    0,
+    ENTITY_LOOKUP_DESCRIPTION_MAX,
+  )
+  const descriptionById = new Map(descriptionOnly.map((hit) => [hit.entryId, hit]))
+  const rankedDescription = rankedIds.map((entryId) => descriptionById.get(entryId)!)
+
+  return [...strong, ...rankedDescription]
 }
 
 export const resolveSemanticSearchEntryIds = (
@@ -78,6 +123,8 @@ export const resolveSemanticSearchEntryIds = (
  * 2. Semantic path pre-normalizes the query once; per-entry score is a fast dot/norm.
  * 3. Progressive: keyword-only while query vector loads, then re-rank with semantic.
  * 4. When keyword hits exist, semantic cosine runs on the candidate set only (P1).
+ * 5. Zero keyword hits → keyword-only (no full-library semantic).
+ * 6. Entity lookups cap description-only hits.
  *
  * Always full-library keyword pass over the in-memory entry store.
  */
@@ -183,7 +230,8 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
   }
 
   const sortStart = performance.now()
-  const sorted = sortSearchHits(hits, "relevance").slice(0, LIBRARY_SEARCH_TOTAL_MAX)
+  const cappedHits = applyEntityLookupDescriptionCap(query, hits, keywordScoresByEntryId)
+  const sorted = sortSearchHits(cappedHits, "relevance").slice(0, LIBRARY_SEARCH_TOTAL_MAX)
   const sortMs = performance.now() - sortStart
   const totalMs = performance.now() - totalStart
 
