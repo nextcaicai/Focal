@@ -8,13 +8,64 @@
  *   business/tech articles do not flood short-query results.
  */
 
-import { cosineSimilarity } from "@follow/shared/interest-profile"
-
 /**
  * Default minimum cosine for pure-semantic inclusion (paraphrase / cross-lingual).
  * Kept deliberately above the "vaguely related" band (~0.3–0.4).
  */
 export const SEMANTIC_SEARCH_MIN_SCORE = 0.48
+
+/**
+ * Fast cosine via indexed loops (avoids iterator overhead on long embedding vectors).
+ * Prefer this over shared cosineSimilarity in hot search paths.
+ */
+export const cosineSimilarityFast = (left: number[], right: number[]): number => {
+  const n = left.length
+  if (n === 0 || n !== right.length) return 0
+
+  let dot = 0
+  let leftNormSq = 0
+  let rightNormSq = 0
+  for (let i = 0; i < n; i++) {
+    const l = left[i]!
+    const r = right[i]!
+    dot += l * r
+    leftNormSq += l * l
+    rightNormSq += r * r
+  }
+
+  if (leftNormSq === 0 || rightNormSq === 0) return 0
+  return dot / Math.sqrt(leftNormSq * rightNormSq)
+}
+
+/** L2-normalize once so per-entry scoring can use a cheaper formula. */
+export const l2Normalize = (vector: number[]): number[] | null => {
+  let normSq = 0
+  for (const v of vector) {
+    normSq += v * v
+  }
+  if (normSq === 0) return null
+  const inv = 1 / Math.sqrt(normSq)
+  return vector.map((v) => v * inv)
+}
+
+/**
+ * Cosine against a pre-normalized (unit) query vector: cos = dot(q̂, e) / ||e||.
+ * One sqrt per entry instead of two norms from scratch on both sides.
+ */
+export const cosineWithUnitQuery = (unitQuery: number[], entryVector: number[]): number => {
+  const n = unitQuery.length
+  if (n === 0 || n !== entryVector.length) return 0
+
+  let dot = 0
+  let entryNormSq = 0
+  for (let i = 0; i < n; i++) {
+    const e = entryVector[i]!
+    dot += unitQuery[i]! * e
+    entryNormSq += e * e
+  }
+  if (entryNormSq === 0) return 0
+  return dot / Math.sqrt(entryNormSq)
+}
 
 /**
  * Keyword topics: slightly looser than search standalone so follow-topic
@@ -36,6 +87,8 @@ export type CollectSemanticHitsOptions = {
   minScore?: number
   /** Hard cap after sorting by cosine desc. */
   limit?: number
+  /** When set, only score embeddings for these entry ids (library search prefilter). */
+  entryIds?: ReadonlySet<string>
 }
 
 /**
@@ -115,22 +168,26 @@ export const collectSemanticHits = (
 ): SemanticHit[] => {
   if (!queryVector?.length) return []
 
-  const minScore = options.minScore ?? SEMANTIC_SEARCH_MIN_SCORE
+  const unitQuery = l2Normalize(queryVector)
+  if (!unitQuery) return []
+
+  const { minScore = SEMANTIC_SEARCH_MIN_SCORE, limit, entryIds } = options
   const hits: SemanticHit[] = []
 
-  for (const [entryId, record] of Object.entries(embeddings)) {
-    const vector = record?.vector
-    if (!vector?.length || vector.length !== queryVector.length) continue
+  for (const entryId of Object.keys(embeddings)) {
+    if (entryIds && !entryIds.has(entryId)) continue
+    const vector = embeddings[entryId]?.vector
+    if (!vector?.length || vector.length !== unitQuery.length) continue
 
-    const cosine = cosineSimilarity(queryVector, vector)
+    const cosine = cosineWithUnitQuery(unitQuery, vector)
     if (cosine < minScore) continue
     hits.push({ entryId, cosine })
   }
 
   hits.sort((a, b) => b.cosine - a.cosine)
 
-  if (options.limit != null && options.limit >= 0) {
-    return hits.slice(0, options.limit)
+  if (limit != null && limit >= 0) {
+    return hits.slice(0, limit)
   }
 
   return hits

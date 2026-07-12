@@ -9,6 +9,7 @@ import { create, indexedResolver, windowScheduler } from "@yornaath/batshit"
 
 import type { TranslationDocumentDraft, TranslationGeneratorContentField } from "../../context"
 import { api, translationGenerator } from "../../context"
+import { recordHydrateStoreDetail } from "../../hydrate-perf"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { readNdjsonStream } from "../../lib/stream"
@@ -48,8 +49,19 @@ const immerSet = createImmerSetter(useTranslationStore)
 
 class TranslationActions implements Hydratable, Resetable {
   async hydrate() {
+    const dbStart = performance.now()
     const translations = await TranslationService.getTranslationToHydrate()
+    const dbMs = performance.now() - dbStart
+
+    const sessionStart = performance.now()
     translationActions.upsertManyInSession(translations)
+    const sessionMs = performance.now() - sessionStart
+
+    recordHydrateStoreDetail("translation", {
+      count: translations.length,
+      dbMs,
+      sessionMs,
+    })
   }
 
   async reset() {

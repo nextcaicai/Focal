@@ -2,6 +2,7 @@ import { entryEmbeddingService } from "@follow/database/services/entry-embedding
 import type { EntryEmbeddingRecord } from "@follow/shared/entry-embedding"
 
 import { embeddingGenerator } from "../../context"
+import { recordHydrateStoreDetail } from "../../hydrate-perf"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { getEntry } from "../entry/getter"
@@ -31,11 +32,22 @@ const immerSet = createImmerSetter(useEntryEmbeddingStore)
 
 class EntryEmbeddingActions implements Hydratable, Resetable {
   async hydrate() {
+    const sqliteStart = performance.now()
     const records = await entryEmbeddingService.getAllEmbeddings()
+    const sqliteMs = performance.now() - sqliteStart
+
+    const immerStart = performance.now()
     immerSet((state) => {
       records.forEach((record) => {
         state.data[record.entryId] = record.data
       })
+    })
+    const immerMs = performance.now() - immerStart
+
+    recordHydrateStoreDetail("entryEmbedding", {
+      count: records.length,
+      sqliteMs,
+      immerMs,
     })
   }
 

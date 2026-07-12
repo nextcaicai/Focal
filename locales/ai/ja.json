@@ -199,7 +199,7 @@
   "embedding.title": "Embedding モデル",
   "embedding_processing.active_jobs": "実行中のジョブ",
   "embedding_processing.description": "埋め込み可能な全 RSS エントリ（既読履歴を含む）の Embedding ジョブを表示します。タイトル・Feed 要約/説明・本文からベクトルを生成し、セマンティック検索に使います。",
-  "embedding_processing.idle_hint": "Embedding は LLM とは独立して実行され、最大 2 並列です。既読・未読の両方がインデックス対象です。",
+  "embedding_processing.idle_hint": "Embedding は LLM とは独立して実行され、最大 8 並列です。既読・未読の両方がインデックス対象です。",
   "embedding_processing.last_error": "最新エラー",
   "embedding_processing.phase.embedding": "Embedding",
   "embedding_processing.rebuild.action": "Embedding をすべて再生成",

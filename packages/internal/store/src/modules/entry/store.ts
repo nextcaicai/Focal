@@ -6,6 +6,7 @@ import { cloneDeep } from "es-toolkit"
 import { debounce } from "es-toolkit/compat"
 
 import { api, readabilityContentFetcher } from "../../context"
+import { recordHydrateStoreDetail } from "../../hydrate-perf"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { readNdjsonStream } from "../../lib/stream"
@@ -80,6 +81,7 @@ class EntryActions implements Hydratable, Resetable {
   private localReadScopeProtections = new Map<number, LocalReadScopeProtection>()
   private nextLocalReadProtectionCleanupAt = 0
   private nextLocalReadScopeProtectionId = 1
+  private contentDeferredEntryIds = new Set<EntryId>()
 
   private protectLocalRead(entryId: EntryId) {
     const now = Date.now()
@@ -191,8 +193,47 @@ class EntryActions implements Hydratable, Resetable {
   }
 
   async hydrate() {
-    const entries = await EntryService.getEntriesToHydrate()
-    entryActions.upsertManyInSession(entries.map((e) => dbStoreMorph.toEntryModel(e)))
+    const dbStart = performance.now()
+    const entries = await EntryService.getEntriesMetadataToHydrate()
+    const dbMs = performance.now() - dbStart
+
+    this.contentDeferredEntryIds = new Set(entries.map((entry) => entry.id))
+
+    const sessionStart = performance.now()
+    entryActions.upsertManyInSession(
+      entries.map((entry) => ({
+        ...dbStoreMorph.toEntryModel({
+          ...entry,
+          content: null,
+          readabilityContent: null,
+        }),
+      })),
+    )
+    const sessionMs = performance.now() - sessionStart
+
+    recordHydrateStoreDetail("entry", {
+      count: entries.length,
+      dbMs,
+      sessionMs,
+    })
+  }
+
+  /** Load HTML bodies for one entry after metadata-only startup hydrate. */
+  async ensureEntryBodyLoaded(entryId: EntryId) {
+    if (!this.contentDeferredEntryIds.has(entryId)) return
+
+    const rows = await EntryService.getEntryMany([entryId])
+    const row = rows[0]
+    this.contentDeferredEntryIds.delete(entryId)
+    if (!row) return
+
+    immerSet((draft) => {
+      const entry = draft.data[entryId]
+      if (!entry) return
+      entry.content = row.content ?? null
+      entry.readabilityContent = row.readabilityContent ?? null
+      entry.readabilityUpdatedAt = row.readabilityUpdatedAt ?? null
+    })
   }
 
   getFlattenMapEntries() {
@@ -622,6 +663,7 @@ class EntryActions implements Hydratable, Resetable {
     const tx = createTransaction()
     tx.store(() => {
       this.clearLocalReadProtectionInSession()
+      this.contentDeferredEntryIds.clear()
       immerSet(() => defaultState)
     })
 
@@ -786,7 +828,9 @@ class EntrySyncServices {
 
   async fetchEntryDetail(entryId: EntryId | undefined, isInbox?: boolean) {
     if (LOCAL_RSS_MODE) {
-      return entryId ? (getEntry(entryId) ?? null) : null
+      if (!entryId) return null
+      await entryActions.ensureEntryBodyLoaded(entryId)
+      return getEntry(entryId) ?? null
     }
 
     if (!isBizId(entryId)) return null

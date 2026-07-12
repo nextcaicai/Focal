@@ -17,6 +17,7 @@
 
 ## Corrections
 
+- Déduplication de la file d’embedding : un même article n’est plus enfilé plusieurs fois (compteur « En file » gonflé, travail redondant, fluidité dégradée).
 - Session de recherche simplifiée (champs scope/sort inutilisés retirés) pour éviter des états résiduels.
 - Chaînes de localisation recherche/liste complétées et alignées (en / zh-CN / zh-TW / ja / fr-FR).
 

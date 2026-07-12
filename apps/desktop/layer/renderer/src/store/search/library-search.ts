@@ -11,8 +11,13 @@ import { useMemo } from "react"
 
 import { useLibrarySearchSession } from "~/atoms/library-search"
 import { useQueryEmbeddingVector } from "~/hooks/biz/useQueryEmbeddingVector"
+import { appLog } from "~/lib/log"
 
 import { scoreEntryWithTranslations, sortSearchHits } from "./rank"
+
+const SEARCH_PERF_LOG_MS = 16
+/** Cap semantic cosine work when keyword hits exist (P1 prefilter). */
+export const SEMANTIC_KEYWORD_PREFILTER_MAX = 500
 
 export type SearchEntryIdsOptions = {
   query: string
@@ -22,42 +27,40 @@ export type SearchEntryIdsOptions = {
   embeddings?: Record<string, { vector: number[] } | undefined>
 }
 
+export const resolveSemanticSearchEntryIds = (
+  keywordScoresByEntryId: Map<string, number>,
+): ReadonlySet<string> | undefined => {
+  const candidates = [...keywordScoresByEntryId.entries()]
+    .filter(([, score]) => score > 0)
+    .sort((left, right) => right[1] - left[1])
+
+  if (candidates.length === 0) return undefined
+
+  return new Set(candidates.slice(0, SEMANTIC_KEYWORD_PREFILTER_MAX).map(([entryId]) => entryId))
+}
+
 /**
- * Scan in-memory entry store for keyword (+ optional semantic) matches.
- * Always full-library. Includes AI title/description translations so
- * Chinese queries match translated UI titles. Semantic hits cover
- * synonym / cross-language cases when entry vectors exist.
+ * Library hybrid search — performance policy (v0.2.6+):
+ * 1. Keyword path uses title + description (+ translations) only — not full HTML body.
+ * 2. Semantic path pre-normalizes the query once; per-entry score is a fast dot/norm.
+ * 3. Progressive: keyword-only while query vector loads, then re-rank with semantic.
+ * 4. When keyword hits exist, semantic cosine runs on the candidate set only (P1).
+ *
+ * Always full-library keyword pass over the in-memory entry store.
  */
 export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[] {
   const query = options.query.trim()
   if (!query) return []
 
+  const totalStart = performance.now()
   const entries = entryActions.getFlattenMapEntries()
   const translationsByEntryId = useTranslationStore.getState().data
-  // Short entity-like queries (e.g. 华为) use a higher pure-semantic floor so
-  // "same vector neighborhood" noise does not flood the result list.
   const semanticMinScore = resolveSemanticStandaloneMinScore(query)
-  const semanticByEntry = buildSemanticScoreByEntryId(
-    options.queryVector,
-    options.embeddings ?? {},
-    { minScore: semanticMinScore },
-  )
+  const hasQueryVector = Boolean(options.queryVector?.length)
 
-  const hits: Array<{
-    entryId: string
-    matchScore: number
-    publishedAt: Date
-    qualityScore: number | null
-  }> = []
-
-  // Keyword path over all entries + pure-semantic hits above the adaptive floor
-  // (synonym / cross-language when vectors exist).
-  const candidateIds = new Set<string>(Object.keys(entries))
-  for (const entryId of semanticByEntry.keys()) {
-    candidateIds.add(entryId)
-  }
-
-  for (const entryId of candidateIds) {
+  const keywordScoresByEntryId = new Map<string, number>()
+  const keywordStart = performance.now()
+  for (const entryId of Object.keys(entries)) {
     const entry = entries[entryId]
     if (!entry) continue
 
@@ -66,13 +69,44 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
         id: entry.id,
         title: entry.title,
         description: entry.description,
-        content: entry.content,
+        content: null,
         publishedAt: entry.publishedAt,
       },
       query,
       translationsByEntryId[entry.id],
+      { fields: "title_description" },
     )
-    const semanticCosine = semanticByEntry.get(entryId) ?? null
+    if (keywordScore > 0) {
+      keywordScoresByEntryId.set(entryId, keywordScore)
+    }
+  }
+  const keywordMs = performance.now() - keywordStart
+
+  const semanticStart = performance.now()
+  const semanticEntryIds = hasQueryVector
+    ? resolveSemanticSearchEntryIds(keywordScoresByEntryId)
+    : undefined
+  const semanticByEntry = hasQueryVector
+    ? buildSemanticScoreByEntryId(options.queryVector, options.embeddings ?? {}, {
+        minScore: semanticMinScore,
+        entryIds: semanticEntryIds,
+      })
+    : null
+  const semanticMs = performance.now() - semanticStart
+
+  const hits: Array<{
+    entryId: string
+    matchScore: number
+    publishedAt: Date
+    qualityScore: number | null
+  }> = []
+
+  for (const entryId of Object.keys(entries)) {
+    const entry = entries[entryId]
+    if (!entry) continue
+
+    const keywordScore = keywordScoresByEntryId.get(entryId) ?? 0
+    const semanticCosine = semanticByEntry?.get(entryId) ?? null
     const matchScore = combineSearchMatchScore(keywordScore, semanticCosine, {
       minScore: semanticMinScore,
     })
@@ -87,34 +121,61 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
     })
   }
 
-  // Always relevance: match → time → quality
-  return sortSearchHits(hits, "relevance")
+  if (semanticByEntry) {
+    const seen = new Set(hits.map((hit) => hit.entryId))
+    for (const [entryId, cosine] of semanticByEntry) {
+      if (seen.has(entryId)) continue
+      const entry = entries[entryId]
+      if (!entry) continue
+      const matchScore = combineSearchMatchScore(0, cosine, { minScore: semanticMinScore })
+      if (matchScore <= 0) continue
+      const quality = entryQualityScoreActions.getScore(entryId)
+      hits.push({
+        entryId,
+        matchScore,
+        publishedAt: entry.publishedAt,
+        qualityScore: quality?.quality_score ?? null,
+      })
+    }
+  }
+
+  const sortStart = performance.now()
+  const sorted = sortSearchHits(hits, "relevance")
+  const sortMs = performance.now() - sortStart
+  const totalMs = performance.now() - totalStart
+
+  if (totalMs >= SEARCH_PERF_LOG_MS) {
+    appLog(
+      `[perf] search total ${totalMs.toFixed(0)}ms semantic=${semanticMs.toFixed(0)}ms keyword=${keywordMs.toFixed(0)}ms sort=${sortMs.toFixed(0)}ms hits=${sorted.length} entries=${Object.keys(entries).length} embeddings=${Object.keys(options.embeddings ?? {}).length} semanticScope=${semanticEntryIds?.size ?? "all"} vector=${hasQueryVector} query="${query}"`,
+    )
+  }
+
+  return sorted
 }
 
 /**
  * Hook: ranked entry ids for the active library search session.
  * Progressive: keyword results first; semantic re-rank when query vector is ready.
+ * Embedding store updates during the same query do not trigger a recompute (P1 snapshot).
  */
 export function useLibrarySearchEntryIds(): string[] {
   const session = useLibrarySearchSession()
   const query = session.query.trim()
   const queryVector = useQueryEmbeddingVector(query)
   const entryRevision = useEntryStore((s) => Object.keys(s.data).length)
-  // Translations often hold the Chinese title the user sees; re-run when they hydrate/update.
   const translationRevision = useTranslationStore((s) => Object.keys(s.data).length)
-  const embeddingRevision = useEntryEmbeddingStore((s) => Object.keys(s.data).length)
-  const embeddings = useEntryEmbeddingStore((s) => s.data)
 
   return useMemo(() => {
     void entryRevision
     void translationRevision
-    void embeddingRevision
     if (!query) return []
+
+    const embeddings = useEntryEmbeddingStore.getState().data
 
     return searchEntryIdsFromStore({
       query,
       queryVector,
       embeddings,
     })
-  }, [entryRevision, translationRevision, embeddingRevision, query, queryVector, embeddings])
+  }, [entryRevision, translationRevision, query, queryVector])
 }

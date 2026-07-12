@@ -5,7 +5,9 @@ import {
   buildSemanticScoreByEntryId,
   collectSemanticHits,
   combineSearchMatchScore,
+  cosineWithUnitQuery,
   entryMatchesSemanticQuery,
+  l2Normalize,
   resolveSemanticStandaloneMinScore,
   SEMANTIC_SEARCH_MIN_SCORE,
   semanticCosineToMatchPoints,
@@ -64,6 +66,17 @@ describe("combineSearchMatchScore", () => {
   })
 })
 
+describe("cosineWithUnitQuery", () => {
+  it("matches full cosine for a unit query", () => {
+    const unit = l2Normalize([3, 4])
+    expect(unit).not.toBeNull()
+    // entry [3,4] is parallel → cos 1
+    expect(cosineWithUnitQuery(unit!, [3, 4])).toBeCloseTo(1, 5)
+    // orthogonal
+    expect(cosineWithUnitQuery(unit!, [4, -3])).toBeCloseTo(0, 5)
+  })
+})
+
 describe("collectSemanticHits", () => {
   it("returns empty without a query vector", () => {
     expect(collectSemanticHits(null, { a: emb([1, 0]) })).toEqual([])
@@ -90,6 +103,19 @@ describe("collectSemanticHits", () => {
       c: emb([0.9, 0.2]),
     }
     expect(collectSemanticHits([1, 0], embeddings, { minScore: 0.1, limit: 2 })).toHaveLength(2)
+  })
+
+  it("respects entryIds prefilter", () => {
+    const embeddings = {
+      a: emb([1, 0]),
+      b: emb([0.99, 0.1]),
+      c: emb([0.98, 0.2]),
+    }
+    const hits = collectSemanticHits([1, 0], embeddings, {
+      minScore: 0.1,
+      entryIds: new Set(["b"]),
+    })
+    expect(hits.map((hit) => hit.entryId)).toEqual(["b"])
   })
 })
 

@@ -199,7 +199,7 @@
   "embedding.title": "Embedding 模型",
   "embedding_processing.active_jobs": "进行中的任务",
   "embedding_processing.description": "显示全部可嵌入 RSS 条目的 Embedding 任务（含已读历史），基于标题、Feed 摘要/描述与正文生成向量，供语义搜索使用。",
-  "embedding_processing.idle_hint": "Embedding 与 LLM 独立运行，最多 2 个并行任务；已读与未读都会建立索引。",
+  "embedding_processing.idle_hint": "Embedding 与 LLM 独立运行，最多 8 个并行任务；已读与未读都会建立索引。",
   "embedding_processing.last_error": "最近错误",
   "embedding_processing.phase.embedding": "Embedding",
   "embedding_processing.rebuild.action": "重建全部 Embedding",

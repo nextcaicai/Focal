@@ -199,7 +199,7 @@
   "embedding.title": "Embedding Model",
   "embedding_processing.active_jobs": "Active jobs",
   "embedding_processing.description": "Shows Embedding jobs for all embeddable RSS entries (including read history) using title, feed summary/description, and content text — used for semantic search.",
-  "embedding_processing.idle_hint": "Embedding runs independently from the LLM model with up to 2 parallel jobs. Read and unread entries are both indexed.",
+  "embedding_processing.idle_hint": "Embedding runs independently from the LLM model with up to 8 parallel jobs. Read and unread entries are both indexed.",
   "embedding_processing.last_error": "Latest error",
   "embedding_processing.phase.embedding": "Embedding",
   "embedding_processing.rebuild.action": "Rebuild all embeddings",

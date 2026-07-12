@@ -1,43 +1,33 @@
 import { initializeDB, migrateDB } from "@follow/database/db"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 
+import { startDeferredStoreHydrate } from "./hydrate-deferred"
+import type { HydratePerfReport } from "./hydrate-perf"
+import {
+  formatHydratePerfReport,
+  measureHydrateStore,
+  setLastHydratePerfReport,
+} from "./hydrate-perf"
 import type { Hydratable } from "./lib/base"
-import { behaviorEventActions } from "./modules/behavior-event/store"
 import { collectionActions } from "./modules/collection/store"
 import { entryActions, useEntryStore } from "./modules/entry/store"
-import { entryEmbeddingActions } from "./modules/entry-embedding/store"
-import { entryQualityScoreActions } from "./modules/entry-quality-score/store"
-import { entryRankScoreActions } from "./modules/entry-rank-score/store"
-import { entryAiTagsActions } from "./modules/entry-tags/store"
 import { feedActions } from "./modules/feed/store"
-import { imageActions } from "./modules/image/store"
 import { inboxActions } from "./modules/inbox/store"
-import { interestClusterActions } from "./modules/interest-cluster/store"
 import { listActions } from "./modules/list/store"
 import { subscriptionActions, useSubscriptionStore } from "./modules/subscription/store"
-import { summaryActions } from "./modules/summary/store"
-import { translationActions } from "./modules/translation/store"
 import { unreadActions } from "./modules/unread/store"
 import { userActions } from "./modules/user/store"
 
-const hydrates: Hydratable[] = [
-  feedActions,
-  subscriptionActions,
-  inboxActions,
-  listActions,
-  unreadActions,
-  userActions,
-  entryActions,
-  entryAiTagsActions,
-  entryQualityScoreActions,
-  entryEmbeddingActions,
-  entryRankScoreActions,
-  behaviorEventActions,
-  interestClusterActions,
-  collectionActions,
-  summaryActions,
-  translationActions,
-  imageActions,
+/** Blocking startup hydrate — must finish before appIsReady. */
+const criticalHydrates: Array<{ name: string; actions: Hydratable }> = [
+  { name: "feed", actions: feedActions },
+  { name: "subscription", actions: subscriptionActions },
+  { name: "inbox", actions: inboxActions },
+  { name: "list", actions: listActions },
+  { name: "unread", actions: unreadActions },
+  { name: "user", actions: userActions },
+  { name: "entry", actions: entryActions },
+  { name: "collection", actions: collectionActions },
 ]
 
 /**
@@ -66,15 +56,56 @@ const reconcileLocalRssUnreadCounts = async () => {
   }
 }
 
-export const hydrateDatabaseToStore = async (options?: { migrateDatabase?: boolean }) => {
-  if (options?.migrateDatabase) {
-    await initializeDB()
-    await migrateDB()
-  }
-  await Promise.all(hydrates.map((h) => h.hydrate()))
+export const hydrateDatabaseToStore = async (options?: {
+  migrateDatabase?: boolean
+}): Promise<HydratePerfReport> => {
+  const totalStart = performance.now()
+  let dbInitMs: number | undefined
+  let dbMigrateMs: number | undefined
 
+  if (options?.migrateDatabase) {
+    const initStart = performance.now()
+    await initializeDB()
+    dbInitMs = performance.now() - initStart
+
+    const migrateStart = performance.now()
+    await migrateDB()
+    dbMigrateMs = performance.now() - migrateStart
+  }
+
+  const stores = await Promise.all(
+    criticalHydrates.map(({ name, actions }) => measureHydrateStore(name, () => actions.hydrate())),
+  )
+  stores.sort((left, right) => right.ms - left.ms)
+
+  let postLocalRssMs: number | undefined
   if (LOCAL_RSS_MODE) {
+    const postStart = performance.now()
     await subscriptionActions.correctMisclassifiedVideoSubscriptions()
     await reconcileLocalRssUnreadCounts()
+    postLocalRssMs = performance.now() - postStart
   }
+
+  const report: HydratePerfReport = {
+    totalMs: performance.now() - totalStart,
+    dbInitMs,
+    dbMigrateMs,
+    stores,
+    postLocalRssMs,
+  }
+
+  setLastHydratePerfReport(report)
+  console.info(formatHydratePerfReport(report))
+
+  void startDeferredStoreHydrate()
+
+  return report
 }
+
+export {
+  getDeferredStoreHydratePromise,
+  isDeferredStoreHydrateComplete,
+  startDeferredStoreHydrate,
+} from "./hydrate-deferred"
+export type { HydratePerfReport } from "./hydrate-perf"
+export { formatHydratePerfReport, getLastHydratePerfReport } from "./hydrate-perf"

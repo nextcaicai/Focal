@@ -17,6 +17,7 @@
 
 ## Bug Fixes
 
+- Embedding job queue deduplication: the same article is no longer enqueued many times, which inflated the “Queued” count, wasted work, and could make the app feel sluggish.
 - Library search session state simplified (unused scope/sort fields removed) to avoid leftover session quirks.
 - Search and list-related localization strings completed and aligned (en / zh-CN / zh-TW / ja / fr-FR).
 

@@ -1,5 +1,5 @@
 /**
- * Library search ranking for Step 1 (product rule: match → time → quality).
+ * Library search ranking (product rule: match → time → quality).
  * Pure helpers — no I/O.
  */
 
@@ -11,27 +11,46 @@ export type RankableEntry = {
   publishedAt: Date | number
 }
 
+/**
+ * Which text fields participate in keyword matching.
+ * - `title_description` (default for library search): fast path; avoids HTML strip + full body scan
+ * - `title_description_content`: legacy full-body match (slower on large libraries)
+ */
+export type KeywordMatchFields = "title_description" | "title_description_content"
+
+export type ScoreKeywordMatchOptions = {
+  fields?: KeywordMatchFields
+}
+
 /** Higher = stronger keyword match. 0 = no match. */
-export function scoreKeywordMatch(entry: RankableEntry, query: string): number {
+export function scoreKeywordMatch(
+  entry: RankableEntry,
+  query: string,
+  options?: ScoreKeywordMatchOptions,
+): number {
   const q = query.trim().toLowerCase()
   if (!q) return 0
+
+  const fields = options?.fields ?? "title_description"
 
   // toLowerCase is a no-op for CJK; still required for Latin case-insensitivity.
   const title = (entry.title ?? "").toLowerCase()
   const description = (entry.description ?? "").toLowerCase()
-  // Strip coarse HTML for content matching
-  const content = (entry.content ?? "")
-    .replaceAll(/<[^>]+>/g, " ")
-    .replaceAll(/\s+/g, " ")
-    .toLowerCase()
-
-  if (!title && !description && !content) return 0
 
   if (title === q) return 100
   if (title.startsWith(q)) return 90
   if (title.includes(q)) return 80
   if (description.includes(q)) return 50
-  if (content.includes(q)) return 20
+
+  if (fields === "title_description_content") {
+    // Strip coarse HTML only when body matching is enabled.
+    const content = (entry.content ?? "")
+      .replaceAll(/<[^>]+>/g, " ")
+      .replaceAll(/\s+/g, " ")
+      .toLowerCase()
+    if (content.includes(q)) return 20
+  }
+
   return 0
 }
 
@@ -49,8 +68,9 @@ export function scoreEntryWithTranslations(
   entry: RankableEntry,
   query: string,
   translations?: Partial<Record<string, TranslationTextFields>> | null,
+  options?: ScoreKeywordMatchOptions,
 ): number {
-  let best = scoreKeywordMatch(entry, query)
+  let best = scoreKeywordMatch(entry, query, options)
   if (!translations) return best
 
   for (const translation of Object.values(translations)) {
@@ -64,6 +84,7 @@ export function scoreEntryWithTranslations(
         publishedAt: entry.publishedAt,
       },
       query,
+      options,
     )
     if (score > best) best = score
   }

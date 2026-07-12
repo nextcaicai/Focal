@@ -21,17 +21,25 @@ describe("scoreKeywordMatch", () => {
     expect(prefix).toBeGreaterThan(contains)
   })
 
-  it("falls back to description then content", () => {
+  it("falls back to description; body only when fields include content", () => {
     expect(
       scoreKeywordMatch(
         { id: "1", title: "Hello", description: "about claude", publishedAt: 0 },
         "claude",
       ),
     ).toBe(50)
+    // Default library path skips full-body scan.
     expect(
       scoreKeywordMatch(
         { id: "1", title: "Hello", content: "<p>claude agent</p>", publishedAt: 0 },
         "claude",
+      ),
+    ).toBe(0)
+    expect(
+      scoreKeywordMatch(
+        { id: "1", title: "Hello", content: "<p>claude agent</p>", publishedAt: 0 },
+        "claude",
+        { fields: "title_description_content" },
       ),
     ).toBe(20)
   })

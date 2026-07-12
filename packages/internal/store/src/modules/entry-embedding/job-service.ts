@@ -10,7 +10,8 @@ import { embeddingJobStatusActions } from "./status-store"
 import { entryEmbeddingActions, entryEmbeddingSyncService } from "./store"
 
 const BATCH_SIZE = 8
-const CONCURRENCY = 2
+/** Concurrent embedding API calls. Keep below provider RPM headroom (e.g. SiliconFlow L0 embed RPM 2000). */
+const CONCURRENCY = 8
 const JOB_TIMEOUT_MS = 90_000
 const STALE_PENDING_MS = 90_000
 

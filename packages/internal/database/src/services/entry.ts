@@ -71,9 +71,17 @@ class EntryServiceStatic implements Resetable {
     return db.query.entriesTable.findMany()
   }
 
-  async getEntriesToHydrate() {
+  private async listSubscribedEntries(options?: { metadataOnly?: boolean }) {
     const [entries, subscriptions] = await Promise.all([
       db.query.entriesTable.findMany({
+        ...(options?.metadataOnly
+          ? {
+              columns: {
+                content: false,
+                readabilityContent: false,
+              },
+            }
+          : {}),
         orderBy: (t, { desc }) => desc(t.publishedAt),
       }),
       db.query.subscriptionsTable.findMany(),
@@ -92,6 +100,15 @@ class EntryServiceStatic implements Resetable {
 
       return possibleIdList.some((id) => subscriptionIds.has(id))
     })
+  }
+
+  async getEntriesToHydrate() {
+    return this.listSubscribedEntries()
+  }
+
+  /** Startup fast path: list metadata without HTML bodies. */
+  async getEntriesMetadataToHydrate() {
+    return this.listSubscribedEntries({ metadataOnly: true })
   }
 
   async deleteMany(entryIds: string[]) {
