@@ -7,6 +7,7 @@ import {
   combineSearchMatchScore,
   cosineWithUnitQuery,
   entryMatchesSemanticQuery,
+  isEntityLookupQuery,
   l2Normalize,
   resolveSemanticStandaloneMinScore,
   SEMANTIC_SEARCH_MIN_SCORE,
@@ -20,6 +21,19 @@ const emb = (vector: number[]): EntryEmbeddingRecord => ({
   dimension: vector.length,
   vector,
   embedded_at: "2026-01-01T00:00:00.000Z",
+})
+
+describe("isEntityLookupQuery", () => {
+  it("treats short CJK and Latin tokens as entity lookups", () => {
+    expect(isEntityLookupQuery("华为")).toBe(true)
+    expect(isEntityLookupQuery("codex")).toBe(true)
+    expect(isEntityLookupQuery("OpenAI")).toBe(true)
+  })
+
+  it("does not treat longer paraphrase queries as entity lookups", () => {
+    expect(isEntityLookupQuery("大模型推理优化实践")).toBe(false)
+    expect(isEntityLookupQuery("Claude Code")).toBe(false)
+  })
 })
 
 describe("resolveSemanticStandaloneMinScore", () => {

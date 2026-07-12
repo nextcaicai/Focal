@@ -92,6 +92,21 @@ export type CollectSemanticHitsOptions = {
 }
 
 /**
+ * Entity / brand lookup queries (codex, 华为, RAG) — keyword-only in library search.
+ * Matches the short-query branches in resolveSemanticStandaloneMinScore.
+ */
+export const isEntityLookupQuery = (query?: string): boolean => {
+  const q = query?.trim() ?? ""
+  if (!q) return false
+
+  const cjkCount = q.match(/[\u4e00-\u9fff]/g)?.length ?? 0
+  if (cjkCount >= 1 && cjkCount <= 4 && q.length <= 8) return true
+  if (cjkCount === 0 && q.length <= 8) return true
+
+  return false
+}
+
+/**
  * Adaptive pure-semantic floor for a free-text query.
  * Short CJK / short tokens behave like entity lookups and need a stricter bar
  * (e.g. 「华为」 must not pull every China-startup digest).

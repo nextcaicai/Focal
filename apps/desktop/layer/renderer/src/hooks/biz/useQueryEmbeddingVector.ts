@@ -1,4 +1,5 @@
 import { queryEmbeddingService } from "@follow/store/entry-embedding/query-embedding"
+import { isEntityLookupQuery } from "@follow/store/entry-embedding/semantic-search"
 import { useEffect, useState } from "react"
 
 import { resolveMinQueryLengthForSearch } from "~/store/search/library-search"
@@ -16,6 +17,11 @@ export const useQueryEmbeddingVector = (query: string): number[] | null => {
 
   useEffect(() => {
     if (!normalized || normalized.length < resolveMinQueryLengthForSearch(normalized)) {
+      setVector(null)
+      return
+    }
+
+    if (isEntityLookupQuery(normalized)) {
       setVector(null)
       return
     }

@@ -78,7 +78,7 @@ class EntryEmbeddingJobService {
   }
 
   /**
-   * Queue every subscribed entry that still needs an embedding (read + unread).
+   * Queue every subscribed unread entry that still needs an embedding.
    * Does not wipe existing vectors — only fills gaps / refreshes stale hashes.
    */
   enqueueAllMissing() {

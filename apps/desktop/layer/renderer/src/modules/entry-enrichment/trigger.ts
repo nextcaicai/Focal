@@ -43,7 +43,7 @@ export const triggerEntryEnrichmentFromIngest = (entryIds: string[]) => {
 
 /**
  * BYOK enrichment: unread only (token-sensitive).
- * Embedding: all provided ids (read + unread) — model is free / local-cost for users who enable it.
+ * Embedding: unread only in backfill — aligns with BYOK ingest policy.
  */
 export const triggerEntryEnrichmentBackfill = (entryIds: string[]) => {
   if (entryIds.length === 0) return
@@ -67,13 +67,12 @@ export const triggerEntryEnrichmentBackfill = (entryIds: string[]) => {
     })
   }
 
-  if (isEmbeddingEnabled()) {
-    // Semantic index needs historical coverage: embed read + unread in the visible set.
-    entryEmbeddingJobService.backfillVisible({ entryIds })
+  if (isEmbeddingEnabled() && unreadIds.length > 0) {
+    entryEmbeddingJobService.backfillVisible({ entryIds: unreadIds })
   }
 }
 
-/** Full-library gap-fill for embeddings (read + unread). Safe to call repeatedly. */
+/** Gap-fill embeddings for unread entries missing vectors. Safe to call repeatedly. */
 export const triggerEntryEmbeddingLibraryBackfill = () => {
   if (!isEmbeddingEnabled()) return 0
   return entryEmbeddingJobService.enqueueAllMissing()

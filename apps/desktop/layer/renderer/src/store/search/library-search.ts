@@ -2,6 +2,7 @@ import { entryActions, useEntryStore } from "@follow/store/entry/store"
 import {
   buildSemanticScoreByEntryId,
   combineSearchMatchScore,
+  isEntityLookupQuery,
   resolveSemanticStandaloneMinScore,
 } from "@follow/store/entry-embedding/semantic-search"
 import { useEntryEmbeddingStore } from "@follow/store/entry-embedding/store"
@@ -24,7 +25,11 @@ const SEARCH_PERF_LOG_MS = 16
 /** Cap semantic cosine work when keyword hits exist (P1 prefilter). */
 export const SEMANTIC_KEYWORD_PREFILTER_MAX = 500
 /** Max rows rendered in the entry list during library search. */
-export const LIBRARY_SEARCH_DISPLAY_MAX = 300
+export const LIBRARY_SEARCH_DISPLAY_MAX = 50
+/** Max hits kept after ranking (keyword + capped pure-semantic). */
+export const LIBRARY_SEARCH_TOTAL_MAX = 80
+/** Max pure-semantic rows (keywordScore === 0) appended after keyword hits. */
+export const LIBRARY_SEARCH_PURE_SEMANTIC_MAX = 20
 /** Skip full-library semantic when there are no keyword hits and query is shorter than this. */
 export const LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN = 12
 
@@ -50,6 +55,7 @@ export const shouldRunLibrarySemanticSearch = (
   hasQueryVector: boolean,
 ): boolean => {
   if (!hasQueryVector) return false
+  if (isEntityLookupQuery(query)) return false
   if (keywordHitCount > 0) return true
   return query.trim().length >= LIBRARY_SEARCH_MIN_SEMANTIC_QUERY_LEN
 }
@@ -156,8 +162,12 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
 
   if (semanticByEntry) {
     const seen = new Set(hits.map((hit) => hit.entryId))
-    for (const [entryId, cosine] of semanticByEntry) {
-      if (seen.has(entryId)) continue
+    const pureSemanticCandidates = [...semanticByEntry.entries()]
+      .filter(([entryId]) => !seen.has(entryId))
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, LIBRARY_SEARCH_PURE_SEMANTIC_MAX)
+
+    for (const [entryId, cosine] of pureSemanticCandidates) {
       const entry = entries[entryId]
       if (!entry) continue
       const matchScore = combineSearchMatchScore(0, cosine, { minScore: semanticMinScore })
@@ -173,7 +183,7 @@ export function searchEntryIdsFromStore(options: SearchEntryIdsOptions): string[
   }
 
   const sortStart = performance.now()
-  const sorted = sortSearchHits(hits, "relevance")
+  const sorted = sortSearchHits(hits, "relevance").slice(0, LIBRARY_SEARCH_TOTAL_MAX)
   const sortMs = performance.now() - sortStart
   const totalMs = performance.now() - totalStart
 

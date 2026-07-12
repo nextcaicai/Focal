@@ -1,5 +1,6 @@
 import { getEntry } from "../entry/getter"
 import { entryActions, useEntryStore } from "../entry/store"
+import type { EntryModel } from "../entry/types"
 import { getSubscriptionByEntryId } from "../subscription/getter"
 import { hasEmbeddingEligibleText, isEmbeddingCurrentForEntry } from "./source-text"
 import { entryEmbeddingActions } from "./store"
@@ -10,12 +11,15 @@ export type EmbeddingCoverageStats = {
   eligibleCount: number
 }
 
+/** Unread entries only — ingest-premarked read history is keyword-searchable without indexing. */
+export const isEntryEmbeddingIndexingEligible = (entry: EntryModel): boolean => !entry.read
+
 export const entryNeedsEmbedding = (entryId: string) => {
   const entry = getEntry(entryId)
-  // Read + unread both eligible — semantic search needs historical coverage.
-  // (BYOK enrichment stays unread-only elsewhere; embedding is independent.)
+  // Align with BYOK: index unread/active corpus only (see docs/embedding-search-governance.md).
   if (!entry) return false
   if (!getSubscriptionByEntryId(entryId)) return false
+  if (!isEntryEmbeddingIndexingEligible(entry)) return false
 
   const existing = entryEmbeddingActions.getEmbedding(entryId)
   const sourceDeferred = entryActions.isEntryBodyDeferred(entryId)
@@ -57,6 +61,7 @@ export const getEmbeddingCoverageStats = (
     if (!getSubscriptionByEntryId(entry.id)) continue
 
     const sourceDeferred = entryActions.isEntryBodyDeferred(entry.id)
+    if (!isEntryEmbeddingIndexingEligible(entry)) continue
     if (!sourceDeferred && !hasEmbeddingEligibleText(entry)) continue
 
     eligibleCount += 1
@@ -79,10 +84,11 @@ export const getEmbeddingCoverageStats = (
   return { backlogCount, coveredCount, eligibleCount }
 }
 
-/** All subscribed entries with embeddable text (read + unread). */
+/** Subscribed unread entries with embeddable text (or deferred body pending load). */
 export const listRebuildEligibleEntryIds = () =>
   Object.values(useEntryStore.getState().data)
     .filter((entry) => getSubscriptionByEntryId(entry.id))
+    .filter((entry) => isEntryEmbeddingIndexingEligible(entry))
     .filter(
       (entry) => entryActions.isEntryBodyDeferred(entry.id) || hasEmbeddingEligibleText(entry),
     )

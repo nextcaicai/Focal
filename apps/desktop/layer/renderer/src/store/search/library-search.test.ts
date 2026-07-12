@@ -30,8 +30,13 @@ describe("shouldRunLibrarySemanticSearch", () => {
     expect(shouldRunLibrarySemanticSearch(longQuery, 0, true)).toBe(true)
   })
 
-  it("runs semantic when keyword hits exist", () => {
-    expect(shouldRunLibrarySemanticSearch("c", 10, true)).toBe(true)
+  it("runs semantic when keyword hits exist for non-entity queries", () => {
+    expect(shouldRunLibrarySemanticSearch("neural network basics", 10, true)).toBe(true)
+  })
+
+  it("skips semantic for entity lookup queries even with keyword hits", () => {
+    expect(shouldRunLibrarySemanticSearch("codex", 10, true)).toBe(false)
+    expect(shouldRunLibrarySemanticSearch("华为", 10, true)).toBe(false)
   })
 
   it("does not run semantic without query vector", () => {
