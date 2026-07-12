@@ -257,6 +257,7 @@
   "entry_content.youtube_controls.highlight_current_line": "高亮当前行",
   "entry_content.youtube_controls.pin_player": "固定播放器",
   "entry_list.empty": "这里暂时很安静",
+  "entry_list.no_match": "暂无匹配内容",
   "entry_list.zero_unread": "全部已读",
   "entry_list_header.ai_timeline": "AI 时间线",
   "entry_list_header.ai_timeline_loading": "正在用 AI 重新排序时间线…",

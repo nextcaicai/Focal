@@ -257,6 +257,7 @@
   "entry_content.youtube_controls.highlight_current_line": "Highlight current line",
   "entry_content.youtube_controls.pin_player": "Pin player",
   "entry_list.empty": "It's quiet here for now",
+  "entry_list.no_match": "No matching content",
   "entry_list.zero_unread": "Zero Unread",
   "entry_list_header.ai_timeline": "AI timeline",
   "entry_list_header.ai_timeline_loading": "Reordering timeline with AI...",

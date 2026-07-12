@@ -11,8 +11,10 @@ import { memo, startTransition, useEffect, useLayoutEffect, useMemo, useRef, use
 import { useTranslation } from "react-i18next"
 import { useEventCallback } from "usehooks-ts"
 
+import { useLibrarySearchActive } from "~/atoms/library-search"
 import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { m } from "~/components/common/Motion"
+import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 import { useFeedHeaderTitle } from "~/store/feed/hooks"
 
 import { VirtualRowItem } from "./components/VirtualRowItem"
@@ -26,20 +28,34 @@ export const EntryEmptyList = ({
   ...props
 }: HTMLMotionProps<"div"> & { ref?: React.Ref<HTMLDivElement | null> }) => {
   const unreadOnly = useGeneralSettingKey("unreadOnly")
+  const librarySearchActive = useLibrarySearchActive()
+  const smartFeed = useRouteParamsSelector((s) => s.smartFeed)
   const { t } = useTranslation()
+
+  // Search empty is a "no match" state, not a read-progress state.
+  // Today / All Unread use the quiet empty copy without the celebrate icon.
+  const isQuietSmartFeed = smartFeed === "today" || smartFeed === "unread"
+  const showZeroUnreadCelebrate = unreadOnly && !librarySearchActive && !isQuietSmartFeed
+
+  const message = librarySearchActive
+    ? t("entry_list.no_match")
+    : showZeroUnreadCelebrate
+      ? t("entry_list.zero_unread")
+      : t("entry_list.empty")
+
   return (
     <m.div
       className="absolute -mt-6 flex size-full grow flex-col items-center justify-center gap-2 text-zinc-400"
       {...props}
       ref={ref}
     >
-      {unreadOnly ? (
+      {showZeroUnreadCelebrate ? (
         <>
           <i className="i-focal-celebrate -mt-11 text-3xl" />
-          <span className="text-base">{t("entry_list.zero_unread")}</span>
+          <span className="text-base">{message}</span>
         </>
       ) : (
-        <span className="text-base">{t("entry_list.empty")}</span>
+        <span className="text-base">{message}</span>
       )}
     </m.div>
   )

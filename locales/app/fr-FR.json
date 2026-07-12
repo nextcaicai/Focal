@@ -240,6 +240,7 @@
   "entry_content.warn_external_link.trust_domain": "Faire confiance à ce domaine",
   "entry_content.web_app_notice": "L'application web ne prend peut-être pas en charge ce type de contenu. Mais vous pouvez télécharger l'application de bureau.",
   "entry_list.empty": "C’est calme ici pour l’instant",
+  "entry_list.no_match": "Aucun contenu correspondant",
   "entry_list.zero_unread": "Zéro non lu",
   "entry_list_header.ai_timeline": "Chronologie IA",
   "entry_list_header.ai_timeline_loading": "Réorganisation de la chronologie avec l'IA...",

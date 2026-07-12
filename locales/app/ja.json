@@ -257,6 +257,7 @@
   "entry_content.youtube_controls.highlight_current_line": "現在行をハイライト",
   "entry_content.youtube_controls.pin_player": "プレーヤー固定",
   "entry_list.empty": "ここはしばらく静かです",
+  "entry_list.no_match": "一致するコンテンツがありません",
   "entry_list.zero_unread": "未読ゼロ",
   "entry_list_header.ai_timeline": "AIタイムライン",
   "entry_list_header.ai_timeline_loading": "AI でタイムラインを並び替えています…",
