@@ -6,6 +6,7 @@ import { IN_ELECTRON, LOCAL_RSS_MODE, WEB_BUILD } from "@follow/shared/constants
 import {
   apiContext,
   authClientContext,
+  embeddingBatchGeneratorContext,
   embeddingGeneratorContext,
   qualityScoreGeneratorContext,
   queryClientContext,
@@ -33,7 +34,7 @@ import { generateLocalByokQualityScore } from "./modules/ai/local-byok-quality-s
 import { generateLocalByokSummary } from "./modules/ai/local-byok-summary"
 import { generateLocalByokTags } from "./modules/ai/local-byok-tags"
 import { generateLocalByokTranslation } from "./modules/ai/local-byok-translation"
-import { generateLocalEmbedding } from "./modules/ai/local-embedding"
+import { generateLocalEmbedding, generateLocalEmbeddingsBatch } from "./modules/ai/local-embedding"
 import { router } from "./router"
 
 const isStorageMigrationMode = new URL(window.location.href).searchParams.has(
@@ -59,6 +60,7 @@ if (isStorageMigrationMode) {
     tagGeneratorContext.provide(generateLocalByokTags)
     qualityScoreGeneratorContext.provide(generateLocalByokQualityScore)
     embeddingGeneratorContext.provide(generateLocalEmbedding)
+    embeddingBatchGeneratorContext.provide(generateLocalEmbeddingsBatch)
   }
 
   initializeApp().finally(() => {

@@ -187,6 +187,11 @@ export type EmbeddingGenerator = (
   input: EmbeddingGeneratorInput,
 ) => Promise<EntryEmbeddingRecord | null>
 
+/** Batch embed — results align 1:1 with inputs (null = failed/skipped). */
+export type EmbeddingBatchGenerator = (
+  inputs: EmbeddingGeneratorInput[],
+) => Promise<Array<EntryEmbeddingRecord | null>>
+
 export interface ReadabilityContentFetcherInput {
   entryId: string
   url: string
@@ -204,6 +209,7 @@ export const translationGeneratorContext = createOptionalJSContext<TranslationGe
 export const tagGeneratorContext = createOptionalJSContext<TagGenerator>()
 export const qualityScoreGeneratorContext = createOptionalJSContext<QualityScoreGenerator>()
 export const embeddingGeneratorContext = createOptionalJSContext<EmbeddingGenerator>()
+export const embeddingBatchGeneratorContext = createOptionalJSContext<EmbeddingBatchGenerator>()
 export const readabilityContentFetcherContext = createOptionalJSContext<ReadabilityContentFetcher>()
 
 export const api = apiContext.consumer
@@ -214,4 +220,5 @@ export const translationGenerator = translationGeneratorContext.consumer
 export const tagGenerator = tagGeneratorContext.consumer
 export const qualityScoreGenerator = qualityScoreGeneratorContext.consumer
 export const embeddingGenerator = embeddingGeneratorContext.consumer
+export const embeddingBatchGenerator = embeddingBatchGeneratorContext.consumer
 export const readabilityContentFetcher = readabilityContentFetcherContext.consumer

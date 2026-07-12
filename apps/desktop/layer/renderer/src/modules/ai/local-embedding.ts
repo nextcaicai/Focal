@@ -1,6 +1,7 @@
 import { getEmbeddingProviderPreset } from "@follow/shared/embedding-provider"
 import type { EntryEmbeddingRecord } from "@follow/shared/entry-embedding"
-import type { EmbeddingGenerator } from "@follow/store/context"
+import type { EmbeddingBatchGenerator, EmbeddingGenerator } from "@follow/store/context"
+import { parseEmbeddingApiVectors } from "@follow/store/entry-embedding/embedding-api-response"
 
 import { getAISettings } from "~/atoms/settings/ai"
 
@@ -8,7 +9,15 @@ import { requestOpenAICompatibleEmbedding } from "./local-byok-request"
 
 const normalizeOpenAIBaseURL = (baseURL: string) => baseURL.replace(/\/+$/, "")
 
-export const generateLocalEmbedding: EmbeddingGenerator = async ({ text }) => {
+type EmbeddingProviderConfig = {
+  apiKey: string
+  baseURL: string
+  model: string
+  dimension: number
+  preset: EntryEmbeddingRecord["preset"]
+}
+
+const resolveEmbeddingProviderConfig = (): EmbeddingProviderConfig | null => {
   const embeddingSettings = getAISettings().embedding
   if (!embeddingSettings?.enabled || !embeddingSettings.provider) {
     return null
@@ -23,31 +32,61 @@ export const generateLocalEmbedding: EmbeddingGenerator = async ({ text }) => {
   const model = provider.model || preset?.defaultModel
   if (!baseURL || !model) return null
 
-  const payload = await requestOpenAICompatibleEmbedding({
-    baseURL,
+  return {
     apiKey,
-    body: {
-      model,
-      input: text,
-    },
-  })
-  const vector = payload.data?.[0]?.embedding
-  if (!vector || vector.length === 0) return null
+    baseURL,
+    model,
+    dimension: provider.dimension ?? preset?.dimension ?? 0,
+    preset: provider.preset,
+  }
+}
 
-  const dimension = provider.dimension ?? preset?.dimension ?? vector.length
-  if (vector.length !== dimension) {
+const buildEmbeddingRecord = (
+  vector: number[],
+  config: EmbeddingProviderConfig,
+): EntryEmbeddingRecord | null => {
+  const dimension = config.dimension > 0 ? config.dimension : vector.length
+  if (dimension > 0 && vector.length !== dimension) {
     console.warn(`[embedding] Dimension mismatch: expected ${dimension}, received ${vector.length}`)
     return null
   }
 
-  const record: EntryEmbeddingRecord = {
-    preset: provider.preset,
-    provider: provider.preset,
-    model,
+  return {
+    preset: config.preset,
+    provider: config.preset,
+    model: config.model,
     dimension,
     vector,
     embedded_at: new Date().toISOString(),
   }
+}
 
-  return record
+export const embedTextsWithLocalProvider = async (
+  texts: string[],
+): Promise<Array<EntryEmbeddingRecord | null>> => {
+  if (texts.length === 0) return []
+
+  const config = resolveEmbeddingProviderConfig()
+  if (!config) return texts.map(() => null)
+
+  const payload = await requestOpenAICompatibleEmbedding({
+    baseURL: config.baseURL,
+    apiKey: config.apiKey,
+    body: {
+      model: config.model,
+      input: texts.length === 1 ? texts[0]! : texts,
+    },
+  })
+
+  const vectors = parseEmbeddingApiVectors(payload.data, texts.length)
+  return vectors.map((vector) => (vector ? buildEmbeddingRecord(vector, config) : null))
+}
+
+export const generateLocalEmbedding: EmbeddingGenerator = async ({ text }) => {
+  const [record] = await embedTextsWithLocalProvider([text])
+  return record ?? null
+}
+
+export const generateLocalEmbeddingsBatch: EmbeddingBatchGenerator = async (inputs) => {
+  return embedTextsWithLocalProvider(inputs.map((input) => input.text))
 }

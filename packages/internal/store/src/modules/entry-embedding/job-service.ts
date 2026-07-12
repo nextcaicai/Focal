@@ -1,3 +1,4 @@
+import { embeddingBatchGenerator } from "../../context"
 import { getEntry } from "../entry/getter"
 import { getSubscriptionByEntryId } from "../subscription/getter"
 import {
@@ -9,15 +10,34 @@ import {
 import { embeddingJobStatusActions } from "./status-store"
 import { entryEmbeddingActions, entryEmbeddingSyncService } from "./store"
 
-const BATCH_SIZE = 8
-/** Concurrent embedding API calls. Keep below provider RPM headroom (e.g. SiliconFlow L0 embed RPM 2000). */
-const CONCURRENCY = 8
+/** Texts per OpenAI-compatible /embeddings request (SiliconFlow bge-m3 verified). */
+export const EMBEDDING_API_BATCH_SIZE = 32
+/** Concurrent batch API calls while draining the queue. */
+const PARALLEL_BATCH_REQUESTS = 2
+/** Legacy single-entry queue chunk when batch generator is unavailable. */
+const LEGACY_QUEUE_BATCH_SIZE = 8
+const LEGACY_CONCURRENCY = 8
 const JOB_TIMEOUT_MS = 90_000
+const BATCH_JOB_TIMEOUT_MS = 120_000
 const STALE_PENDING_MS = 90_000
 
 export type EmbeddingJobEnqueueOptions = {
   entryIds: string[]
   prepend?: boolean
+}
+
+/** Split a queue chunk into fixed-size API batches for parallel requests. */
+export const splitEmbeddingApiBatches = (
+  entryIds: readonly string[],
+  batchSize: number = EMBEDDING_API_BATCH_SIZE,
+): string[][] => {
+  if (batchSize <= 0) return []
+
+  const batches: string[][] = []
+  for (let index = 0; index < entryIds.length; index += batchSize) {
+    batches.push(entryIds.slice(index, index + batchSize))
+  }
+  return batches
 }
 
 /** Keep first occurrence order; drop later duplicates. Pure helper for tests. */
@@ -225,10 +245,10 @@ class EntryEmbeddingJobService {
     this.isDraining = true
     this.publishStatus()
     try {
-      while (this.queue.length > 0) {
-        const batch = this.queue.splice(0, BATCH_SIZE)
-        this.publishStatus()
-        await this.runWithConcurrency(batch, CONCURRENCY, (entryId) => this.processJob(entryId))
+      if (embeddingBatchGenerator()) {
+        await this.drainWithApiBatches()
+      } else {
+        await this.drainLegacySingle()
       }
     } finally {
       this.isDraining = false
@@ -236,6 +256,28 @@ class EntryEmbeddingJobService {
       if (this.queue.length > 0) {
         void this.drain()
       }
+    }
+  }
+
+  private async drainWithApiBatches() {
+    const chunkSize = EMBEDDING_API_BATCH_SIZE * PARALLEL_BATCH_REQUESTS
+
+    while (this.queue.length > 0) {
+      const chunk = this.queue.splice(0, chunkSize)
+      this.publishStatus()
+
+      const batches = splitEmbeddingApiBatches(chunk)
+      await Promise.all(batches.map((batch) => this.processBatchEntryIds(batch)))
+    }
+  }
+
+  private async drainLegacySingle() {
+    while (this.queue.length > 0) {
+      const batch = this.queue.splice(0, LEGACY_QUEUE_BATCH_SIZE)
+      this.publishStatus()
+      await this.runWithConcurrency(batch, LEGACY_CONCURRENCY, (entryId) =>
+        this.processJob(entryId),
+      )
     }
   }
 
@@ -300,11 +342,67 @@ class EntryEmbeddingJobService {
     ])
   }
 
+  private finishJob(entryId: string) {
+    this.activeJobs.delete(entryId)
+    this.inFlightIds.delete(entryId)
+    this.cancelledActiveEntryIds.delete(entryId)
+    this.clearPending(entryId)
+  }
+
+  private async processBatchEntryIds(entryIds: string[]) {
+    const activeEntryIds = entryIds.filter((entryId) => !this.isEntryCancelled(entryId))
+    const cancelledEntryIds = entryIds.filter((entryId) => this.isEntryCancelled(entryId))
+
+    for (const entryId of cancelledEntryIds) {
+      this.finishJob(entryId)
+    }
+    if (activeEntryIds.length === 0) return
+
+    const startedAt = new Date().toISOString()
+    for (const entryId of activeEntryIds) {
+      this.activeJobs.set(entryId, { entryId, startedAt })
+    }
+    this.publishStatus()
+
+    try {
+      await this.withTimeout(
+        entryEmbeddingSyncService.generateEmbeddingsBatch(activeEntryIds),
+        BATCH_JOB_TIMEOUT_MS,
+        `${activeEntryIds.length} entries`,
+      )
+    } catch (error) {
+      await this.retryBatchWithSplit(activeEntryIds, error)
+    } finally {
+      for (const entryId of activeEntryIds) {
+        this.finishJob(entryId)
+      }
+      this.publishStatus()
+    }
+  }
+
+  private async retryBatchWithSplit(entryIds: string[], error: unknown) {
+    if (entryIds.length <= 1) {
+      const entryId = entryIds[0]
+      if (!entryId) return
+
+      const message = error instanceof Error ? error.message : "Unknown embedding error"
+      console.warn("[embedding] Failed to embed entry:", entryId, error)
+      this.lastError = {
+        entryId,
+        message,
+        at: new Date().toISOString(),
+      }
+      return
+    }
+
+    const mid = Math.ceil(entryIds.length / 2)
+    await this.processBatchEntryIds(entryIds.slice(0, mid))
+    await this.processBatchEntryIds(entryIds.slice(mid))
+  }
+
   private async processJob(entryId: string) {
     if (this.isEntryCancelled(entryId)) {
-      this.inFlightIds.delete(entryId)
-      this.clearPending(entryId)
-      this.cancelledActiveEntryIds.delete(entryId)
+      this.finishJob(entryId)
       this.publishStatus()
       return
     }
@@ -328,10 +426,7 @@ class EntryEmbeddingJobService {
         at: new Date().toISOString(),
       }
     } finally {
-      this.activeJobs.delete(entryId)
-      this.inFlightIds.delete(entryId)
-      this.cancelledActiveEntryIds.delete(entryId)
-      this.clearPending(entryId)
+      this.finishJob(entryId)
       this.publishStatus()
     }
   }

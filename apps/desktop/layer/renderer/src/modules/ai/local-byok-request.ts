@@ -31,6 +31,7 @@ export interface OpenAICompatibleChatCompletionChunk {
 
 export interface OpenAICompatibleEmbeddingResponse {
   data?: Array<{
+    index?: number
     embedding?: number[]
   }>
 }

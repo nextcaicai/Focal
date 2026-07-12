@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { dedupeQueuePreserveOrder } from "./job-service"
+import { dedupeQueuePreserveOrder, splitEmbeddingApiBatches } from "./job-service"
 
 describe("dedupeQueuePreserveOrder", () => {
   it("keeps first occurrence and drops later duplicates", () => {
@@ -13,5 +13,20 @@ describe("dedupeQueuePreserveOrder", () => {
 
   it("handles empty input", () => {
     expect(dedupeQueuePreserveOrder([])).toEqual([])
+  })
+})
+
+describe("splitEmbeddingApiBatches", () => {
+  it("splits entry ids into fixed-size API batches", () => {
+    const ids = Array.from({ length: 70 }, (_, index) => `e-${index}`)
+    expect(splitEmbeddingApiBatches(ids, 32)).toEqual([
+      ids.slice(0, 32),
+      ids.slice(32, 64),
+      ids.slice(64, 70),
+    ])
+  })
+
+  it("returns empty array for empty input", () => {
+    expect(splitEmbeddingApiBatches([], 32)).toEqual([])
   })
 })
