@@ -50,9 +50,17 @@ const formatDetail = (detail: HydrateStorePerfDetail): string => {
   return parts.length > 0 ? ` (${parts.join(", ")})` : ""
 }
 
+export type FormatHydratePerfReportOptions = {
+  label?: "hydrate" | "hydrate.deferred"
+}
+
 /** Multi-line summary for electron-log / DevTools. */
-export const formatHydratePerfReport = (report: HydratePerfReport): string => {
-  const lines = [`[perf] hydrate total ${report.totalMs.toFixed(0)}ms`]
+export const formatHydratePerfReport = (
+  report: HydratePerfReport,
+  options?: FormatHydratePerfReportOptions,
+): string => {
+  const label = options?.label ?? "hydrate"
+  const lines = [`[perf] ${label} total ${report.totalMs.toFixed(0)}ms`]
 
   if (report.dbInitMs != null) {
     lines.push(`[perf]   db.init ${report.dbInitMs.toFixed(0)}ms`)

@@ -104,8 +104,9 @@ export const hydrateDatabaseToStore = async (options?: {
 
 export {
   getDeferredStoreHydratePromise,
+  getLastDeferredHydratePerfReport,
   isDeferredStoreHydrateComplete,
   startDeferredStoreHydrate,
 } from "./hydrate-deferred"
-export type { HydratePerfReport } from "./hydrate-perf"
+export type { FormatHydratePerfReportOptions, HydratePerfReport } from "./hydrate-perf"
 export { formatHydratePerfReport, getLastHydratePerfReport } from "./hydrate-perf"

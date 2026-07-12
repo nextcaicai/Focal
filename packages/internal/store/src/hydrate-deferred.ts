@@ -1,4 +1,5 @@
-import { measureHydrateStore } from "./hydrate-perf"
+import type { HydratePerfReport } from "./hydrate-perf"
+import { formatHydratePerfReport, measureHydrateStore } from "./hydrate-perf"
 import type { Hydratable } from "./lib/base"
 import { behaviorEventActions } from "./modules/behavior-event/store"
 import { entryEmbeddingActions } from "./modules/entry-embedding/store"
@@ -22,14 +23,17 @@ const deferredHydrates: Array<{ name: string; actions: Hydratable }> = [
   { name: "image", actions: imageActions },
 ]
 
-let deferredHydratePromise: Promise<void> | null = null
+let deferredHydratePromise: Promise<HydratePerfReport> | null = null
 let deferredHydrateComplete = false
+let lastDeferredHydratePerfReport: HydratePerfReport | null = null
 
 export const isDeferredStoreHydrateComplete = () => deferredHydrateComplete
 
 export const getDeferredStoreHydratePromise = () => deferredHydratePromise
 
-export const startDeferredStoreHydrate = (): Promise<void> => {
+export const getLastDeferredHydratePerfReport = () => lastDeferredHydratePerfReport
+
+export const startDeferredStoreHydrate = (): Promise<HydratePerfReport> => {
   if (deferredHydratePromise) return deferredHydratePromise
 
   deferredHydratePromise = (async () => {
@@ -41,16 +45,14 @@ export const startDeferredStoreHydrate = (): Promise<void> => {
     )
     stores.sort((left, right) => right.ms - left.ms)
 
-    const report = {
+    const report: HydratePerfReport = {
       totalMs: performance.now() - totalStart,
       stores,
     }
-    console.info(
-      `[perf] hydrate.deferred total ${report.totalMs.toFixed(0)}ms\n${stores
-        .map((store) => `[perf]   ${store.name} ${store.ms.toFixed(0)}ms`)
-        .join("\n")}`,
-    )
+    lastDeferredHydratePerfReport = report
+    console.info(formatHydratePerfReport(report, { label: "hydrate.deferred" }))
     deferredHydrateComplete = true
+    return report
   })().catch((error) => {
     deferredHydratePromise = null
     deferredHydrateComplete = false

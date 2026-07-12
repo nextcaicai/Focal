@@ -2,7 +2,11 @@ import { initializeDayjs } from "@follow/components/dayjs"
 import { registerGlobalContext } from "@follow/shared/bridge"
 import { DEV, ELECTRON_BUILD, IN_ELECTRON, LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { actionSyncService } from "@follow/store/action/store"
-import { formatHydratePerfReport, hydrateDatabaseToStore } from "@follow/store/hydrate"
+import {
+  formatHydratePerfReport,
+  getDeferredStoreHydratePromise,
+  hydrateDatabaseToStore,
+} from "@follow/store/hydrate"
 import { whoami } from "@follow/store/user/getters"
 import { userSyncService } from "@follow/store/user/store"
 import { tracker } from "@follow/tracker"
@@ -36,6 +40,14 @@ export const initializeApp = async () => {
   })
   const dataHydratedTime = hydratePerf.totalMs
   appLog(formatHydratePerfReport(hydratePerf))
+
+  void getDeferredStoreHydratePromise()
+    ?.then((deferredPerf) => {
+      appLog(formatHydratePerfReport(deferredPerf, { label: "hydrate.deferred" }))
+    })
+    .catch((error) => {
+      appLog(`[perf] hydrate.deferred failed: ${String(error)}`)
+    })
 
   if (LOCAL_RSS_MODE) {
     await userSyncService.whoami().catch(() => null)
