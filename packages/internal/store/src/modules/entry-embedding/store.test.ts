@@ -2,13 +2,21 @@ import { FeedViewType } from "@follow/constants"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import { embeddingBatchGeneratorContext, embeddingGeneratorContext } from "../../context"
-import { useEntryStore } from "../entry/store"
+import { entryActions, useEntryStore } from "../entry/store"
 import type { EntryModel } from "../entry/types"
 import { entryEmbeddingSyncService, useEntryEmbeddingStore } from "./store"
 
-const { deleteEmbeddingMock, recomputeForEntryMock, upsertEmbeddingsMock } = vi.hoisted(() => ({
+const {
+  deleteEmbeddingMock,
+  getEntriesMetadataToHydrateMock,
+  getEntryManyMock,
+  recomputeForEntriesMock,
+  upsertEmbeddingsMock,
+} = vi.hoisted(() => ({
   deleteEmbeddingMock: vi.fn(),
-  recomputeForEntryMock: vi.fn(),
+  getEntriesMetadataToHydrateMock: vi.fn(),
+  getEntryManyMock: vi.fn(),
+  recomputeForEntriesMock: vi.fn(),
   upsertEmbeddingsMock: vi.fn(),
 }))
 
@@ -22,13 +30,20 @@ vi.mock("@follow/database/services/entry-embedding", () => ({
   },
 }))
 
-vi.mock("../entry-rank-score/store", () => ({
-  entryRankScoreSyncService: {
-    recomputeForEntry: recomputeForEntryMock,
+vi.mock("@follow/database/services/entry", () => ({
+  EntryService: {
+    getEntriesMetadataToHydrate: getEntriesMetadataToHydrateMock,
+    getEntryMany: getEntryManyMock,
   },
 }))
 
-const createEntry = (): EntryModel => ({
+vi.mock("../entry-rank-score/store", () => ({
+  entryRankScoreSyncService: {
+    recomputeForEntries: recomputeForEntriesMock,
+  },
+}))
+
+const createEntry = (overrides?: Partial<EntryModel>): EntryModel => ({
   id: "entry-1",
   feedId: "feed-1",
   title: "Title",
@@ -52,6 +67,7 @@ const createEntry = (): EntryModel => ({
   read: false,
   sources: null,
   settings: null,
+  ...overrides,
 })
 
 describe("entryEmbeddingSyncService", () => {
@@ -88,7 +104,12 @@ describe("entryEmbeddingSyncService", () => {
           sourceHash: "stale-hash",
         },
       },
+      hydrated: true,
     })
+    getEntriesMetadataToHydrateMock.mockResolvedValue([])
+    getEntryManyMock.mockResolvedValue([])
+    recomputeForEntriesMock.mockResolvedValue([])
+    upsertEmbeddingsMock.mockImplementation(async () => {})
   })
 
   test("keeps the previous embedding when regeneration fails", async () => {
@@ -121,5 +142,49 @@ describe("entryEmbeddingSyncService", () => {
     ).rejects.toThrow("database unavailable")
 
     expect(useEntryEmbeddingStore.getState().data["entry-1"]?.vector).toEqual([0.1])
+  })
+
+  test("uses deferred entry bodies for embedding without updating the entry store", async () => {
+    const metadataEntry = createEntry({
+      content: null,
+      description: null,
+      readabilityContent: null,
+    })
+    const bodyEntry = createEntry({
+      content: "<article>Deferred semantic body</article>",
+      description: null,
+      readabilityContent: null,
+    })
+
+    getEntriesMetadataToHydrateMock.mockResolvedValue([metadataEntry])
+    getEntryManyMock.mockResolvedValue([bodyEntry])
+    embeddingGeneratorContext.provide(
+      vi.fn().mockResolvedValue({
+        preset: "siliconflow",
+        provider: "siliconflow",
+        model: "BAAI/bge-m3",
+        dimension: 1,
+        vector: [0.3],
+        embedded_at: "2026-01-03T00:00:00.000Z",
+      }),
+    )
+
+    await entryActions.hydrate()
+
+    let entryStoreUpdateCount = 0
+    const unsubscribe = useEntryStore.subscribe(() => {
+      entryStoreUpdateCount += 1
+    })
+
+    try {
+      await entryEmbeddingSyncService.generateEmbedding({ entryId: "entry-1", force: true })
+    } finally {
+      unsubscribe()
+    }
+
+    expect(getEntryManyMock).toHaveBeenCalledWith(["entry-1"])
+    expect(upsertEmbeddingsMock).toHaveBeenCalledTimes(1)
+    expect(entryStoreUpdateCount).toBe(0)
+    expect(useEntryStore.getState().data["entry-1"]?.content).toBeNull()
   })
 })

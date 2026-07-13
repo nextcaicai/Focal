@@ -8,7 +8,7 @@ import { springScrollTo } from "@follow/utils/scroller"
 import { cn } from "@follow/utils/utils"
 import { useStore } from "jotai"
 import { AnimatePresence } from "motion/react"
-import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { m } from "~/components/common/Motion"
@@ -20,35 +20,72 @@ import type { TranslationDisplayMode } from "~/modules/entry-content/utils/trans
 import { getNextTranslationDisplayMode } from "~/modules/entry-content/utils/translation-display"
 import { useWrappedElement, useWrappedElementSize } from "~/providers/wrapped-element-provider"
 
-const useReadPercent = () => {
+const getReadPercent = ({
+  contentHeight,
+  scrollTop,
+  viewportHeight,
+}: {
+  contentHeight: number
+  scrollTop: number
+  viewportHeight: number
+}) => {
   const y = 55
+  const deltaHeight = Math.min(scrollTop, viewportHeight)
+
+  return (
+    Math.floor(Math.min(Math.max(0, ((scrollTop - y + deltaHeight) / contentHeight) * 100), 100)) ||
+    0
+  )
+}
+
+const useReadPercent = () => {
   const { h } = useWrappedElementSize()
 
   const scrollElement = useScrollViewElement()
-  const [scrollTop, setScrollTop] = useState(0)
+  const store = useStore()
+  const [readState, setReadState] = useState({ percent: 0, scrollTop: 0 })
+  const readStateRef = useRef(readState)
+  const frameRef = useRef<number | null>(null)
 
   useEffect(() => {
+    readStateRef.current = readState
+  }, [readState])
+
+  useEffect(() => {
+    if (!scrollElement) return
+
+    const update = () => {
+      frameRef.current = null
+      const { scrollTop } = scrollElement
+      const percent = getReadPercent({
+        contentHeight: h,
+        scrollTop,
+        viewportHeight: getViewport(store).h,
+      })
+      const { percent: currentPercent, scrollTop: currentScrollTop } = readStateRef.current
+      if (currentPercent === percent && Math.abs(currentScrollTop - scrollTop) < 2) {
+        return
+      }
+      setReadState({ percent, scrollTop })
+    }
+
     const handler = () => {
-      if (scrollElement) {
-        setScrollTop(scrollElement.scrollTop)
+      if (frameRef.current != null) return
+      frameRef.current = window.requestAnimationFrame(update)
+    }
+
+    update()
+    scrollElement.addEventListener("scroll", handler, { passive: true })
+    return () => {
+      scrollElement.removeEventListener("scroll", handler)
+      if (frameRef.current != null) {
+        window.cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
       }
     }
-    handler()
-    scrollElement?.addEventListener("scroll", handler)
-    return () => {
-      scrollElement?.removeEventListener("scroll", handler)
-    }
-  }, [scrollElement])
+  }, [h, scrollElement, store])
 
-  const store = useStore()
-  const readPercent = useMemo(() => {
-    const winHeight = getViewport(store).h
-    const deltaHeight = Math.min(scrollTop, winHeight)
-
-    return Math.floor(Math.min(Math.max(0, ((scrollTop - y + deltaHeight) / h) * 100), 100)) || 0
-  }, [store, scrollTop, h])
-
-  return [readPercent, scrollTop]
+  return [readState.percent, readState.scrollTop]
 }
 
 const getTranslationDisplayToggleLabelKey = (mode: TranslationDisplayMode) =>
@@ -135,18 +172,26 @@ const BackTopIndicator: Component<{
 const useIsScrolling = (debounceMs = 800) => {
   const scrollElement = useScrollViewElement()
   const [isScrolling, setIsScrolling] = useState(false)
+  const isScrollingRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const handler = () => {
-      setIsScrolling(true)
+      if (!isScrollingRef.current) {
+        isScrollingRef.current = true
+        setIsScrolling(true)
+      }
       if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(() => setIsScrolling(false), debounceMs)
+      timerRef.current = setTimeout(() => {
+        isScrollingRef.current = false
+        setIsScrolling(false)
+      }, debounceMs)
     }
     scrollElement?.addEventListener("scroll", handler, { passive: true })
     return () => {
       scrollElement?.removeEventListener("scroll", handler)
       if (timerRef.current) clearTimeout(timerRef.current)
+      isScrollingRef.current = false
     }
   }, [scrollElement, debounceMs])
 

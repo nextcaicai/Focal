@@ -130,8 +130,7 @@ class EntryEmbeddingSyncService {
     }
 
     if (sourceDeferred) {
-      await entryActions.ensureEntryBodyLoaded(entryId)
-      entry = getEntry(entryId)
+      entry = await entryActions.getEntryWithBodyLoaded(entryId)
       if (!entry) return null
     }
 
@@ -159,9 +158,10 @@ class EntryEmbeddingSyncService {
       results.map(({ entryId, record }) => ({ entryId, data: record })),
     )
 
-    for (const { entryId } of results) {
-      await entryRankScoreSyncService.recomputeForEntry(entryId, { force: true })
-    }
+    await entryRankScoreSyncService.recomputeForEntries(
+      results.map(({ entryId }) => entryId),
+      { force: true },
+    )
   }
 
   async generateEmbedding({ entryId, force = false }: { entryId: string; force?: boolean }) {

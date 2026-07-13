@@ -169,11 +169,16 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   }, [entryId])
   useEffect(() => {
     if (!scrollerRef) return
+    let isAtTop = true
 
     const handler = () => {
-      setEntryContentScrollToTop(scrollerRef.scrollTop < 50)
+      const nextIsAtTop = scrollerRef.scrollTop < 50
+      if (nextIsAtTop === isAtTop) return
+      isAtTop = nextIsAtTop
+      setEntryContentScrollToTop(nextIsAtTop)
     }
-    scrollerRef.addEventListener("scroll", handler)
+    handler()
+    scrollerRef.addEventListener("scroll", handler, { passive: true })
 
     return () => {
       scrollerRef.removeEventListener("scroll", handler)

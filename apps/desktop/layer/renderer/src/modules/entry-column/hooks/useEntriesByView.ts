@@ -15,10 +15,8 @@ import { sortEntryIdsByRecommended } from "@follow/store/entry/sort"
 import { entryActions, entrySyncServices, useEntryStore } from "@follow/store/entry/store"
 import type { UseEntriesReturn } from "@follow/store/entry/types"
 import { fallbackReturn } from "@follow/store/entry/utils"
-import {
-  buildSemanticScoreByEntryId,
-  SEMANTIC_TOPIC_MIN_SCORE,
-} from "@follow/store/entry-embedding/semantic-search"
+import { SEMANTIC_TOPIC_MIN_SCORE } from "@follow/store/entry-embedding/semantic-search"
+import { useEmbeddingJobStatusStore } from "@follow/store/entry-embedding/status-store"
 import { useEntryEmbeddingStore } from "@follow/store/entry-embedding/store"
 import { useEntryRankScoreStore } from "@follow/store/entry-rank-score/store"
 import { useEntryAiTagsStore } from "@follow/store/entry-tags/store"
@@ -61,6 +59,7 @@ import { useLibrarySearchEntryIds } from "~/store/search/library-search"
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
 import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
 import { getVisibleLocalEntryIds } from "./filter-local-entry-ids"
+import { getKeywordTopicSemanticScoresSnapshot } from "./semantic-topic-scores"
 import { useIsPreviewFeed } from "./useIsPreviewFeed"
 
 const useRemoteEntries = (): UseEntriesReturn => {
@@ -170,6 +169,47 @@ const sortEntryIdsByPublishedAtDesc = (entryIds: string[]) => {
   })
 }
 
+export const getRankRevisionForEntryIds = (
+  records: ReturnType<typeof useEntryRankScoreStore.getState>["data"],
+  entryIds: string[],
+) =>
+  entryIds
+    .map((entryId) => {
+      const record = records[entryId]
+      return record
+        ? `${entryId}:${record.computed_at}:${record.components.base_score}`
+        : `${entryId}:-`
+    })
+    .join("|")
+
+const useSemanticTopicRefreshKey = (enabled: boolean) => {
+  const embeddingHydrated = useEntryEmbeddingStore((state) => (enabled ? state.hydrated : false))
+  const embeddingProcessing = useEmbeddingJobStatusStore((state) =>
+    enabled ? state.snapshot.isProcessing : false,
+  )
+  const [settledVersion, setSettledVersion] = useState(0)
+  const wasProcessingRef = useRef(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      wasProcessingRef.current = false
+      return
+    }
+
+    if (embeddingProcessing) {
+      wasProcessingRef.current = true
+      return
+    }
+
+    if (wasProcessingRef.current) {
+      wasProcessingRef.current = false
+      setSettledVersion((version) => version + 1)
+    }
+  }, [embeddingProcessing, enabled])
+
+  return embeddingHydrated ? settledVersion + 1 : 0
+}
+
 const useLocalEntries = (): UseEntriesReturn => {
   const librarySearchActive = useLibrarySearchActive()
   const librarySearchEntryIds = useLibrarySearchEntryIds()
@@ -185,13 +225,19 @@ const useLocalEntries = (): UseEntriesReturn => {
   const keywordTopicQuery =
     myTopic?.selector.type === "keyword" ? myTopic.selector.query.trim() : ""
   const keywordTopicQueryVector = useQueryEmbeddingVector(keywordTopicQuery)
-  const embeddingData = useEntryEmbeddingStore((state) => state.data)
+  const semanticTopicRefreshKey = useSemanticTopicRefreshKey(Boolean(keywordTopicQuery))
   const keywordTopicSemanticScores = useMemo(() => {
-    if (!keywordTopicQuery || !keywordTopicQueryVector) return null
-    return buildSemanticScoreByEntryId(keywordTopicQueryVector, embeddingData, {
-      minScore: SEMANTIC_TOPIC_MIN_SCORE,
+    if (!keywordTopicQuery || !keywordTopicQueryVector || semanticTopicRefreshKey === 0) {
+      return null
+    }
+
+    return getKeywordTopicSemanticScoresSnapshot({
+      query: keywordTopicQuery,
+      queryVector: keywordTopicQueryVector,
+      embeddings: useEntryEmbeddingStore.getState().data,
+      refreshKey: semanticTopicRefreshKey,
     })
-  }, [keywordTopicQuery, keywordTopicQueryVector, embeddingData])
+  }, [keywordTopicQuery, keywordTopicQueryVector, semanticTopicRefreshKey])
   const selectedStarredGroupId = useAtomValue(selectedStarredGroupAtom)
   const starredGroupAssignments = useAtomValue(starredGroupAssignmentsAtom)
   const isVirtualScope = !!smartFeed || !!topicLabel || !!myTopic
@@ -201,17 +247,6 @@ const useLocalEntries = (): UseEntriesReturn => {
     "hidePrivateSubscriptionsInTimeline",
   )
   const recommendedTimelineEnabled = useAtomValue(recommendedTimelineEnabledAtom)
-  const rankRevision = useEntryRankScoreStore((state) =>
-    Object.entries(state.data)
-      .map(
-        ([entryId, record]) => `${entryId}:${record.computed_at}:${record.components.base_score}`,
-      )
-      .join("|"),
-  )
-  const collectionRevision = useCollectionStore((state) =>
-    Object.keys(state.collections).sort().join("|"),
-  )
-  const rankingRevision = `${collectionRevision}:${rankRevision}`
 
   const folderIds = useFolderFeedsByFeedId({
     feedId: isVirtualScope ? undefined : feedId,
@@ -330,6 +365,26 @@ const useLocalEntries = (): UseEntriesReturn => {
       ],
     ),
   )
+
+  const rankRevision = useEntryRankScoreStore(
+    useCallback(
+      (state) => {
+        if (!recommendedTimelineEnabled || librarySearchActive) return ""
+        return getRankRevisionForEntryIds(state.data, allEntries)
+      },
+      [allEntries, librarySearchActive, recommendedTimelineEnabled],
+    ),
+  )
+  const collectionRevision = useCollectionStore(
+    useCallback(
+      (state) => {
+        if (!recommendedTimelineEnabled || librarySearchActive) return ""
+        return Object.keys(state.collections).sort().join("|")
+      },
+      [librarySearchActive, recommendedTimelineEnabled],
+    ),
+  )
+  const rankingRevision = `${collectionRevision}:${rankRevision}`
 
   useEffect(() => {
     stickyVisibleStateRef.current = {
@@ -546,14 +601,11 @@ const useEntryEnrichmentBackfill = (
 
     const runBackfill = () => {
       if (cancelled) return
-      if (
-        (byokEnabled || embeddingEnabled) && // Visible set: BYOK unread-only inside trigger; embedding includes read.
-        entryIds.length > 0
-      ) {
+      if ((byokEnabled || embeddingEnabled) && entryIds.length > 0) {
         triggerEntryEnrichmentBackfill(entryIds)
       }
       if (embeddingEnabled) {
-        // Full library gap-fill so historical/read entries enter the semantic index.
+        // Gap-fill unread semantic index entries without pushing every upsert into the timeline.
         triggerEntryEmbeddingLibraryBackfill()
       }
     }

@@ -76,25 +76,31 @@ class EntryRankScoreActions implements Hydratable, Resetable {
 export const entryRankScoreActions = new EntryRankScoreActions()
 
 class EntryRankScoreSyncService {
-  async recomputeForEntry(entryId: string, options?: { force?: boolean }) {
+  private composeRecordForEntry(entryId: string) {
     const entry = getEntry(entryId)
     if (!entry) return null
-
-    if (!options?.force) {
-      const existing = entryRankScoreActions.getRank(entryId)
-      if (existing) return existing
-    }
 
     const qualityRecord = entryQualityScoreActions.getScore(entryId) ?? null
     const embedding = entryEmbeddingActions.getEmbedding(entryId)?.vector ?? null
     const clusters = interestClusterActions.getAllClusters()
-    const record = composeRankWithInterest({
+
+    return composeRankWithInterest({
       publishedAt: entry.publishedAt,
       insertedAt: entry.insertedAt,
       qualityRecord,
       embedding,
       clusters,
     })
+  }
+
+  async recomputeForEntry(entryId: string, options?: { force?: boolean }) {
+    if (!options?.force) {
+      const existing = entryRankScoreActions.getRank(entryId)
+      if (existing) return existing
+    }
+
+    const record = this.composeRecordForEntry(entryId)
+    if (!record) return null
 
     await entryRankScoreActions.upsertMany([{ entryId, data: record }])
     return record
@@ -112,14 +118,28 @@ class EntryRankScoreSyncService {
     if (targetEntryIds.length === 0) return []
 
     const records: Array<{ entryId: string; data: EntryRankRecord }> = []
+    const recordsToUpsert: Array<{ entryId: string; data: EntryRankRecord }> = []
 
     for (const entryId of targetEntryIds) {
-      const record = await this.recomputeForEntry(entryId, options)
+      if (!options?.force) {
+        const existing = entryRankScoreActions.getRank(entryId)
+        if (existing) {
+          records.push({ entryId, data: existing })
+          continue
+        }
+      }
+
+      const record = this.composeRecordForEntry(entryId)
       if (record) {
-        records.push({ entryId, data: record })
+        const item = { entryId, data: record }
+        records.push(item)
+        recordsToUpsert.push(item)
       }
     }
 
+    if (recordsToUpsert.length > 0) {
+      await entryRankScoreActions.upsertMany(recordsToUpsert)
+    }
     return records
   }
 }

@@ -52,7 +52,7 @@ describe("applyEntityLookupDescriptionCap", () => {
 
   it("caps description-only hits for entity lookups", () => {
     const keywordScores = new Map<string, number>()
-    const hits = []
+    const hits: Array<ReturnType<typeof baseHit>> = []
     for (let i = 0; i < 30; i++) {
       const id = `desc-${i}`
       keywordScores.set(id, KEYWORD_MATCH_DESCRIPTION_SCORE)

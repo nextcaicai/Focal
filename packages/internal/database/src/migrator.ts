@@ -36,6 +36,10 @@ interface SQLiteColumnInfo {
   name: string
 }
 
+interface SQLiteNameRow {
+  name: string
+}
+
 interface SQLiteMigrationRow {
   id: number
   hash: string
@@ -53,6 +57,12 @@ type SQLiteTableInfoRow = [
 
 const ADD_COLUMN_RE = /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+ADD\s+[`"]?(\w+)[`"]?\s+/i
 const DROP_COLUMN_RE = /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+DROP COLUMN\s+[`"]?(\w+)[`"]?\s*;?$/i
+const DROP_TABLE_RE = /^DROP TABLE(?:\s+IF\s+EXISTS)?\s+[`"]?(\w+)[`"]?\s*;?$/i
+const INSERT_TARGET_TABLE_RE = /^INSERT(?:\s+OR\s+\w+)?\s+INTO\s+[`"]?(\w+)[`"]?/i
+const INSERT_SOURCE_TABLE_RE = /\bFROM\s+[`"]?(\w+)[`"]?\s*;?$/i
+const RENAME_TABLE_RE = /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+RENAME TO\s+[`"]?(\w+)[`"]?\s*;?$/i
+const RENAME_COLUMN_RE =
+  /^ALTER TABLE\s+[`"]?(\w+)[`"]?\s+RENAME COLUMN\s+[`"]?(\w+)[`"]?\s+TO\s+[`"]?(\w+)[`"]?\s*;?$/i
 
 function getAddedColumnsByTable(queries: readonly string[]) {
   const expectedByTable = new Map<string, Set<string>>()
@@ -84,6 +94,16 @@ function assertExpectedColumns(
   }
 }
 
+function getInsertFromTables(query: string) {
+  const targetTableName = query.match(INSERT_TARGET_TABLE_RE)?.[1]
+  const sourceTableName = query.match(INSERT_SOURCE_TABLE_RE)?.[1]
+  if (!targetTableName || !sourceTableName) {
+    return null
+  }
+
+  return { sourceTableName, targetTableName }
+}
+
 async function verifyAddedColumns(
   db: {
     values: <TResult extends unknown[]>(query: SQL) => MaybePromise<TResult[]>
@@ -100,6 +120,110 @@ async function verifyAddedColumns(
     const actualColumns = new Set(rows.map((row) => row[1]))
     assertExpectedColumns(tableName, expectedColumns, actualColumns)
   }
+}
+
+async function tableExistsAsync(
+  db: {
+    values: <TResult extends unknown[]>(query: SQL) => MaybePromise<TResult[]>
+  },
+  tableName: string,
+) {
+  const escapedTableName = tableName.replaceAll("'", "''")
+  const rows = await db.values<[string]>(
+    sql.raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = '${escapedTableName}'`),
+  )
+  return rows.length > 0
+}
+
+async function getTableColumnsAsync(
+  db: {
+    values: <TResult extends unknown[]>(query: SQL) => MaybePromise<TResult[]>
+  },
+  tableName: string,
+) {
+  const escapedTableName = tableName.replaceAll("`", "``")
+  const rows = await db.values<SQLiteTableInfoRow>(
+    sql.raw(`PRAGMA table_info(\`${escapedTableName}\`)`),
+  )
+  return new Set(rows.map((row) => row[1]))
+}
+
+async function shouldSkipMigrationQueryAsync(
+  db: {
+    values: <TResult extends unknown[]>(query: SQL) => MaybePromise<TResult[]>
+  },
+  query: string,
+) {
+  const addColumnMatch = query.match(ADD_COLUMN_RE)
+  if (addColumnMatch) {
+    const tableName = addColumnMatch[1]
+    const columnName = addColumnMatch[2]
+    if (!tableName || !columnName) {
+      return false
+    }
+    const columns = await getTableColumnsAsync(db, tableName)
+    return columns.has(columnName)
+  }
+
+  const dropColumnMatch = query.match(DROP_COLUMN_RE)
+  if (dropColumnMatch) {
+    const tableName = dropColumnMatch[1]
+    const columnName = dropColumnMatch[2]
+    if (!tableName || !columnName) {
+      return false
+    }
+    const columns = await getTableColumnsAsync(db, tableName)
+    return !columns.has(columnName)
+  }
+
+  const dropTableMatch = query.match(DROP_TABLE_RE)
+  if (dropTableMatch) {
+    const tableName = dropTableMatch[1]
+    if (!tableName) {
+      return false
+    }
+    return !(await tableExistsAsync(db, tableName))
+  }
+
+  const insertFromTables = getInsertFromTables(query)
+  if (insertFromTables) {
+    const { sourceTableName, targetTableName } = insertFromTables
+    if (await tableExistsAsync(db, sourceTableName)) {
+      return false
+    }
+
+    return tableExistsAsync(db, targetTableName)
+  }
+
+  const renameTableMatch = query.match(RENAME_TABLE_RE)
+  if (renameTableMatch) {
+    const sourceTableName = renameTableMatch[1]
+    const targetTableName = renameTableMatch[2]
+    if (!sourceTableName || !targetTableName) {
+      return false
+    }
+
+    if (await tableExistsAsync(db, sourceTableName)) {
+      return false
+    }
+
+    return tableExistsAsync(db, targetTableName)
+  }
+
+  const renameColumnMatch = query.match(RENAME_COLUMN_RE)
+  if (renameColumnMatch) {
+    const tableName = renameColumnMatch[1]
+    const sourceColumnName = renameColumnMatch[2]
+    const targetColumnName = renameColumnMatch[3]
+    if (!tableName || !sourceColumnName || !targetColumnName) {
+      return false
+    }
+
+    const columns = await getTableColumnsAsync(db, tableName)
+    return !columns.has(sourceColumnName) && columns.has(targetColumnName)
+  }
+
+  return false
 }
 
 // Adapted from Drizzle's SQLite migrator.
@@ -172,6 +296,10 @@ export async function migrate<_TSchema extends Record<string, unknown>>(
       const query = rawQuery.trim()
       if (!query) continue
 
+      if (await shouldSkipMigrationQueryAsync(db, query)) {
+        continue
+      }
+
       try {
         await db.run(sql.raw(query))
       } catch (error) {
@@ -197,6 +325,14 @@ export async function migrate<_TSchema extends Record<string, unknown>>(
       ),
     )
   }
+}
+
+function tableExistsSync(db: SQLiteMigrationDatabase, tableName: string): boolean {
+  const escapedTableName = tableName.replaceAll("'", "''")
+  const rows = db.getAllSync<SQLiteNameRow>(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = '${escapedTableName}'`,
+  )
+  return rows.length > 0
 }
 
 function getTableColumns(db: SQLiteMigrationDatabase, tableName: string): Set<string> {
@@ -233,6 +369,53 @@ function shouldSkipMigrationQuery(db: SQLiteMigrationDatabase, query: string): b
     }
     const columns = getTableColumns(db, tableName)
     return !columns.has(columnName)
+  }
+
+  const dropTableMatch = query.match(DROP_TABLE_RE)
+  if (dropTableMatch) {
+    const tableName = dropTableMatch[1]
+    if (!tableName) {
+      return false
+    }
+    return !tableExistsSync(db, tableName)
+  }
+
+  const insertFromTables = getInsertFromTables(query)
+  if (insertFromTables) {
+    const { sourceTableName, targetTableName } = insertFromTables
+    if (tableExistsSync(db, sourceTableName)) {
+      return false
+    }
+
+    return tableExistsSync(db, targetTableName)
+  }
+
+  const renameTableMatch = query.match(RENAME_TABLE_RE)
+  if (renameTableMatch) {
+    const sourceTableName = renameTableMatch[1]
+    const targetTableName = renameTableMatch[2]
+    if (!sourceTableName || !targetTableName) {
+      return false
+    }
+
+    if (tableExistsSync(db, sourceTableName)) {
+      return false
+    }
+
+    return tableExistsSync(db, targetTableName)
+  }
+
+  const renameColumnMatch = query.match(RENAME_COLUMN_RE)
+  if (renameColumnMatch) {
+    const tableName = renameColumnMatch[1]
+    const sourceColumnName = renameColumnMatch[2]
+    const targetColumnName = renameColumnMatch[3]
+    if (!tableName || !sourceColumnName || !targetColumnName) {
+      return false
+    }
+
+    const columns = getTableColumns(db, tableName)
+    return !columns.has(sourceColumnName) && columns.has(targetColumnName)
   }
 
   return false

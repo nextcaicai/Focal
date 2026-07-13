@@ -218,21 +218,41 @@ class EntryActions implements Hydratable, Resetable {
     })
   }
 
-  /** Load HTML bodies for one entry after metadata-only startup hydrate. */
-  async ensureEntryBodyLoaded(entryId: EntryId) {
-    if (!this.contentDeferredEntryIds.has(entryId)) return
+  /** Read HTML bodies for one entry after metadata-only startup hydrate. */
+  async getEntryWithBodyLoaded(entryId: EntryId) {
+    const currentEntry = getEntry(entryId)
+    if (!currentEntry) return
+    if (!this.contentDeferredEntryIds.has(entryId)) return currentEntry
 
     const rows = await EntryService.getEntryMany([entryId])
     const row = rows[0]
+    if (!row) {
+      this.contentDeferredEntryIds.delete(entryId)
+      return currentEntry
+    }
+
+    return {
+      ...currentEntry,
+      content: row.content ?? null,
+      readabilityContent: row.readabilityContent ?? null,
+      readabilityUpdatedAt: row.readabilityUpdatedAt ?? null,
+    }
+  }
+
+  /** Commit HTML bodies when the foreground detail view actually needs them. */
+  async ensureEntryBodyLoaded(entryId: EntryId) {
+    if (!this.contentDeferredEntryIds.has(entryId)) return
+
+    const entryWithBody = await this.getEntryWithBodyLoaded(entryId)
     this.contentDeferredEntryIds.delete(entryId)
-    if (!row) return
+    if (!entryWithBody) return
 
     immerSet((draft) => {
       const entry = draft.data[entryId]
       if (!entry) return
-      entry.content = row.content ?? null
-      entry.readabilityContent = row.readabilityContent ?? null
-      entry.readabilityUpdatedAt = row.readabilityUpdatedAt ?? null
+      entry.content = entryWithBody.content
+      entry.readabilityContent = entryWithBody.readabilityContent
+      entry.readabilityUpdatedAt = entryWithBody.readabilityUpdatedAt
     })
   }
 
