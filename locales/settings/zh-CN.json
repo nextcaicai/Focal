@@ -105,6 +105,7 @@
   "actions.action_card.then_do": "执行动作",
   "actions.action_card.to": "到",
   "actions.action_card.translate_into": "翻译成",
+  "actions.action_card.url_values_hint": "多个地址可用逗号、中文逗号或换行分隔。",
   "actions.action_card.value": "值",
   "actions.action_card.webhooks": "Webhook",
   "actions.action_card.when_feeds_match": "当订阅源满足",

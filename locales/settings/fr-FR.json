@@ -105,6 +105,7 @@
   "actions.action_card.then_do": "Alors faire...",
   "actions.action_card.to": "À",
   "actions.action_card.translate_into": "Traduire",
+  "actions.action_card.url_values_hint": "Séparez plusieurs URL par des virgules, des virgules pleine largeur ou des retours à la ligne.",
   "actions.action_card.value": "Valeur",
   "actions.action_card.webhooks": "Webhooks",
   "actions.action_card.when_feeds_match": "Quand les flux correspondent...",

@@ -18,6 +18,8 @@ import { useTranslation } from "react-i18next"
 
 import { ViewSelectContent } from "~/modules/feed/view-select-content"
 
+const URL_VALUE_FIELDS = new Set<ActionFeedField>(["site_url", "feed_url", "entry_url"])
+
 type WhenSectionProps = {
   index: number
 }
@@ -105,6 +107,8 @@ export const WhenSection = ({ index }: WhenSectionProps) => {
                           />
                           <ValueInput
                             type={type}
+                            field={item.field}
+                            operator={item.operator}
                             value={item.value}
                             onChange={(value) => change("value", value)}
                             disabled={disabled}
@@ -211,15 +215,25 @@ const OperationSelect = ({
 
 const ValueInput = ({
   type,
+  field,
+  operator,
   value,
   onChange,
   disabled,
 }: {
   type: string
+  field?: ActionFeedField
+  operator?: ActionOperation
   value?: string | number
   onChange: (value: string | number) => void
   disabled?: boolean
 }) => {
+  const { t } = useTranslation("settings")
+  const supportsUrlValueList =
+    !!field &&
+    URL_VALUE_FIELDS.has(field) &&
+    (operator === "contains" || operator === "not_contains")
+
   switch (type) {
     case "view": {
       return (
@@ -275,6 +289,8 @@ const ValueInput = ({
             disabled={disabled}
             value={value as string | undefined}
             className="h-9 !flex-none"
+            placeholder={supportsUrlValueList ? "baoyu.io, yage.ai, bmpi.dev" : undefined}
+            title={supportsUrlValueList ? t("actions.action_card.url_values_hint") : undefined}
             onChange={(event) => onChange(event.target.value)}
           />
         </div>

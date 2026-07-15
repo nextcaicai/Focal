@@ -105,6 +105,7 @@
   "actions.action_card.then_do": "Then Do…",
   "actions.action_card.to": "To",
   "actions.action_card.translate_into": "Translate",
+  "actions.action_card.url_values_hint": "Separate multiple URLs with commas, full-width commas, or new lines.",
   "actions.action_card.value": "Value",
   "actions.action_card.webhooks": "Webhooks",
   "actions.action_card.when_feeds_match": "When Feeds Match…",

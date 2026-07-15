@@ -61,3 +61,6 @@ apps/desktop/build/*.pfx
 apps/mobile/build-*.tar.gz
 
 folo-cleanup-plan.md
+
+# Local MVP template for external GitHub Actions automation experiments
+focal-rss-actions-mvp/

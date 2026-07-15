@@ -1,6 +1,7 @@
 import type { SupportedActionLanguage } from "@follow/shared/language"
 import { getStorageNS } from "@follow/utils/ns"
 import type {
+  ActionFeedField,
   ActionFilterItem,
   ActionItem as ActionItemRes,
   ActionOperation,
@@ -17,6 +18,8 @@ import type { ActionItem } from "./store"
 
 const LOCAL_ACTION_RULES_STORAGE_KEY = getStorageNS("local_action_rules")
 const LOCAL_ACTION_EFFECTS_STORAGE_KEY = getStorageNS("local_action_effects")
+const MULTI_VALUE_SEPARATOR_REGEXP = /[,\n，]+/
+const URL_FILTER_FIELDS = new Set<ActionFeedField>(["site_url", "feed_url", "entry_url"])
 
 type LocalActionRulePayload = {
   version: "1.0"
@@ -132,6 +135,22 @@ const textContains = (actual: unknown, expected: unknown) => {
     .includes(toComparableString(expected).toLowerCase())
 }
 
+const toDelimitedComparableStrings = (value: unknown) => {
+  const rawValue = toComparableString(value)
+  if (!MULTI_VALUE_SEPARATOR_REGEXP.test(rawValue)) return [rawValue]
+
+  const values = rawValue
+    .split(MULTI_VALUE_SEPARATOR_REGEXP)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return values.length > 0 ? values : [rawValue]
+}
+
+const textContainsAny = (actual: unknown, expected: unknown) => {
+  return toDelimitedComparableStrings(expected).some((value) => textContains(actual, value))
+}
+
 const compareValues = (
   actual: unknown,
   operator: ActionOperation | undefined,
@@ -165,6 +184,24 @@ const compareValues = (
     }
     default: {
       return false
+    }
+  }
+}
+
+const compareUrlValues = (
+  actual: unknown,
+  operator: ActionOperation | undefined,
+  expected: unknown,
+) => {
+  switch (operator) {
+    case "contains": {
+      return textContainsAny(actual, expected)
+    }
+    case "not_contains": {
+      return !textContainsAny(actual, expected)
+    }
+    default: {
+      return compareValues(actual, operator, expected)
     }
   }
 }
@@ -233,6 +270,9 @@ const doesConditionMatch = (
 ) => {
   if (!item.field || !item.operator) return false
   const actual = getConditionFieldValue(item, entry, context)
+  if (URL_FILTER_FIELDS.has(item.field)) {
+    return compareUrlValues(actual, item.operator, item.value)
+  }
   return compareValues(actual, item.operator, item.value)
 }
 

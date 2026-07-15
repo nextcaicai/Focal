@@ -105,6 +105,7 @@
   "actions.action_card.then_do": "次に行う…",
   "actions.action_card.to": "へ",
   "actions.action_card.translate_into": "翻訳する",
+  "actions.action_card.url_values_hint": "複数の URL はカンマ、全角カンマ、または改行で区切れます。",
   "actions.action_card.value": "値",
   "actions.action_card.webhooks": "Webhooks",
   "actions.action_card.when_feeds_match": "フィードが一致した場合…",

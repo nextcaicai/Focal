@@ -11,6 +11,7 @@ import {
   loadLocalActionRules,
   runLocalActionSideEffects,
 } from "./local"
+import type { ActionItem } from "./store"
 import { actionActions, actionSyncService, useActionStore } from "./store"
 
 const createLocalStorageMock = () => {
@@ -143,6 +144,85 @@ describe("local action rules", () => {
       summary: true,
       sourceContent: true,
     })
+  })
+
+  test("matches comma-delimited URL values in a single condition", () => {
+    const result = applyLocalActionRulesToEntry(createEntry(), {
+      feed: {
+        id: "feed-1",
+        type: "feed",
+        title: "Yage",
+        url: "https://yage.ai/feed.xml",
+        siteUrl: "https://yage.ai",
+      },
+      view: FeedViewType.Articles,
+      rules: [
+        {
+          index: 0,
+          name: "Blog readability",
+          condition: [
+            [
+              {
+                field: "feed_url",
+                operator: "contains",
+                value: "baoyu.io, yage.ai，bmpi.dev\nexample.com",
+              },
+            ],
+          ],
+          result: {
+            readability: true,
+          },
+        },
+      ],
+    })
+
+    expect(result.entry.settings?.readability).toBe(true)
+  })
+
+  test("requires URL not_contains to miss every comma-delimited value", () => {
+    const rules: ActionItem[] = [
+      {
+        index: 0,
+        name: "Non-blog notification",
+        condition: [
+          [
+            {
+              field: "feed_url",
+              operator: "not_contains",
+              value: "baoyu.io, yage.ai",
+            },
+          ],
+        ],
+        result: {
+          newEntryNotification: true,
+        },
+      },
+    ]
+
+    const matched = applyLocalActionRulesToEntry(createEntry(), {
+      feed: {
+        id: "feed-1",
+        type: "feed",
+        title: "Example Feed",
+        url: "https://example.com/feed.xml",
+      },
+      view: FeedViewType.Articles,
+      rules,
+    })
+
+    const missed = applyLocalActionRulesToEntry(createEntry(), {
+      feed: {
+        id: "feed-2",
+        type: "feed",
+        title: "Yage",
+        url: "https://yage.ai/feed.xml",
+      },
+      view: FeedViewType.Articles,
+      rules,
+    })
+
+    expect(matched.shouldNotify).toBe(true)
+    expect(missed.shouldNotify).toBe(false)
   })
 
   test("requires all conditions inside a group to match", () => {

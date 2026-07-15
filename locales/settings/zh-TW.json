@@ -105,6 +105,7 @@
   "actions.action_card.then_do": "然後執行…",
   "actions.action_card.to": "到",
   "actions.action_card.translate_into": "翻譯成",
+  "actions.action_card.url_values_hint": "多個地址可用逗號、中文逗號或換行分隔。",
   "actions.action_card.value": "值",
   "actions.action_card.webhooks": "Webhooks",
   "actions.action_card.when_feeds_match": "當 RSS 摘要匹配時…",
