@@ -4,9 +4,11 @@ import type { EntryQualityScoreRecord } from "./entry-quality-score"
 import {
   composeRankBase,
   composeRankWithInterest,
+  explainRecommendedEntryCandidate,
   filterRecommendedEntryIds,
   getEntryFinalRankScore,
   getEntryStateScore,
+  getRecommendedEntryFilterReason,
   sortEntryIdsByRank,
 } from "./entry-rank-score"
 import { updateInterestCluster } from "./interest-profile"
@@ -41,6 +43,11 @@ describe("composeRankBase", () => {
     expect(record.components.freshness_component).toBeCloseTo(0.35, 5)
     expect(record.components.base_score).toBeCloseTo(0.49, 5)
     expect(record.context).toBe("cold_start")
+    expect(record.explanation?.recommendation_reasons[0]).toMatchObject({
+      type: "quality",
+      code: "quality_score",
+      value: 80,
+    })
   })
 
   it("falls back to freshness when quality is missing", () => {
@@ -77,6 +84,9 @@ describe("composeRankWithInterest", () => {
     expect(record.context).toBe("interest")
     expect(record.components.interest_component).toBeGreaterThan(0)
     expect(record.components.base_score).toBeGreaterThan(record.components.quality_component)
+    expect(
+      record.explanation?.recommendation_reasons.some((reason) => reason.code === "interest_match"),
+    ).toBe(true)
   })
 })
 
@@ -211,5 +221,87 @@ describe("filterRecommendedEntryIds", () => {
     })
 
     expect(filtered).toEqual(["candidate"])
+  })
+})
+
+describe("getRecommendedEntryFilterReason", () => {
+  const now = new Date("2026-06-08T10:00:00.000Z")
+
+  it("returns a stable reason for excluded entries", () => {
+    expect(
+      getRecommendedEntryFilterReason({
+        entryId: "dismissed",
+        now,
+        getPublishedAt: () => now,
+        getQualityRecord: () => qualityRecord(80),
+        getEntryState: () => ({ read: false, starred: false }),
+        getNotInterestedAt: () => now,
+      }),
+    ).toBe("not_interested")
+
+    expect(
+      getRecommendedEntryFilterReason({
+        entryId: "low-quality",
+        now,
+        getPublishedAt: () => now,
+        getQualityRecord: () => qualityRecord(49),
+        getEntryState: () => ({ read: false, starred: false }),
+      }),
+    ).toBe("low_quality")
+  })
+})
+
+describe("explainRecommendedEntryCandidate", () => {
+  it("returns diagnostic details for included entries", () => {
+    const now = new Date("2026-06-08T10:00:00.000Z")
+    const rank = composeRankBase({
+      publishedAt: now,
+      qualityRecord: qualityRecord(80),
+      now,
+    })
+
+    const diagnostic = explainRecommendedEntryCandidate({
+      entryId: "entry-1",
+      entryIds: ["entry-1"],
+      now,
+      getBaseRank: () => rank,
+      getPublishedAt: () => now,
+      getQualityRecord: () => qualityRecord(80),
+      getEntryState: () => ({ read: false, starred: false }),
+    })
+
+    expect(diagnostic).toMatchObject({
+      candidate: true,
+      included: true,
+      filterReason: null,
+      stateScore: 0.06,
+    })
+    expect(diagnostic.finalScore).toBeCloseTo(
+      getEntryFinalRankScore(rank, getEntryStateScore({ read: false, starred: false })),
+      5,
+    )
+    expect(diagnostic.reasons.some((reason) => reason.code === "state_priority")).toBe(true)
+  })
+
+  it("returns diagnostic details for filtered entries", () => {
+    const now = new Date("2026-06-08T10:00:00.000Z")
+    const ranks = new Map<string, ReturnType<typeof composeRankBase>>()
+    const diagnostic = explainRecommendedEntryCandidate({
+      entryId: "entry-1",
+      entryIds: ["entry-1"],
+      now,
+      getBaseRank: (entryId) => ranks.get(entryId),
+      getPublishedAt: () => now,
+      getQualityRecord: () => qualityRecord(49),
+      getEntryState: () => ({ read: false, starred: false }),
+    })
+
+    expect(diagnostic).toMatchObject({
+      candidate: true,
+      included: false,
+      filterReason: "low_quality",
+      finalScore: null,
+    })
+    expect(diagnostic.reasons.some((reason) => reason.code === "low_quality")).toBe(true)
   })
 })

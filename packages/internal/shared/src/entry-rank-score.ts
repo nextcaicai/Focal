@@ -12,10 +12,29 @@ export type EntryRankReasonType =
   | "negative_interest"
   | "fallback"
 
+export type RecommendedFilterReason =
+  | "not_in_candidate_set"
+  | "not_interested"
+  | "stale_read"
+  | "stale_starred"
+  | "low_quality"
+  | "unscored_expired"
+  | "missing_reference_date"
+
 export interface EntryRankReason {
   type: EntryRankReasonType
   label: string
   impact: "positive" | "negative" | "neutral"
+}
+
+export type EntryRecommendationReasonType = EntryRankReasonType | "filter"
+
+export interface EntryRecommendationReason {
+  type: EntryRecommendationReasonType
+  code: string
+  label: string
+  impact: "positive" | "negative" | "neutral"
+  value?: number
 }
 
 export interface EntryRankComponents {
@@ -26,10 +45,18 @@ export interface EntryRankComponents {
   base_score: number
 }
 
+export interface EntryRankExplanation {
+  recommendation_reasons: EntryRecommendationReason[]
+  filter_reason: RecommendedFilterReason | null
+  final_score: number | null
+  state_score: number | null
+}
+
 export interface EntryRankRecord {
   context: EntryRankContext
   components: EntryRankComponents
   reasons: EntryRankReason[]
+  explanation?: EntryRankExplanation
   computed_at: string
 }
 
@@ -134,6 +161,43 @@ function buildReasons(
   return reasons.slice(0, 5)
 }
 
+function buildRecommendationReasons(
+  qualityRecord: EntryQualityScoreRecord | null,
+  qualityComponent: number,
+  freshnessComponent: number,
+): EntryRecommendationReason[] {
+  const reasons: EntryRecommendationReason[] = []
+
+  if (qualityRecord && qualityComponent > 0) {
+    reasons.push({
+      type: "quality",
+      code: "quality_score",
+      label: `Content quality score ${qualityRecord.quality_score}`,
+      impact: "positive",
+      value: qualityRecord.quality_score,
+    })
+  } else {
+    reasons.push({
+      type: "fallback",
+      code: "quality_pending",
+      label: "Content quality score pending",
+      impact: "neutral",
+    })
+  }
+
+  if (freshnessComponent > 0) {
+    reasons.push({
+      type: "freshness",
+      code: "freshness_recent",
+      label: "Recently published",
+      impact: "positive",
+      value: freshnessComponent,
+    })
+  }
+
+  return reasons.slice(0, 5)
+}
+
 function buildInterestReasons(
   interestComponent: number,
   negativePenalty: number,
@@ -159,6 +223,35 @@ function buildInterestReasons(
   return reasons
 }
 
+function buildInterestRecommendationReasons(
+  interestComponent: number,
+  negativePenalty: number,
+): EntryRecommendationReason[] {
+  const reasons: EntryRecommendationReason[] = []
+
+  if (interestComponent > 0) {
+    reasons.push({
+      type: "interest",
+      code: "interest_match",
+      label: "Matches your reading interests",
+      impact: "positive",
+      value: interestComponent,
+    })
+  }
+
+  if (negativePenalty > 0) {
+    reasons.push({
+      type: "negative_interest",
+      code: "negative_interest_match",
+      label: "Similar to content marked not interesting",
+      impact: "negative",
+      value: negativePenalty,
+    })
+  }
+
+  return reasons
+}
+
 export function composeRankBase(input: RankComposerInput): EntryRankRecord {
   const now = input.now ?? new Date()
   const referenceDate = input.publishedAt ?? input.insertedAt ?? now
@@ -177,6 +270,16 @@ export function composeRankBase(input: RankComposerInput): EntryRankRecord {
       base_score: baseScore,
     },
     reasons: buildReasons(input.qualityRecord, qualityComponent, freshnessComponent),
+    explanation: {
+      recommendation_reasons: buildRecommendationReasons(
+        input.qualityRecord,
+        qualityComponent,
+        freshnessComponent,
+      ),
+      filter_reason: null,
+      final_score: null,
+      state_score: null,
+    },
     computed_at: now.toISOString(),
   }
 }
@@ -211,6 +314,15 @@ export function composeRankWithInterest(input: RankInterestComposerInput): Entry
       ...base.reasons,
       ...buildInterestReasons(interest_component, negative_interest_penalty),
     ].slice(0, 5),
+    explanation: {
+      recommendation_reasons: [
+        ...(base.explanation?.recommendation_reasons ?? []),
+        ...buildInterestRecommendationReasons(interest_component, negative_interest_penalty),
+      ].slice(0, 5),
+      filter_reason: null,
+      final_score: null,
+      state_score: null,
+    },
     computed_at: base.computed_at,
   }
 }
@@ -268,7 +380,7 @@ export interface RecommendedEntryCandidateInput {
   getNotInterestedAt?: (entryId: string) => Date | undefined
 }
 
-export function isRecommendedEntryCandidate({
+export function getRecommendedEntryFilterReason({
   entryId,
   now = new Date(),
   getPublishedAt,
@@ -278,26 +390,38 @@ export function isRecommendedEntryCandidate({
   getReadCompletedAt,
   getStarredAt,
   getNotInterestedAt,
-}: Omit<RecommendedEntryCandidateInput, "entryIds"> & { entryId: string }): boolean {
-  if (getNotInterestedAt?.(entryId)) return false
+}: Omit<RecommendedEntryCandidateInput, "entryIds"> & {
+  entryId: string
+}): RecommendedFilterReason | null {
+  if (getNotInterestedAt?.(entryId)) return "not_interested"
 
   const state = getEntryState(entryId) ?? { read: false, starred: false }
   const readCompletedAt = getReadCompletedAt?.(entryId)
-  if (state.read && readCompletedAt && isBeforeLocalDay(readCompletedAt, now)) return false
+  if (state.read && readCompletedAt && isBeforeLocalDay(readCompletedAt, now)) {
+    return "stale_read"
+  }
 
   const starredAt = getStarredAt?.(entryId)
-  if (state.starred && starredAt && isBeforeLocalDay(starredAt, now)) return false
+  if (state.starred && starredAt && isBeforeLocalDay(starredAt, now)) {
+    return "stale_starred"
+  }
 
   const qualityRecord = getQualityRecord(entryId)
   if (qualityRecord) {
-    return qualityRecord.quality_score >= RECOMMENDED_MIN_QUALITY_SCORE
+    return qualityRecord.quality_score >= RECOMMENDED_MIN_QUALITY_SCORE ? null : "low_quality"
   }
 
   const referenceDate = getPublishedAt(entryId) ?? getInsertedAt?.(entryId)
-  if (!referenceDate) return false
+  if (!referenceDate) return "missing_reference_date"
 
   const ageHours = Math.max(0, (now.getTime() - referenceDate.getTime()) / MS_PER_HOUR)
-  return ageHours <= RECOMMENDED_UNSCORED_GRACE_HOURS
+  return ageHours <= RECOMMENDED_UNSCORED_GRACE_HOURS ? null : "unscored_expired"
+}
+
+export function isRecommendedEntryCandidate(
+  input: Omit<RecommendedEntryCandidateInput, "entryIds"> & { entryId: string },
+): boolean {
+  return getRecommendedEntryFilterReason(input) === null
 }
 
 export function filterRecommendedEntryIds({
@@ -305,4 +429,105 @@ export function filterRecommendedEntryIds({
   ...input
 }: RecommendedEntryCandidateInput): string[] {
   return entryIds.filter((entryId) => isRecommendedEntryCandidate({ ...input, entryId }))
+}
+
+export interface RecommendationDiagnosticInput extends RecommendedEntryCandidateInput {
+  entryId: string
+  getBaseRank: (entryId: string) => EntryRankRecord | undefined
+}
+
+export interface RecommendationDiagnostic {
+  entryId: string
+  candidate: boolean
+  included: boolean
+  filterReason: RecommendedFilterReason | null
+  rank: EntryRankRecord | null
+  stateScore: number
+  finalScore: number | null
+  reasons: EntryRecommendationReason[]
+}
+
+function stateRecommendationReason(stateScore: number): EntryRecommendationReason {
+  if (stateScore > 0) {
+    return {
+      type: "state",
+      code: "state_priority",
+      label: "Entry state raises recommendation priority",
+      impact: "positive",
+      value: stateScore,
+    }
+  }
+
+  if (stateScore < 0) {
+    return {
+      type: "state",
+      code: "state_penalty",
+      label: "Entry state lowers recommendation priority",
+      impact: "negative",
+      value: stateScore,
+    }
+  }
+
+  return {
+    type: "state",
+    code: "state_neutral",
+    label: "Entry state does not change recommendation priority",
+    impact: "neutral",
+    value: stateScore,
+  }
+}
+
+function filterRecommendationReason(reason: RecommendedFilterReason): EntryRecommendationReason {
+  return {
+    type: "filter",
+    code: reason,
+    label: `Filtered from Recommended: ${reason}`,
+    impact: "negative",
+  }
+}
+
+function legacyRecommendationReasons(record: EntryRankRecord): EntryRecommendationReason[] {
+  return record.reasons.map((reason) => ({
+    type: reason.type,
+    code: reason.type,
+    label: reason.label,
+    impact: reason.impact,
+  }))
+}
+
+export function explainRecommendedEntryCandidate({
+  entryId,
+  entryIds,
+  getBaseRank,
+  ...input
+}: RecommendationDiagnosticInput): RecommendationDiagnostic {
+  const candidate = entryIds.includes(entryId)
+  const filterReason = candidate
+    ? getRecommendedEntryFilterReason({ ...input, entryId })
+    : "not_in_candidate_set"
+  const included = candidate && filterReason === null
+  const rank = getBaseRank(entryId) ?? null
+  const state = input.getEntryState(entryId) ?? { read: false, starred: false }
+  const stateScore = getEntryStateScore(state)
+  const finalScore = included
+    ? rank
+      ? getEntryFinalRankScore(rank, stateScore)
+      : stateScore
+    : null
+  const baseReasons =
+    rank?.explanation?.recommendation_reasons ?? (rank ? legacyRecommendationReasons(rank) : [])
+  const reasons = filterReason
+    ? [...baseReasons, filterRecommendationReason(filterReason)]
+    : [...baseReasons, stateRecommendationReason(stateScore)]
+
+  return {
+    entryId,
+    candidate,
+    included,
+    filterReason,
+    rank,
+    stateScore,
+    finalScore,
+    reasons: reasons.slice(0, 6),
+  }
 }

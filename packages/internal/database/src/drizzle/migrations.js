@@ -44,6 +44,7 @@ import m0040 from "./0040_entry_rank_scores.sql"
 import m0041 from "./0041_entry_embeddings_behavior_events.sql"
 import m0042 from "./0042_happy_vengeance.sql"
 import m0043 from "./0043_entry_ai_tags_domain_taxonomy.sql"
+import m0044 from "./0044_behavior_event_metadata.sql"
 import journal from "./meta/_journal.json"
 
 export default {
@@ -93,5 +94,6 @@ export default {
     m0041,
     m0042,
     m0043,
+    m0044,
   },
 }

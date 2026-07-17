@@ -1,6 +1,9 @@
 import { behaviorEventService } from "@follow/database/services/behavior-event"
-import type { BehaviorEventType } from "@follow/shared/behavior-events"
-import { getBehaviorEventPolarity } from "@follow/shared/behavior-events"
+import type { BehaviorEventMetadata, BehaviorEventType } from "@follow/shared/behavior-events"
+import {
+  getBehaviorEventPolarity,
+  isBehaviorEventProfileSignal,
+} from "@follow/shared/behavior-events"
 import { INTEREST_CLUSTER_IDS, updateInterestCluster } from "@follow/shared/interest-profile"
 
 import type { Hydratable, Resetable } from "../../lib/base"
@@ -14,11 +17,12 @@ interface BehaviorEventState {
     id: string
     entryId: string
     eventType: BehaviorEventType
+    metadata?: BehaviorEventMetadata | null
     createdAt: string
   }>
 }
 
-type BehaviorEvent = BehaviorEventState["events"][number]
+export type BehaviorEvent = BehaviorEventState["events"][number]
 
 export const removeBehaviorEvents = (
   events: readonly BehaviorEvent[],
@@ -45,6 +49,7 @@ class BehaviorEventActions implements Hydratable, Resetable {
         id: record.id,
         entryId: record.entryId,
         eventType: record.eventType as BehaviorEventType,
+        metadata: record.metadata ?? null,
         createdAt: record.createdAt,
       }))
     })
@@ -77,14 +82,20 @@ export const behaviorEventActions = new BehaviorEventActions()
 class BehaviorEventSyncService {
   private rankRecomputeTimer: ReturnType<typeof setTimeout> | null = null
 
-  async record(entryId: string, eventType: BehaviorEventType) {
+  async record(
+    entryId: string,
+    eventType: BehaviorEventType,
+    metadata?: BehaviorEventMetadata | null,
+  ) {
     const id = `${entryId}-${eventType}-${Date.now()}`
     const createdAt = new Date().toISOString()
+    const normalizedMetadata = metadata ?? null
 
     await behaviorEventService.insertEvent({
       id,
       entryId,
       eventType,
+      metadata: normalizedMetadata,
       createdAt,
     })
 
@@ -92,11 +103,16 @@ class BehaviorEventSyncService {
       id,
       entryId,
       eventType,
+      metadata: normalizedMetadata,
       createdAt,
     })
 
     const embedding = entryEmbeddingActions.getEmbedding(entryId)
-    if (embedding?.vector && embedding.vector.length > 0) {
+    if (
+      embedding?.vector &&
+      embedding.vector.length > 0 &&
+      isBehaviorEventProfileSignal(eventType)
+    ) {
       await this.updateInterestProfile(embedding.vector, eventType)
       this.scheduleRankRecompute()
     }
@@ -132,16 +148,52 @@ class BehaviorEventSyncService {
     await interestClusterActions.upsertMany([{ id: clusterId, data: updated }])
   }
 
-  recordFavorite(entryId: string) {
-    return this.record(entryId, "favorite")
+  recordOpen(entryId: string, metadata?: BehaviorEventMetadata) {
+    if (!shouldRecordOpenEvent(useBehaviorEventStore.getState().events, entryId)) {
+      return Promise.resolve()
+    }
+
+    return this.record(entryId, "open", metadata)
   }
 
-  recordReadComplete(entryId: string) {
-    return this.record(entryId, "read_complete")
+  recordReadProgress(
+    entryId: string,
+    progress: number,
+    metadata?: Omit<BehaviorEventMetadata, "progress">,
+  ) {
+    const progressTier = readProgressTier(progress)
+    if (progressTier === null || hasRecordedReadProgressTier(entryId, progressTier)) {
+      return Promise.resolve()
+    }
+
+    return this.record(entryId, "read_progress", {
+      ...metadata,
+      progress: progressTier,
+    })
   }
 
-  recordNotInterested(entryId: string) {
-    return this.record(entryId, "not_interested")
+  recordFavorite(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "favorite", metadata)
+  }
+
+  recordReadComplete(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "read_complete", metadata)
+  }
+
+  recordReadLater(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "read_later", metadata)
+  }
+
+  recordHide(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "hide", metadata)
+  }
+
+  recordNotInterested(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "not_interested", metadata)
+  }
+
+  recordQuickBounce(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "quick_bounce", metadata)
   }
 
   async remove(entryId: string, eventType: BehaviorEventType) {
@@ -156,3 +208,45 @@ class BehaviorEventSyncService {
 }
 
 export const behaviorEventSyncService = new BehaviorEventSyncService()
+
+const READ_PROGRESS_TIERS = [0.25, 0.5, 0.75] as const
+const OPEN_DEDUPE_WINDOW_MS = 5 * 60 * 1000
+
+type ReadProgressTier = (typeof READ_PROGRESS_TIERS)[number]
+
+export function readProgressTier(progress: number): ReadProgressTier | null {
+  const normalized = Math.max(0, Math.min(1, progress))
+
+  for (const tier of [...READ_PROGRESS_TIERS].reverse()) {
+    if (normalized >= tier) return tier
+  }
+
+  return null
+}
+
+function hasRecordedReadProgressTier(entryId: string, tier: ReadProgressTier): boolean {
+  const { events } = useBehaviorEventStore.getState()
+
+  return events.some((event) => {
+    if (event.entryId !== entryId || event.eventType !== "read_progress") return false
+
+    const progress = event.metadata?.progress
+    return typeof progress === "number" && progress >= tier
+  })
+}
+
+export function shouldRecordOpenEvent(
+  events: readonly BehaviorEvent[],
+  entryId: string,
+  now = new Date(),
+): boolean {
+  return !events.some((event) => {
+    if (event.entryId !== entryId || event.eventType !== "open") return false
+
+    const createdAt = new Date(event.createdAt).getTime()
+    if (Number.isNaN(createdAt)) return false
+
+    const elapsedMs = now.getTime() - createdAt
+    return elapsedMs >= 0 && elapsedMs < OPEN_DEDUPE_WINDOW_MS
+  })
+}

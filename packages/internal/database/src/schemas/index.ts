@@ -1,4 +1,5 @@
 import type { FeedViewType } from "@follow/constants"
+import type { BehaviorEventMetadata } from "@follow/shared/behavior-events"
 import type {
   EntryAiTagAssignment,
   EntryContentType,
@@ -191,6 +192,7 @@ export const behaviorEventsTable = sqliteTable("behavior_events", {
   id: text("id").primaryKey(),
   entryId: text("entry_id").notNull(),
   eventType: text("event_type").notNull(),
+  metadata: text("metadata", { mode: "json" }).$type<BehaviorEventMetadata | null>(),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

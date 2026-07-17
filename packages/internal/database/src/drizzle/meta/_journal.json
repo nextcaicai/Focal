@@ -309,6 +309,13 @@
       "when": 1783756800000,
       "tag": "0043_entry_ai_tags_domain_taxonomy",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1783843200000,
+      "tag": "0044_behavior_event_metadata",
+      "breakpoints": true
     }
   ]
 }
