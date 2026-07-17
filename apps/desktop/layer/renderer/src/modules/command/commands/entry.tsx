@@ -95,7 +95,7 @@ const useDeleteInboxEntry = () => {
 export const useRead = () =>
   useMutation({
     mutationFn: async ({ entryId }: { entryId: string }) =>
-      unreadSyncService.markEntryAsRead(entryId),
+      unreadSyncService.markEntryAsRead(entryId, { source: "command" }),
   })
 
 export const useUnread = () =>
@@ -407,7 +407,7 @@ export const useRegisterEntryCommands = () => {
           return
         }
 
-        await behaviorEventSyncService.recordNotInterested(entryId)
+        await behaviorEventSyncService.recordNotInterested(entryId, { source: "command" })
         toast.success(t("entry_actions.not_interested_success"), { duration: 1000 })
       },
     })

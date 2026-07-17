@@ -3,7 +3,8 @@ import { RootPortal } from "@follow/components/ui/portal/index.js"
 import { ScrollArea } from "@follow/components/ui/scroll-area/index.js"
 import { FeedViewType } from "@follow/constants"
 import { useTitle } from "@follow/hooks"
-import { IN_ELECTRON } from "@follow/shared/constants"
+import { IN_ELECTRON, LOCAL_RSS_MODE } from "@follow/shared/constants"
+import { behaviorEventSyncService } from "@follow/store/behavior-event/store"
 import { useEntry } from "@follow/store/entry/hooks"
 import { useFeedById } from "@follow/store/feed/hooks"
 import type { FeedModel } from "@follow/store/feed/types"
@@ -122,6 +123,7 @@ const EntryContentImpl: Component<EntryContentProps> = ({
   ].includes(view)
 
   const { addOrUpdateBlock, removeBlock } = useBlockActions()
+  useEntryReadingBehaviorEvents(entryId, scrollerRef, canRenderLayout)
   useEffect(() => {
     addOrUpdateBlock({
       id: BlockSliceAction.SPECIAL_TYPES.mainEntry,
@@ -356,6 +358,68 @@ const EntryScrollArea: Component<{
       {children}
     </ScrollArea.ScrollArea>
   )
+}
+
+function useEntryReadingBehaviorEvents(
+  entryId: string,
+  scroller: HTMLDivElement | null,
+  enabled: boolean,
+) {
+  const openedAtRef = useRef(Date.now())
+
+  useEffect(() => {
+    if (!LOCAL_RSS_MODE || !enabled) return
+
+    openedAtRef.current = Date.now()
+    void behaviorEventSyncService.recordOpen(entryId, { source: "reader" })
+  }, [enabled, entryId])
+
+  useEffect(() => {
+    if (!LOCAL_RSS_MODE || !enabled || !scroller) return
+
+    let frame: number | null = null
+
+    const recordProgress = () => {
+      const scrollableDistance = scroller.scrollHeight - scroller.clientHeight
+      if (scrollableDistance <= 0) return
+
+      const progress = Math.max(
+        0,
+        Math.min(1, (scroller.scrollTop + scroller.clientHeight) / scroller.scrollHeight),
+      )
+      const durationMs = Date.now() - openedAtRef.current
+
+      void behaviorEventSyncService.recordReadProgress(entryId, progress, {
+        source: "reader",
+        durationMs,
+      })
+
+      if (progress >= 0.95) {
+        void behaviorEventSyncService.recordReadComplete(entryId, {
+          source: "reader",
+          durationMs,
+        })
+      }
+    }
+
+    const handleScroll = () => {
+      if (frame !== null) return
+
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        recordProgress()
+      })
+    }
+
+    scroller.addEventListener("scroll", handleScroll, { passive: true })
+
+    return () => {
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame)
+      }
+      scroller.removeEventListener("scroll", handleScroll)
+    }
+  }, [enabled, entryId, scroller])
 }
 
 const AdaptiveContentRenderer: React.FC<{

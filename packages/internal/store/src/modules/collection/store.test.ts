@@ -118,6 +118,7 @@ describe("collectionSyncService", () => {
       ],
       undefined,
     )
+    expect(recordFavoriteMock).toHaveBeenCalledWith(entry.id, { source: "command" })
   })
 
   it("removes starred entries locally in local RSS mode when the remote API is unavailable", async () => {

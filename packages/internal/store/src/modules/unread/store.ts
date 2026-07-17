@@ -2,6 +2,7 @@ import { FeedViewType } from "@follow/constants"
 import type { UnreadSchema } from "@follow/database/schemas/types"
 import { EntryService } from "@follow/database/services/entry"
 import { UnreadService } from "@follow/database/services/unread"
+import type { BehaviorEventMetadata } from "@follow/shared/behavior-events"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import type { MarkAllAsReadRequest } from "@follow-app/client-sdk"
 import { isEqual } from "es-toolkit"
@@ -316,7 +317,7 @@ class UnreadSyncService {
     return targets
   }
 
-  async markEntriesAsRead(entryIds: string[]) {
+  async markEntriesAsRead(entryIds: string[], metadata?: BehaviorEventMetadata) {
     const targets = this.getReadEntryTargets(entryIds)
     if (targets.length === 0) return
 
@@ -375,8 +376,9 @@ class UnreadSyncService {
     await tx.run()
 
     if (LOCAL_RSS_MODE) {
+      const markReadMetadata = metadata ?? { source: "list" as const }
       for (const entryId of targetEntryIds) {
-        void behaviorEventSyncService.recordReadComplete(entryId)
+        void behaviorEventSyncService.recordMarkRead(entryId, markReadMetadata)
       }
     }
   }
@@ -407,9 +409,17 @@ class UnreadSyncService {
     return this.queuedReadFlushPromise
   }
 
-  private async markEntryReadStatus({ entryId, read }: { entryId: string; read: boolean }) {
+  private async markEntryReadStatus({
+    entryId,
+    read,
+    metadata,
+  }: {
+    entryId: string
+    read: boolean
+    metadata?: BehaviorEventMetadata
+  }) {
     if (read) {
-      return this.markEntriesAsRead([entryId])
+      return this.markEntriesAsRead([entryId], metadata)
     }
 
     const entry = getEntry(entryId)
@@ -460,8 +470,8 @@ class UnreadSyncService {
     await tx.run()
   }
 
-  async markEntryAsRead(entryId: string) {
-    return this.markEntryReadStatus({ entryId, read: true })
+  async markEntryAsRead(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.markEntryReadStatus({ entryId, read: true, metadata })
   }
 
   async markEntryAsUnread(entryId: string) {

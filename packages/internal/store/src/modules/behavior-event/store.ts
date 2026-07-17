@@ -117,7 +117,9 @@ class BehaviorEventSyncService {
       this.scheduleRankRecompute()
     }
 
-    await entryRankScoreSyncService.recomputeForEntry(entryId, { force: true })
+    if (shouldRecomputeEntryRank(eventType)) {
+      await entryRankScoreSyncService.recomputeForEntry(entryId, { force: true })
+    }
   }
 
   private scheduleRankRecompute() {
@@ -156,6 +158,10 @@ class BehaviorEventSyncService {
     return this.record(entryId, "open", metadata)
   }
 
+  recordMarkRead(entryId: string, metadata?: BehaviorEventMetadata) {
+    return this.record(entryId, "mark_read", metadata)
+  }
+
   recordReadProgress(
     entryId: string,
     progress: number,
@@ -177,6 +183,10 @@ class BehaviorEventSyncService {
   }
 
   recordReadComplete(entryId: string, metadata?: BehaviorEventMetadata) {
+    if (hasRecordedBehaviorEvent(entryId, "read_complete")) {
+      return Promise.resolve()
+    }
+
     return this.record(entryId, "read_complete", metadata)
   }
 
@@ -233,6 +243,16 @@ function hasRecordedReadProgressTier(entryId: string, tier: ReadProgressTier): b
     const progress = event.metadata?.progress
     return typeof progress === "number" && progress >= tier
   })
+}
+
+function hasRecordedBehaviorEvent(entryId: string, eventType: BehaviorEventType): boolean {
+  return useBehaviorEventStore
+    .getState()
+    .events.some((event) => event.entryId === entryId && event.eventType === eventType)
+}
+
+function shouldRecomputeEntryRank(eventType: BehaviorEventType): boolean {
+  return eventType !== "open"
 }
 
 export function shouldRecordOpenEvent(

@@ -49,7 +49,7 @@ class CollectionSyncService {
 
     if (LOCAL_RSS_MODE) {
       await collectionActions.upsertMany([collection])
-      void behaviorEventSyncService.recordFavorite(entryId)
+      void behaviorEventSyncService.recordFavorite(entryId, { source: "command" })
       if (invalidate) {
         invalidateEntriesQuery({ collection: true })
       }
