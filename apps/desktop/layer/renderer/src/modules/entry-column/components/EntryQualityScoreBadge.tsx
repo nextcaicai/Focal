@@ -6,12 +6,23 @@ import {
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import type { EntryQualityScoreRecord } from "@follow/shared/entry-quality-score"
 import { getQualityScoreTier } from "@follow/shared/entry-quality-score"
+import type {
+  EntryRecommendationReason,
+  RecommendationDiagnostic,
+} from "@follow/shared/entry-rank-score"
 import { useEntryQualityScore } from "@follow/store/entry-quality-score/hooks"
 import { cn } from "@follow/utils/utils"
+import { useAtomValue } from "jotai"
+import type { ReactNode } from "react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
+import { useLibrarySearchActive } from "~/atoms/library-search"
 import { useGeneralSettingKey } from "~/atoms/settings/general"
+import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
+
+import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
+import { useEntryRecommendationDiagnostic } from "../hooks/useEntryRecommendationDiagnostic"
 
 const tierClassName: Record<ReturnType<typeof getQualityScoreTier>, string> = {
   high: "bg-green/15 text-green",
@@ -29,11 +40,35 @@ const DIMENSION_KEYS = [
   "signal_density",
 ] as const satisfies readonly (keyof EntryQualityScoreRecord["scores"])[]
 
+const RECOMMENDATION_REASON_KEY_BY_CODE = {
+  freshness_recent: "entry.recommendation.reason.freshness_recent",
+  interest_match: "entry.recommendation.reason.interest_match",
+  low_quality: "entry.recommendation.reason.low_quality",
+  missing_reference_date: "entry.recommendation.reason.missing_reference_date",
+  negative_interest_match: "entry.recommendation.reason.negative_interest_match",
+  not_in_candidate_set: "entry.recommendation.reason.not_in_candidate_set",
+  not_interested: "entry.recommendation.reason.not_interested",
+  quality_pending: "entry.recommendation.reason.quality_pending",
+  quality_score: "entry.recommendation.reason.quality_score",
+  stale_read: "entry.recommendation.reason.stale_read",
+  stale_starred: "entry.recommendation.reason.stale_starred",
+  state_neutral: "entry.recommendation.reason.state_neutral",
+  state_penalty: "entry.recommendation.reason.state_penalty",
+  state_priority: "entry.recommendation.reason.state_priority",
+  unscored_expired: "entry.recommendation.reason.unscored_expired",
+} as const
+
 const qualityScoreHoverCardStyle = {
   backgroundColor: "rgb(var(--color-materialOpaque))",
   boxShadow:
     "0 6px 20px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.04)",
 } as const
+
+const SectionTitle = ({ children }: { children: ReactNode }) => (
+  <div className="text-[11px] font-semibold uppercase tracking-normal text-text-secondary">
+    {children}
+  </div>
+)
 
 const QualityScoreMvpDetails = ({ record }: { record: EntryQualityScoreRecord }) => {
   const { t } = useTranslation("app")
@@ -49,6 +84,8 @@ const QualityScoreMvpDetails = ({ record }: { record: EntryQualityScoreRecord })
 
   return (
     <div className="flex flex-col gap-2 text-xs leading-snug text-text">
+      <SectionTitle>{t("entry.quality_score.mvp.content_quality")}</SectionTitle>
+
       <div className="font-semibold">
         {t("entry.quality_score.mvp.title", { score: record.quality_score })}
       </div>
@@ -116,9 +153,77 @@ const QualityScoreMvpDetails = ({ record }: { record: EntryQualityScoreRecord })
   )
 }
 
+const getReasonClassName = (impact: EntryRecommendationReason["impact"]) => {
+  if (impact === "positive") return "text-green"
+  if (impact === "negative") return "text-orange"
+  return "text-text-tertiary"
+}
+
+const formatSignedScore = (value: number) => {
+  const rounded = value.toFixed(3)
+  return value > 0 ? `+${rounded}` : rounded
+}
+
+const RecommendationDetails = ({ diagnostic }: { diagnostic: RecommendationDiagnostic }) => {
+  const { t } = useTranslation("app")
+
+  const labelForReason = (reason: EntryRecommendationReason): string => {
+    const key =
+      RECOMMENDATION_REASON_KEY_BY_CODE[
+        reason.code as keyof typeof RECOMMENDATION_REASON_KEY_BY_CODE
+      ]
+
+    return key ? t(key) : reason.label
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2 text-xs leading-snug text-text">
+      <SectionTitle>{t("entry.recommendation.title")}</SectionTitle>
+
+      <div className="font-medium">
+        {diagnostic.included
+          ? t("entry.recommendation.included")
+          : t("entry.recommendation.filtered")}
+      </div>
+
+      {diagnostic.reasons.length > 0 ? (
+        <ul className="space-y-1">
+          {diagnostic.reasons.map((reason) => (
+            <li key={`${reason.type}-${reason.code}`} className="flex gap-2">
+              <i
+                className={cn(
+                  "mt-1 size-1.5 shrink-0 rounded-full bg-current",
+                  getReasonClassName(reason.impact),
+                )}
+              />
+              <span>{labelForReason(reason)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="text-[11px] text-text-tertiary">
+        {t("entry.recommendation.diagnostics", {
+          finalScore: diagnostic.finalScore === null ? "—" : diagnostic.finalScore.toFixed(3),
+          stateScore: formatSignedScore(diagnostic.stateScore),
+        })}
+      </div>
+    </div>
+  )
+}
+
 export const EntryQualityScoreBadge = ({ entryId }: { entryId: string }) => {
   const qualityScoreEnabled = useGeneralSettingKey("qualityScore")
   const record = useEntryQualityScore(entryId)
+  const recommendedTimelineEnabled = useAtomValue(recommendedTimelineEnabledAtom)
+  const librarySearchActive = useLibrarySearchActive()
+  const smartFeed = useRouteParamsSelector((route) => route.smartFeed)
+  const showRecommendationDetails =
+    recommendedTimelineEnabled && !librarySearchActive && smartFeed !== "readLater"
+  const recommendationDiagnostic = useEntryRecommendationDiagnostic(
+    entryId,
+    Boolean(qualityScoreEnabled && record && showRecommendationDetails),
+  )
 
   if (!LOCAL_RSS_MODE || !qualityScoreEnabled || !record) return null
 
@@ -148,6 +253,9 @@ export const EntryQualityScoreBadge = ({ entryId }: { entryId: string }) => {
         )}
       >
         <QualityScoreMvpDetails record={record} />
+        {recommendationDiagnostic ? (
+          <RecommendationDetails diagnostic={recommendationDiagnostic} />
+        ) : null}
       </HoverCardContent>
     </HoverCard>
   )
