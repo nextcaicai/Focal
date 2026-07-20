@@ -1,6 +1,5 @@
 import { isMobile } from "@follow/components/hooks/useMobile.js"
 import { FeedViewType, getView } from "@follow/constants"
-import type { BehaviorEventType } from "@follow/shared/behavior-events"
 import { IN_ELECTRON, LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { useBehaviorEventStore } from "@follow/store/behavior-event/store"
 import { useIsEntryStarred } from "@follow/store/collection/hooks"
@@ -30,6 +29,7 @@ import { isMutationCommandId } from "~/modules/command/mutation-command-ids"
 import type { FollowCommandId, UnknownCommand } from "~/modules/command/types"
 import { useToolbarOrderMap } from "~/modules/customize-toolbar/hooks"
 
+import { hasNotInterestedBehaviorEvent, hasReadLaterBehaviorEvent } from "./entry-behavior-events"
 import { fetchEntryReadabilityContentFromSource } from "./readability-content"
 import { useRouteParams } from "./useRouteParams"
 
@@ -85,16 +85,6 @@ interface EntryActionMenuItemConfig {
   entryId: string
   requiresLogin?: boolean
 }
-
-interface EntryBehaviorEvent {
-  entryId: string
-  eventType: BehaviorEventType
-}
-
-export const hasNotInterestedBehaviorEvent = (
-  events: readonly EntryBehaviorEvent[],
-  entryId: string,
-) => events.some((event) => event.entryId === entryId && event.eventType === "not_interested")
 
 export class EntryActionMenuItem extends MenuItemText {
   protected privateConfig: EntryActionMenuItemConfig
@@ -272,6 +262,9 @@ export const useEntryActions = ({ entryId, view }: { entryId: string; view: Feed
   const isNotInterested = useBehaviorEventStore((state) =>
     hasNotInterestedBehaviorEvent(state.events, entryId),
   )
+  const isReadLater = useBehaviorEventStore((state) =>
+    hasReadLaterBehaviorEvent(state.events, entryId),
+  )
 
   const runCmdFn = useRunCommandFn()
   const hasEntry = !!entry
@@ -338,6 +331,12 @@ export const useEntryActions = ({ entryId, view }: { entryId: string; view: Feed
         onClick: runCmdFn(COMMAND_ID.entry.star, [{ entryId, view }]),
         active: isInCollection,
         shortcut: shortcuts[COMMAND_ID.entry.star],
+        entryId,
+      }),
+      new EntryActionMenuItem({
+        id: COMMAND_ID.entry.readLater,
+        onClick: runCmdFn(COMMAND_ID.entry.readLater, [{ entryId }]),
+        active: isReadLater,
         entryId,
       }),
       new EntryActionMenuItem({
@@ -503,6 +502,7 @@ export const useEntryActions = ({ entryId, view }: { entryId: string; view: Feed
     shortcuts,
     view,
     isInCollection,
+    isReadLater,
     isCurrentVisitEntry,
     isShowSourceContent,
     isShowAITranslationAuto,

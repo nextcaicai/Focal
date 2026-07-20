@@ -1,10 +1,11 @@
 import { FeedViewType } from "@follow/constants"
+import { useBehaviorEventStore } from "@follow/store/behavior-event/store"
 import { useCollectionStore } from "@follow/store/collection/store"
 import { unreadSyncService } from "@follow/store/unread/store"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { jotaiStore } from "~/lib/jotai"
-import { SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
 import {
   selectedStarredGroupAtom,
   STARRED_GROUP_ALL,
@@ -33,6 +34,7 @@ vi.mock("~/atoms/settings/general", () => ({
 describe("markAllByRoute", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useBehaviorEventStore.setState({ events: [] })
     useCollectionStore.setState({ collections: {} })
     jotaiStore.set(selectedStarredGroupAtom, STARRED_GROUP_ALL)
     jotaiStore.set(starredGroupAssignmentsAtom, {})
@@ -146,6 +148,40 @@ describe("markAllByRoute", () => {
       time: undefined,
       excludePrivate: false,
     })
+  })
+
+  it("marks read-later entries as read without treating read later as a feed id", async () => {
+    useBehaviorEventStore.setState({
+      events: [
+        {
+          id: "entry-1-read-later",
+          entryId: "entry-1",
+          eventType: "read_later",
+          createdAt: "2026-07-11T00:00:00.000Z",
+        },
+        {
+          id: "entry-2-read-later",
+          entryId: "entry-2",
+          eventType: "read_later",
+          createdAt: "2026-07-12T00:00:00.000Z",
+        },
+        {
+          id: "entry-3-favorite",
+          entryId: "entry-3",
+          eventType: "favorite",
+          createdAt: "2026-07-13T00:00:00.000Z",
+        },
+      ],
+    })
+
+    await markAllByRoute({
+      feedId: SMART_FEED_READ_LATER,
+      view: FeedViewType.All,
+      smartFeed: "readLater",
+    })
+
+    expect(unreadSyncService.markEntriesAsRead).toHaveBeenCalledWith(["entry-2", "entry-1"])
+    expect(unreadSyncService.markBatchAsRead).not.toHaveBeenCalled()
   })
 
   it("keeps the footer insertedBefore limit when marking the all-unread smart feed", async () => {

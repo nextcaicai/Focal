@@ -12,6 +12,7 @@ describe("DEFAULT_ACTION_ORDER", () => {
     expect(DEFAULT_ACTION_ORDER.main).toEqual([
       COMMAND_ID.entry.read,
       COMMAND_ID.entry.star,
+      COMMAND_ID.entry.readLater,
       COMMAND_ID.entry.notInterested,
       COMMAND_ID.entry.readability,
       COMMAND_ID.entry.toggleAITranslation,
@@ -24,6 +25,7 @@ describe("DEFAULT_ACTION_ORDER", () => {
       main: [
         COMMAND_ID.entry.read,
         COMMAND_ID.entry.star,
+        COMMAND_ID.entry.readLater,
         COMMAND_ID.entry.notInterested,
         COMMAND_ID.entry.readability,
         COMMAND_ID.entry.toggleAITranslation,

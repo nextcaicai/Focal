@@ -1,5 +1,8 @@
 import { FeedViewType } from "@follow/constants"
+import { getEntryIdsByBehaviorEventType } from "@follow/store/behavior-event/hooks"
+import { useBehaviorEventStore } from "@follow/store/behavior-event/store"
 import { useCollectionStore } from "@follow/store/collection/store"
+import { useEntryStore } from "@follow/store/entry/store"
 import { getCategoryFeedIds } from "@follow/store/subscription/getter"
 import { unreadSyncService } from "@follow/store/unread/store"
 
@@ -70,6 +73,26 @@ const intersectMarkAllFilters = (
   }
 }
 
+const filterEntryIdsByMarkAllFilter = (entryIds: string[], time?: MarkAllFilter) => {
+  if (!time) return entryIds
+
+  const entries = useEntryStore.getState().data
+
+  return entryIds.filter((entryId) => {
+    const entry = entries[entryId]
+    if (!entry) return false
+
+    const publishedAt = entry.publishedAt.getTime()
+    if ("startTime" in time && publishedAt < time.startTime) return false
+    if ("endTime" in time && publishedAt > time.endTime) return false
+    if ("insertedBefore" in time && entry.insertedAt.getTime() >= time.insertedBefore) {
+      return false
+    }
+
+    return true
+  })
+}
+
 export const markAllByRoute = async (
   data: {
     feedId?: string | undefined
@@ -110,6 +133,18 @@ export const markAllByRoute = async (
 
   const { hidePrivateSubscriptionsInTimeline: excludePrivate } = getGeneralSettings()
   const smartFeedDateRange = getSmartFeedDateRange(smartFeed)
+
+  if (smartFeed === "readLater") {
+    const entryIds = filterEntryIdsByMarkAllFilter(
+      getEntryIdsByBehaviorEventType(useBehaviorEventStore.getState().events, "read_later"),
+      time,
+    )
+
+    if (entryIds.length > 0) {
+      await unreadSyncService.markEntriesAsRead(entryIds)
+    }
+    return
+  }
 
   if (smartFeedDateRange || smartFeed === "unread") {
     const smartFeedTime = smartFeedDateRange

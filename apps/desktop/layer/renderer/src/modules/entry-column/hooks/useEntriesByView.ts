@@ -1,5 +1,6 @@
 import { FeedViewType, getView } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
+import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
 import { useCollectionStore } from "@follow/store/collection/store"
 import { isOnboardingEntryUrl } from "@follow/store/constants/onboarding"
@@ -255,6 +256,7 @@ const useLocalEntries = (): UseEntriesReturn => {
   const entryIdsByView = useEntryIdsByView(view, hidePrivateSubscriptionsInTimeline)
   const entryIdsByCollections = useCollectionEntryList(view)
   const allCollectionEntryIds = useAllCollectionEntryList()
+  const readLaterEntryIds = useReadLaterEntryList()
   const entryIdsByFeedId = useEntryIdsByFeedId(isVirtualScope ? undefined : feedId)
   const entryIdsByCategory = useEntryIdsByFeedIds(folderIds)
   const entryIdsByListId = useEntryIdsByListId(listId)
@@ -286,18 +288,20 @@ const useLocalEntries = (): UseEntriesReturn => {
         const ids =
           smartFeed === "starred"
             ? allCollectionEntryIds
-            : isVirtualScope
-              ? (entryIdsByView ?? [])
-              : isCollection
-                ? entryIdsByCollections
-                : showEntriesByView
-                  ? (entryIdsByView ?? [])
-                  : (getEntryIdsFromMultiplePlace(
-                      entryIdsByFeedId,
-                      entryIdsByCategory,
-                      entryIdsByListId,
-                      entryIdsByInboxId,
-                    ) ?? [])
+            : smartFeed === "readLater"
+              ? readLaterEntryIds
+              : isVirtualScope
+                ? (entryIdsByView ?? [])
+                : isCollection
+                  ? entryIdsByCollections
+                  : showEntriesByView
+                    ? (entryIdsByView ?? [])
+                    : (getEntryIdsFromMultiplePlace(
+                        entryIdsByFeedId,
+                        entryIdsByCategory,
+                        entryIdsByListId,
+                        entryIdsByInboxId,
+                      ) ?? [])
 
         const stickyVisibleIds =
           effectiveUnreadOnly && stickyVisibleStateRef.current.queryKey === localQueryKey
@@ -353,6 +357,7 @@ const useLocalEntries = (): UseEntriesReturn => {
         isCollection,
         isVirtualScope,
         localQueryKey,
+        readLaterEntryIds,
         showEntriesByView,
         effectiveUnreadOnly,
         smartFeed,
@@ -400,8 +405,13 @@ const useLocalEntries = (): UseEntriesReturn => {
     void rankingRevision
 
     if (!allEntries?.length) return allEntries ?? []
-    const latestEntries = isVirtualScope ? sortEntryIdsByPublishedAtDesc(allEntries) : allEntries
-    if (!recommendedTimelineEnabled) return latestEntries
+    const latestEntries =
+      smartFeed === "readLater"
+        ? allEntries
+        : isVirtualScope
+          ? sortEntryIdsByPublishedAtDesc(allEntries)
+          : allEntries
+    if (!recommendedTimelineEnabled || smartFeed === "readLater") return latestEntries
 
     return sortEntryIdsByRecommended(latestEntries)
   }, [
@@ -411,6 +421,7 @@ const useLocalEntries = (): UseEntriesReturn => {
     librarySearchEntryIds,
     rankingRevision,
     recommendedTimelineEnabled,
+    smartFeed,
   ])
 
   const [page, setPage] = useState(0)

@@ -191,6 +191,10 @@ class BehaviorEventSyncService {
   }
 
   recordReadLater(entryId: string, metadata?: BehaviorEventMetadata) {
+    if (hasRecordedBehaviorEvent(entryId, "read_later")) {
+      return Promise.resolve()
+    }
+
     return this.record(entryId, "read_later", metadata)
   }
 
@@ -214,6 +218,10 @@ class BehaviorEventSyncService {
 
   removeNotInterested(entryId: string) {
     return this.remove(entryId, "not_interested")
+  }
+
+  removeReadLater(entryId: string) {
+    return this.remove(entryId, "read_later")
   }
 }
 

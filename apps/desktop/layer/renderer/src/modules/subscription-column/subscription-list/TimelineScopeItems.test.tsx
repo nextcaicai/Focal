@@ -5,12 +5,16 @@ import type { Root } from "react-dom/client"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest"
 
-import { SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
 
 import { TimelineScopeItems } from "./TimelineScopeItems"
 
 vi.mock("@follow/store/collection/hooks", () => ({
   useAllCollectionEntryList: () => ["entry-starred-unread", "entry-starred-read"],
+}))
+
+vi.mock("@follow/store/behavior-event/hooks", () => ({
+  useReadLaterEntryList: () => ["entry-read-later-unread", "entry-read-later-read"],
 }))
 
 vi.mock("@follow/store/entry/store", () => ({
@@ -34,6 +38,16 @@ vi.mock("@follow/store/entry/store", () => ({
         "entry-starred-read": {
           id: "entry-starred-read",
           publishedAt: new Date("2026-06-11T00:00:00.000Z"),
+          read: true,
+        },
+        "entry-read-later-unread": {
+          id: "entry-read-later-unread",
+          publishedAt: new Date("2026-06-10T00:00:00.000Z"),
+          read: false,
+        },
+        "entry-read-later-read": {
+          id: "entry-read-later-read",
+          publishedAt: new Date("2026-06-09T00:00:00.000Z"),
           read: true,
         },
       },
@@ -91,6 +105,7 @@ vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>()
   const labels: Record<string, string> = {
     "sidebar.smart_feeds.all_unread": "All Unread",
+    "sidebar.smart_feeds.read_later": "Read Later",
     "sidebar.smart_feeds.title": "Smart Feeds",
     "time.today": "Today",
     "words.all": "All",
@@ -161,7 +176,7 @@ describe("TimelineScopeItems", () => {
       root!.render(<TimelineScopeItems />)
     })
 
-    expect(getScopeLabels(container)).toEqual(["Today", "All Unread", "Starred"])
+    expect(getScopeLabels(container)).toEqual(["Today", "All Unread", "Read Later", "Starred"])
   })
 
   test.each([
@@ -208,6 +223,32 @@ describe("TimelineScopeItems", () => {
     })
 
     expect(getScopeText(container, "collections")).toBe("Starred1")
+  })
+
+  test("shows the unread read-later count instead of the total read-later count", async () => {
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<TimelineScopeItems />)
+    })
+
+    expect(getScopeText(container, SMART_FEED_READ_LATER)).toBe("Read Later1")
+  })
+
+  test("uses bookmark for Read Later", async () => {
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<TimelineScopeItems />)
+    })
+
+    expect(
+      getScopeIcon(container, SMART_FEED_READ_LATER).classList.contains("i-focal-bookmark"),
+    ).toBe(true)
   })
 
   test("does not render starred group management in the smart feeds list", async () => {

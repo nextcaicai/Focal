@@ -21,7 +21,11 @@ import {
   useSourceContentModal,
 } from "~/atoms/source-content"
 import { SharePanel } from "~/components/common/SharePanel"
-import { hasNotInterestedBehaviorEvent, toggleEntryReadability } from "~/hooks/biz/useEntryActions"
+import {
+  hasNotInterestedBehaviorEvent,
+  hasReadLaterBehaviorEvent,
+} from "~/hooks/biz/entry-behavior-events"
+import { toggleEntryReadability } from "~/hooks/biz/useEntryActions"
 import { navigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { getRouteParams } from "~/hooks/biz/useRouteParams"
 import { copyToClipboard } from "~/lib/clipboard"
@@ -38,6 +42,9 @@ import { COMMAND_ID } from "./id"
 const category: CommandCategory = "category.entry"
 
 export const getNotInterestedIconClassName = (_isActive?: boolean) => "i-focal-thumb-down"
+
+export const getReadLaterIconClassName = (isActive?: boolean) =>
+  cn("i-focal-bookmark", isActive && "text-blue")
 
 export const getReadIconClassName = () => "i-focal-list-check"
 
@@ -384,7 +391,35 @@ export const useRegisterEntryCommands = () => {
   useEffect(() => {
     if (!LOCAL_RSS_MODE) return
 
-    return registerCommand({
+    const unregisterReadLater = registerCommand({
+      id: COMMAND_ID.entry.readLater,
+      label: t("entry_actions.read_later"),
+      category,
+      icon: (props) => <i className={getReadLaterIconClassName(props?.isActive)} />,
+      run: async ({ entryId }: { entryId: string }) => {
+        const entry = getEntry(entryId)
+        if (!entry) {
+          toast.error(t("entry_actions.read_later_failed"))
+          return
+        }
+
+        const isReadLater = hasReadLaterBehaviorEvent(
+          useBehaviorEventStore.getState().events,
+          entryId,
+        )
+
+        if (isReadLater) {
+          await behaviorEventSyncService.removeReadLater(entryId)
+          toast.success(t("entry_actions.read_later_cancelled"), { duration: 1000 })
+          return
+        }
+
+        await behaviorEventSyncService.recordReadLater(entryId, { source: "command" })
+        toast.success(t("entry_actions.read_later_success"), { duration: 1000 })
+      },
+    })
+
+    const unregisterNotInterested = registerCommand({
       id: COMMAND_ID.entry.notInterested,
       label: t("entry_actions.not_interested"),
       category,
@@ -411,6 +446,11 @@ export const useRegisterEntryCommands = () => {
         toast.success(t("entry_actions.not_interested_success"), { duration: 1000 })
       },
     })
+
+    return () => {
+      unregisterReadLater()
+      unregisterNotInterested()
+    }
   }, [t])
 }
 
@@ -421,6 +461,11 @@ export type StarCommand = Command<{
 
 export type NotInterestedCommand = Command<{
   id: typeof COMMAND_ID.entry.notInterested
+  fn: (data: { entryId: string }) => void
+}>
+
+export type ReadLaterCommand = Command<{
+  id: typeof COMMAND_ID.entry.readLater
   fn: (data: { entryId: string }) => void
 }>
 
@@ -491,6 +536,7 @@ export type ReadabilityCommand = Command<{
 
 export type EntryCommand =
   | StarCommand
+  | ReadLaterCommand
   | NotInterestedCommand
   | DeleteCommand
   | CopyLinkCommand

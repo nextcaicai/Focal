@@ -7,6 +7,7 @@ export const COMMAND_ID = {
     readability: "entry:ability",
     openInBrowser: "entry:open-in-browser",
     star: "entry:star",
+    readLater: "entry:read-later",
     toggleAITranslation: "entry:toggle-ai-translation",
     imageGallery: "entry:image-gallery",
     copyLink: "entry:copy-link",

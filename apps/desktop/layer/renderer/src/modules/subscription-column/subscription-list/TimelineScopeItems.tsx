@@ -1,3 +1,4 @@
+import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList } from "@follow/store/collection/hooks"
 import { useEntryStore } from "@follow/store/entry/store"
 import { useUnreadAll } from "@follow/store/unread/hooks"
@@ -13,7 +14,7 @@ import { useLibrarySearchActive } from "~/atoms/library-search"
 import { FEED_COLLECTION_LIST, ROUTE_VIEW_ALL } from "~/constants"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
-import { SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
 
 import { SidebarSearchInput } from "../SidebarSearchInput"
 import { feedColumnStyles } from "../styles"
@@ -136,25 +137,32 @@ const ScopeItem = ({
   )
 }
 
+const countUnreadEntries = (
+  state: ReturnType<typeof useEntryStore.getState>,
+  entryIds: readonly string[],
+) => {
+  let unread = 0
+
+  for (const entryId of entryIds) {
+    const entry = state.data[entryId]
+    if (!entry || entry.read) continue
+    unread += 1
+  }
+
+  return unread
+}
+
 const useSmartFeedUnreadCounts = () => {
   const allUnread = useUnreadAll()
   const collectionEntryIds = useAllCollectionEntryList()
+  const readLaterEntryIds = useReadLaterEntryList()
 
   const starredUnreadCount = useEntryStore(
-    useCallback(
-      (state) => {
-        let starred = 0
+    useCallback((state) => countUnreadEntries(state, collectionEntryIds), [collectionEntryIds]),
+  )
 
-        for (const entryId of collectionEntryIds) {
-          const entry = state.data[entryId]
-          if (!entry || entry.read) continue
-          starred += 1
-        }
-
-        return starred
-      },
-      [collectionEntryIds],
-    ),
+  const readLaterUnreadCount = useEntryStore(
+    useCallback((state) => countUnreadEntries(state, readLaterEntryIds), [readLaterEntryIds]),
   )
 
   const todayUnreadCount = useEntryStore((state) => {
@@ -172,6 +180,7 @@ const useSmartFeedUnreadCounts = () => {
   })
 
   return {
+    readLater: readLaterUnreadCount,
     today: todayUnreadCount,
     starred: starredUnreadCount,
     unread: allUnread,
@@ -227,6 +236,14 @@ export const TimelineScopeItems = memo(() => {
             isActive={smartItemActive(SMART_FEED_UNREAD)}
             title={t("sidebar.smart_feeds.all_unread")}
             unread={counts.unread}
+          />
+          <ScopeItem
+            feedId={SMART_FEED_READ_LATER}
+            icon="i-focal-bookmark"
+            iconClassName="text-blue"
+            isActive={smartItemActive(SMART_FEED_READ_LATER)}
+            title={t("sidebar.smart_feeds.read_later")}
+            unread={counts.readLater}
           />
           <ScopeItem
             feedId={FEED_COLLECTION_LIST}

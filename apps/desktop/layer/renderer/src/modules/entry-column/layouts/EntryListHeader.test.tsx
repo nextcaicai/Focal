@@ -72,6 +72,10 @@ vi.mock("@follow/store/feed/getter", () => ({
   getFeedById: () => {},
 }))
 
+vi.mock("@follow/store/behavior-event/hooks", () => ({
+  useReadLaterEntryList: () => [],
+}))
+
 vi.mock("@follow/store/user/hooks", () => ({
   useIsLoggedIn: () => true,
 }))
@@ -86,6 +90,12 @@ const unreadState = vi.hoisted(() => ({
 
 const headerState = vi.hoisted(() => ({
   title: "Starred",
+}))
+
+const routeState = vi.hoisted(() => ({
+  feedId: "collections",
+  isCollection: true,
+  smartFeed: undefined as "readLater" | undefined,
 }))
 
 vi.mock("@follow/store/collection/hooks", () => ({
@@ -203,15 +213,17 @@ vi.mock("~/hooks/biz/useFollow", () => ({
 
 vi.mock("~/hooks/biz/useRouteParams", () => ({
   getRouteParams: () => ({
-    feedId: "collections",
+    feedId: routeState.feedId,
     view: FeedViewType.All,
-    isCollection: true,
+    isCollection: routeState.isCollection,
+    smartFeed: routeState.smartFeed,
   }),
   useRouteParams: () => ({
-    feedId: "collections",
+    feedId: routeState.feedId,
     entryId: "pending",
     view: FeedViewType.All,
-    isCollection: true,
+    isCollection: routeState.isCollection,
+    smartFeed: routeState.smartFeed,
   }),
 }))
 
@@ -299,6 +311,9 @@ describe("EntryListHeader", () => {
     }
     unreadState.currentScopeUnread = 1
     headerState.title = "Starred"
+    routeState.feedId = "collections"
+    routeState.isCollection = true
+    routeState.smartFeed = undefined
   })
 
   test("shows unread toggle and mark-all actions for the starred collection route", async () => {
@@ -353,5 +368,22 @@ describe("EntryListHeader", () => {
     expect(container.querySelector("[data-testid='header-title']")?.className).toContain("truncate")
     expect(container.querySelector("[role='group']")?.className).toContain("shrink-0")
     expect(container.querySelector("[role='group']")?.className).toContain("whitespace-nowrap")
+  })
+
+  test("hides timeline mode switch for the read-later queue", async () => {
+    headerState.title = "Read Later"
+    routeState.feedId = "smart-read-later"
+    routeState.isCollection = false
+    routeState.smartFeed = "readLater"
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<EntryListHeader />)
+    })
+
+    expect(container.querySelector("[role='group']")).toBeNull()
   })
 })

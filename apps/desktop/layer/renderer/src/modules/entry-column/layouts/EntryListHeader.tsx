@@ -4,6 +4,7 @@ import { EllipsisHorizontalTextWithTooltip } from "@follow/components/ui/typogra
 import { FeedViewType, getView } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { DEFAULT_SUMMARIZE_TIMELINE_SHORTCUT_ID } from "@follow/shared/settings/defaults"
+import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
 import { useEntryStore } from "@follow/store/entry/store"
 import {
@@ -62,7 +63,7 @@ import { AppendTaildingDivider } from "./AppendTaildingDivider"
 import { SwitchToMasonryButton } from "./buttons/SwitchToMasonryButton"
 
 export const EntryListHeader: FC = () => {
-  const { entryId, view } = useRouteParams()
+  const { entryId, smartFeed, view } = useRouteParams()
   const { t } = useTranslation()
   const navigateEntry = useNavigateEntry()
   const librarySearchActive = useLibrarySearchActive()
@@ -202,6 +203,7 @@ export const EntryListHeader: FC = () => {
 
   const renderTimelineModeSwitch = () => {
     if (!LOCAL_RSS_MODE) return null
+    if (smartFeed === "readLater") return null
 
     return (
       <div
@@ -361,6 +363,20 @@ export const EntryListHeader: FC = () => {
   )
 }
 
+const countUnreadEntryIds = (
+  state: ReturnType<typeof useEntryStore.getState>,
+  entryIds: readonly string[],
+) => {
+  let unread = 0
+  for (const entryId of entryIds) {
+    const entry = state.data[entryId]
+    if (entry && !entry.read) {
+      unread += 1
+    }
+  }
+  return unread
+}
+
 const useCurrentTimelineUnreadCount = () => {
   const routeParams = useRouteParams()
   const { feedId, folderName, inboxId, isAllFeeds, isCollection, listId, smartFeed, view } =
@@ -382,20 +398,12 @@ const useCurrentTimelineUnreadCount = () => {
   const collectionEntryIdsByView = useCollectionEntryList(view)
   const collectionEntryIds =
     view === FeedViewType.All ? allCollectionEntryIds : collectionEntryIdsByView
+  const readLaterEntryIds = useReadLaterEntryList()
   const collectionUnread = useEntryStore(
-    useCallback(
-      (state) => {
-        let unread = 0
-        for (const entryId of collectionEntryIds) {
-          const entry = state.data[entryId]
-          if (entry && !entry.read) {
-            unread += 1
-          }
-        }
-        return unread
-      },
-      [collectionEntryIds],
-    ),
+    useCallback((state) => countUnreadEntryIds(state, collectionEntryIds), [collectionEntryIds]),
+  )
+  const readLaterUnread = useEntryStore(
+    useCallback((state) => countUnreadEntryIds(state, readLaterEntryIds), [readLaterEntryIds]),
   )
   const smartFeedDateUnread = useEntryStore(
     useCallback(
@@ -428,6 +436,7 @@ const useCurrentTimelineUnreadCount = () => {
   if (isCollection) return collectionUnread
   if (smartFeed === "unread") return allUnread
   if (smartFeed === "starred") return collectionUnread
+  if (smartFeed === "readLater") return readLaterUnread
   if (smartFeed === "today" || smartFeed === "yesterday") return smartFeedDateUnread
   if (listId) return listUnread
   if (inboxId) return inboxUnread

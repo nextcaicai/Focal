@@ -12,6 +12,7 @@ describe("behavior event recommendation signals", () => {
     expect(isBehaviorEventProfileSignal("read_progress")).toBe(true)
     expect(isBehaviorEventProfileSignal("read_complete")).toBe(true)
     expect(isBehaviorEventProfileSignal("favorite")).toBe(true)
+    expect(isBehaviorEventProfileSignal("read_later")).toBe(true)
     expect(isBehaviorEventProfileSignal("not_interested")).toBe(true)
   })
 })
