@@ -10,7 +10,6 @@ import { EntryQualityScoreBadge } from "./EntryQualityScoreBadge"
 
 const testState = vi.hoisted(() => ({
   librarySearchActive: false,
-  recommended: false,
   routeSmartFeed: undefined as "recommended" | "readLater" | undefined,
   diagnostic: null as RecommendationDiagnostic | null,
 }))
@@ -53,14 +52,6 @@ vi.mock("@follow/store/entry-quality-score/hooks", () => ({
     summary: "A useful entry.",
   }),
 }))
-
-vi.mock("jotai", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("jotai")>()
-  return {
-    ...actual,
-    useAtomValue: () => testState.recommended,
-  }
-})
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>()
@@ -134,7 +125,6 @@ describe("EntryQualityScoreBadge", () => {
     root = null
     container = null
     testState.librarySearchActive = false
-    testState.recommended = false
     testState.routeSmartFeed = undefined
     testState.diagnostic = null
     useEntryRecommendationDiagnosticMock.mockReset()
@@ -156,8 +146,8 @@ describe("EntryQualityScoreBadge", () => {
     expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", false)
   })
 
-  test("shows recommendation reasons and diagnostics in Recommended mode", async () => {
-    testState.recommended = true
+  test("shows recommendation reasons and diagnostics for the dedicated recommended queue", async () => {
+    testState.routeSmartFeed = "recommended"
     useEntryRecommendationDiagnosticMock.mockReturnValue({
       candidate: true,
       entryId: "entry-1",
@@ -200,41 +190,7 @@ describe("EntryQualityScoreBadge", () => {
     expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", true)
   })
 
-  test("shows recommendation details for the dedicated recommended queue", async () => {
-    testState.routeSmartFeed = "recommended"
-    useEntryRecommendationDiagnosticMock.mockReturnValue({
-      candidate: true,
-      entryId: "entry-1",
-      filterReason: null,
-      finalScore: 0.82,
-      included: true,
-      rank: null,
-      reasons: [
-        {
-          code: "quality_score",
-          impact: "positive",
-          label: "Content quality score 82",
-          type: "quality",
-          value: 82,
-        },
-      ],
-      stateScore: 0.06,
-    } satisfies RecommendationDiagnostic)
-
-    container = document.createElement("div")
-    document.body.append(container)
-    root = createRoot(container)
-
-    await act(async () => {
-      root!.render(<EntryQualityScoreBadge entryId="entry-1" />)
-    })
-
-    expect(container.textContent).toContain("Recommendation")
-    expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", true)
-  })
-
   test("does not show recommendation details for the read-later queue", async () => {
-    testState.recommended = true
     testState.routeSmartFeed = "readLater"
     useEntryRecommendationDiagnosticMock.mockReturnValue(null)
 

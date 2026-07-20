@@ -83,8 +83,8 @@ vi.mock("@follow/store/user/hooks", () => ({
 const unreadState = vi.hoisted(() => ({
   collectionEntryIds: ["entry-unread"],
   entries: {
-    "entry-unread": { read: false },
-  } as Record<string, { read: boolean } | undefined>,
+    "entry-unread": { publishedAt: new Date(), read: false },
+  } as Record<string, { publishedAt: Date; read: boolean } | undefined>,
   currentScopeUnread: 1,
 }))
 
@@ -95,7 +95,7 @@ const headerState = vi.hoisted(() => ({
 const routeState = vi.hoisted(() => ({
   feedId: "collections",
   isCollection: true,
-  smartFeed: undefined as "recommended" | "readLater" | undefined,
+  smartFeed: undefined as "recommended" | "readLater" | "today" | "unread" | undefined,
 }))
 
 vi.mock("@follow/store/collection/hooks", () => ({
@@ -140,10 +140,6 @@ vi.mock("jotai", async (importOriginal) => {
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>()
   const labels: Record<string, string> = {
-    "entry_list_header.latest": "Latest",
-    "entry_list_header.latest_timeline": "Latest timeline",
-    "entry_list_header.recommended": "Recommended",
-    "entry_list_header.recommended_timeline": "Recommended timeline",
     "entry_list_header.refetch": "Refetch",
     "entry_list_header.show_unread_only": "Show Unread Only",
     "entry_list_header.unread": "unread",
@@ -317,7 +313,7 @@ describe("EntryListHeader", () => {
     container = null
     unreadState.collectionEntryIds = ["entry-unread"]
     unreadState.entries = {
-      "entry-unread": { read: false },
+      "entry-unread": { publishedAt: new Date(), read: false },
     }
     unreadState.currentScopeUnread = 1
     headerState.title = "Starred"
@@ -344,7 +340,7 @@ describe("EntryListHeader", () => {
   test("disables unread scope actions when the current timeline has no unread entries", async () => {
     unreadState.collectionEntryIds = ["entry-read"]
     unreadState.entries = {
-      "entry-read": { read: true },
+      "entry-read": { publishedAt: new Date(), read: true },
     }
     unreadState.currentScopeUnread = 0
 
@@ -364,7 +360,7 @@ describe("EntryListHeader", () => {
     )
   })
 
-  test("keeps timeline mode switch visible when the feed title is long", async () => {
+  test("keeps list actions visible when the feed title is long", async () => {
     headerState.title = "Zhang Xiaojun | Business observation and a very long feed name"
 
     container = document.createElement("div")
@@ -376,15 +372,41 @@ describe("EntryListHeader", () => {
     })
 
     expect(container.querySelector("[data-testid='header-title']")?.className).toContain("truncate")
-    expect(container.querySelector("[role='group']")?.className).toContain("shrink-0")
-    expect(container.querySelector("[role='group']")?.className).toContain("whitespace-nowrap")
+    expect(container.querySelector("[role='group']")).toBeNull()
+    expect(container.querySelector("[title='Show Unread Only']")).toBeTruthy()
+    expect(container.querySelector("[title='Mark as Read']")).toBeTruthy()
   })
 
-  test("hides timeline mode switch for the read-later queue", async () => {
-    headerState.title = "Read Later"
-    routeState.feedId = "smart-read-later"
-    routeState.isCollection = false
-    routeState.smartFeed = "readLater"
+  test.each([
+    {
+      feedId: "smart-today",
+      isCollection: false,
+      smartFeed: "today" as const,
+      title: "Today",
+    },
+    {
+      feedId: "smart-unread",
+      isCollection: false,
+      smartFeed: "unread" as const,
+      title: "All Unread",
+    },
+    {
+      feedId: "smart-read-later",
+      isCollection: false,
+      smartFeed: "readLater" as const,
+      title: "Read Later",
+    },
+    {
+      feedId: "collections",
+      isCollection: true,
+      smartFeed: undefined,
+      title: "Starred",
+    },
+  ])("does not show the recommendation mode switch for $title", async (route) => {
+    headerState.title = route.title
+    routeState.feedId = route.feedId
+    routeState.isCollection = route.isCollection
+    routeState.smartFeed = route.smartFeed
 
     container = document.createElement("div")
     document.body.append(container)
@@ -403,9 +425,9 @@ describe("EntryListHeader", () => {
     routeState.isCollection = false
     routeState.smartFeed = "recommended"
     unreadState.entries = {
-      "entry-recommended-read": { read: true },
-      "entry-recommended-unread": { read: false },
-      "entry-other-unread": { read: false },
+      "entry-recommended-read": { publishedAt: new Date(), read: true },
+      "entry-recommended-unread": { publishedAt: new Date(), read: false },
+      "entry-other-unread": { publishedAt: new Date(), read: false },
     }
 
     container = document.createElement("div")

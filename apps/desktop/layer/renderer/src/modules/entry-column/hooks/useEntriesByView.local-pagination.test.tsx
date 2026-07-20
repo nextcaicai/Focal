@@ -24,7 +24,6 @@ const testState = vi.hoisted(() => ({
   sourceIds: [] as string[],
   librarySearchActive: false,
   librarySearchEntryIds: [] as string[],
-  recommendedTimelineEnabled: false,
   routeFeedId: "feed-1",
 }))
 
@@ -33,7 +32,6 @@ const sortEntryIdsByRecommendedMock = vi.hoisted(() => vi.fn((entryIds: string[]
 const atoms = vi.hoisted(() => ({
   aiTimeline: Symbol("aiTimeline"),
   myTopics: Symbol("myTopics"),
-  recommendedTimeline: Symbol("recommendedTimeline"),
   selectedStarredGroup: Symbol("selectedStarredGroup"),
   starredGroupAssignments: Symbol("starredGroupAssignments"),
 }))
@@ -156,7 +154,6 @@ vi.mock("jotai", async (importOriginal) => {
       if (atom === atoms.myTopics) return []
       if (atom === atoms.selectedStarredGroup) return null
       if (atom === atoms.starredGroupAssignments) return {}
-      if (atom === atoms.recommendedTimeline) return testState.recommendedTimelineEnabled
       return false
     },
   }
@@ -239,10 +236,6 @@ vi.mock("../atoms/ai-timeline", () => ({
   aiTimelineEnabledAtom: atoms.aiTimeline,
 }))
 
-vi.mock("../atoms/recommended-timeline", () => ({
-  recommendedTimelineEnabledAtom: atoms.recommendedTimeline,
-}))
-
 const createEntry = (index: number): TestEntry => {
   const publishedAt = new Date(Date.UTC(2026, 6, 20, 0, 0, -index))
   return {
@@ -286,7 +279,6 @@ describe("useEntriesByView local pagination", () => {
     entriesResult = undefined
     testState.librarySearchActive = false
     testState.librarySearchEntryIds = []
-    testState.recommendedTimelineEnabled = false
     testState.routeFeedId = "feed-1"
     sortEntryIdsByRecommendedMock.mockReset()
     sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)

@@ -56,7 +56,6 @@ import {
 import { useLibrarySearchEntryIds } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
-import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
 import { getVisibleLocalEntryIds } from "./filter-local-entry-ids"
 import { getKeywordTopicSemanticScoresSnapshot } from "./semantic-topic-scores"
 import { useIsPreviewFeed } from "./useIsPreviewFeed"
@@ -232,12 +231,8 @@ const useLocalEntries = (): UseEntriesReturn => {
   const hidePrivateSubscriptionsInTimeline = useGeneralSettingKey(
     "hidePrivateSubscriptionsInTimeline",
   )
-  const recommendedTimelineEnabled = useAtomValue(recommendedTimelineEnabledAtom)
   const isRecommendedScope = smartFeed === "recommended"
-  const recommendedListEnabled =
-    (recommendedTimelineEnabled || isRecommendedScope) &&
-    !librarySearchActive &&
-    smartFeed !== "readLater"
+  const recommendedListEnabled = isRecommendedScope && !librarySearchActive
 
   const folderIds = useFolderFeedsByFeedId({
     feedId: isVirtualScope ? undefined : feedId,
@@ -416,7 +411,7 @@ const useLocalEntries = (): UseEntriesReturn => {
 
   useEffect(() => {
     setPage(0)
-  }, [view, feedId, recommendedTimelineEnabled, selectedStarredGroupId, librarySearchActive])
+  }, [view, feedId, selectedStarredGroupId, librarySearchActive])
 
   // Inactive search can still produce a new empty result array when RSS entries are added.
   // Reset only for active search updates so background refreshes keep the loaded pages.

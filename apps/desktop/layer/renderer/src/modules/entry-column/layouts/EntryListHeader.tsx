@@ -26,7 +26,7 @@ import { useIsLoggedIn } from "@follow/store/user/hooks"
 import { stopPropagation } from "@follow/utils/dom"
 import { clsx, cn } from "@follow/utils/utils"
 import { useAtom, useAtomValue } from "jotai"
-import type { FC, MouseEvent } from "react"
+import type { FC } from "react"
 import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router"
@@ -57,7 +57,6 @@ import { useFeedHeaderIcon, useFeedHeaderTitle } from "~/store/feed/hooks"
 import { useLibrarySearchResultCount } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
-import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
 import { MarkAllReadButton } from "../components/mark-all-button"
 import { useIsPreviewFeed } from "../hooks/useIsPreviewFeed"
 import { useEntryRootState } from "../store/EntryColumnContext"
@@ -65,7 +64,7 @@ import { AppendTaildingDivider } from "./AppendTaildingDivider"
 import { SwitchToMasonryButton } from "./buttons/SwitchToMasonryButton"
 
 export const EntryListHeader: FC = () => {
-  const { entryId, smartFeed, view } = useRouteParams()
+  const { entryId, view } = useRouteParams()
   const { t } = useTranslation()
   const navigateEntry = useNavigateEntry()
   const librarySearchActive = useLibrarySearchActive()
@@ -78,9 +77,6 @@ export const EntryListHeader: FC = () => {
 
   const unreadOnly = useGeneralSettingKey("unreadOnly")
   const [aiTimelineEnabled, setAiTimelineEnabled] = useAtom(aiTimelineEnabledAtom)
-  const [recommendedTimelineEnabled, setRecommendedTimelineEnabled] = useAtom(
-    recommendedTimelineEnabledAtom,
-  )
   const aiEnabled = useFeature("ai")
 
   const isPreview = useIsPreviewFeed()
@@ -185,68 +181,6 @@ export const EntryListHeader: FC = () => {
     setAiTimelineEnabled((prev) => !prev)
   }, [setAiTimelineEnabled])
 
-  const handleLatestTimelineClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setRecommendedTimelineEnabled(false)
-    },
-    [setRecommendedTimelineEnabled],
-  )
-
-  const handleRecommendedTimelineClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setRecommendedTimelineEnabled(true)
-    },
-    [setRecommendedTimelineEnabled],
-  )
-
-  const renderTimelineModeSwitch = () => {
-    if (!LOCAL_RSS_MODE) return null
-    if (smartFeed === "readLater") return null
-    if (smartFeed === "recommended") return null
-
-    return (
-      <div
-        className="no-drag-region pointer-events-auto flex h-7 shrink-0 items-center whitespace-nowrap rounded-md bg-fill-secondary p-0.5 text-xs font-medium"
-        onClick={stopPropagation}
-        onPointerDown={stopPropagation}
-        role="group"
-      >
-        <button
-          type="button"
-          aria-pressed={!recommendedTimelineEnabled}
-          className={cn(
-            "no-drag-region pointer-events-auto h-6 rounded px-2.5 transition-colors",
-            !recommendedTimelineEnabled
-              ? "bg-fill text-text shadow-sm"
-              : "text-text-secondary hover:text-text",
-          )}
-          title={t("entry_list_header.latest_timeline")}
-          onClick={handleLatestTimelineClick}
-        >
-          {t("entry_list_header.latest")}
-        </button>
-        <button
-          type="button"
-          aria-pressed={recommendedTimelineEnabled}
-          className={cn(
-            "no-drag-region pointer-events-auto h-6 rounded px-2.5 transition-colors",
-            recommendedTimelineEnabled
-              ? "bg-fill text-text shadow-sm"
-              : "text-text-secondary hover:text-text",
-          )}
-          title={t("entry_list_header.recommended_timeline")}
-          onClick={handleRecommendedTimelineClick}
-        >
-          {t("entry_list_header.recommended")}
-        </button>
-      </div>
-    )
-  }
-
   const renderAiTimelineButton = () => {
     if (!showAiTimelineToggle) return null
     return (
@@ -338,8 +272,6 @@ export const EntryListHeader: FC = () => {
               )}
 
             {!isWideMode && aiTimelineEnabled && renderAiTimelineButton()}
-
-            {renderTimelineModeSwitch()}
 
             <AppendTaildingDivider>
               {view === FeedViewType.Pictures && <SwitchToMasonryButton />}

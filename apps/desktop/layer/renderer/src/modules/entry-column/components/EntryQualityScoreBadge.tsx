@@ -12,7 +12,6 @@ import type {
 } from "@follow/shared/entry-rank-score"
 import { useEntryQualityScore } from "@follow/store/entry-quality-score/hooks"
 import { cn } from "@follow/utils/utils"
-import { useAtomValue } from "jotai"
 import type { ReactNode } from "react"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
@@ -21,7 +20,6 @@ import { useLibrarySearchActive } from "~/atoms/library-search"
 import { useGeneralSettingKey } from "~/atoms/settings/general"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
 
-import { recommendedTimelineEnabledAtom } from "../atoms/recommended-timeline"
 import { useEntryRecommendationDiagnostic } from "../hooks/useEntryRecommendationDiagnostic"
 
 const tierClassName: Record<ReturnType<typeof getQualityScoreTier>, string> = {
@@ -215,13 +213,9 @@ const RecommendationDetails = ({ diagnostic }: { diagnostic: RecommendationDiagn
 export const EntryQualityScoreBadge = ({ entryId }: { entryId: string }) => {
   const qualityScoreEnabled = useGeneralSettingKey("qualityScore")
   const record = useEntryQualityScore(entryId)
-  const recommendedTimelineEnabled = useAtomValue(recommendedTimelineEnabledAtom)
   const librarySearchActive = useLibrarySearchActive()
   const smartFeed = useRouteParamsSelector((route) => route.smartFeed)
-  const showRecommendationDetails =
-    (recommendedTimelineEnabled || smartFeed === "recommended") &&
-    !librarySearchActive &&
-    smartFeed !== "readLater"
+  const showRecommendationDetails = smartFeed === "recommended" && !librarySearchActive
   const recommendationDiagnostic = useEntryRecommendationDiagnostic(
     entryId,
     Boolean(qualityScoreEnabled && record && showRecommendationDetails),
