@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import { BEHAVIOR_EVENT_WEIGHTS, isBehaviorEventProfileSignal } from "./behavior-events"
 
 describe("behavior event recommendation signals", () => {
-  it("keeps mark_read as an audit event instead of a profile signal", () => {
+  it("keeps exposure and mark_read as audit events instead of profile signals", () => {
+    expect(BEHAVIOR_EVENT_WEIGHTS.impression).toBe(0)
+    expect(isBehaviorEventProfileSignal("impression")).toBe(false)
     expect(BEHAVIOR_EVENT_WEIGHTS.mark_read).toBe(0)
     expect(isBehaviorEventProfileSignal("mark_read")).toBe(false)
   })

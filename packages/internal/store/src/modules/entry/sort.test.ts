@@ -28,6 +28,33 @@ const qualityRecord = (score: number): EntryQualityScoreRecord => ({
   summary: "Test summary",
 })
 
+const rankRecord = ({
+  clusterId,
+  now,
+  score,
+}: {
+  clusterId?: string
+  now: Date
+  score: number
+}) => {
+  const record = composeRankBase({
+    publishedAt: now,
+    qualityRecord: qualityRecord(score),
+    now,
+  })
+
+  return {
+    ...record,
+    components: {
+      ...record.components,
+      interest_component: clusterId ? 0.2 : 0,
+      matched_positive_cluster_id: clusterId ?? null,
+      matched_positive_cluster_similarity: clusterId ? 0.9 : null,
+      base_score: Math.min(record.components.base_score + (clusterId ? 0.2 : 0), 1),
+    },
+  }
+}
+
 const entry = ({
   id,
   publishedAt,
@@ -191,5 +218,55 @@ describe("sortEntryIdsByRecommended", () => {
         { now },
       ),
     ).toEqual(["feed-a-1", "feed-b-1", "feed-c-1", "feed-a-2", "feed-a-3"])
+  })
+
+  it("spreads top recommended entries across matched interest clusters", () => {
+    const now = new Date("2026-06-08T10:00:00.000Z")
+    const entries = [
+      entry({ id: "interest-a-1", publishedAt: now.toISOString(), feedId: "feed-1" }),
+      entry({ id: "interest-a-2", publishedAt: now.toISOString(), feedId: "feed-2" }),
+      entry({ id: "interest-a-3", publishedAt: now.toISOString(), feedId: "feed-3" }),
+      entry({ id: "interest-b-1", publishedAt: now.toISOString(), feedId: "feed-4" }),
+      entry({ id: "interest-c-1", publishedAt: now.toISOString(), feedId: "feed-5" }),
+    ]
+    const rankInputs: Record<string, { clusterId: string; score: number }> = {
+      "interest-a-1": { clusterId: "cluster-positive", score: 90 },
+      "interest-a-2": { clusterId: "cluster-positive", score: 89 },
+      "interest-a-3": { clusterId: "cluster-positive", score: 88 },
+      "interest-b-1": { clusterId: "cluster-positive-2", score: 87 },
+      "interest-c-1": { clusterId: "cluster-positive-3", score: 86 },
+    }
+
+    useEntryStore.setState({
+      data: Object.fromEntries(entries.map((item) => [item.id, item])),
+      entryIdSet: new Set(entries.map((item) => item.id)),
+    })
+    useEntryQualityScoreStore.setState({
+      data: Object.fromEntries(
+        entries.map((item) => [item.id, qualityRecord(rankInputs[item.id]?.score ?? 80)]),
+      ),
+    })
+    useEntryRankScoreStore.setState({
+      data: Object.fromEntries(
+        entries.map((item) => {
+          const input = rankInputs[item.id]
+          return [
+            item.id,
+            rankRecord({
+              clusterId: input?.clusterId,
+              now,
+              score: input?.score ?? 80,
+            }),
+          ]
+        }),
+      ),
+    })
+
+    expect(
+      sortEntryIdsByRecommended(
+        entries.map((item) => item.id),
+        { now },
+      ),
+    ).toEqual(["interest-a-1", "interest-b-1", "interest-c-1", "interest-a-2", "interest-a-3"])
   })
 })

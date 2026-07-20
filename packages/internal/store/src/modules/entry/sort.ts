@@ -1,7 +1,7 @@
 import type { BehaviorEventType } from "@follow/shared/behavior-events"
 import type { EntryTimelineSortMode } from "@follow/shared/entry-rank-score"
 import {
-  diversifyRecommendedEntryIds,
+  diversifyRecommendedEntryIdsByRules,
   filterRecommendedEntryIds,
   sortEntryIdsByRank,
 } from "@follow/shared/entry-rank-score"
@@ -73,9 +73,22 @@ export function sortEntryIdsByRecommended(entryIds: string[], options?: { now?: 
     getEntryState: context.getEntryState,
   })
 
-  return diversifyRecommendedEntryIds({
+  return diversifyRecommendedEntryIdsByRules({
     entryIds: sortedEntryIds,
-    getDiversityKey: getRecommendedEntryDiversityKey,
+    rules: [
+      {
+        getDiversityKey: (entryId) => {
+          const rank = context.getBaseRank(entryId)
+          const clusterId = rank?.components.matched_positive_cluster_id
+          if (!clusterId || rank.components.interest_component <= 0) return
+
+          return `interest:${clusterId}`
+        },
+      },
+      {
+        getDiversityKey: getRecommendedEntryDiversityKey,
+      },
+    ],
   })
 }
 

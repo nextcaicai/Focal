@@ -56,6 +56,21 @@ const RECOMMENDATION_REASON_KEY_BY_CODE = {
   unscored_expired: "entry.recommendation.reason.unscored_expired",
 } as const
 
+const RECOMMENDATION_FEEDBACK_OUTCOME_KEY_BY_CODE = {
+  impression: "entry.recommendation.feedback.outcome.impression",
+  not_interested: "entry.recommendation.feedback.outcome.not_interested",
+  open: "entry.recommendation.feedback.outcome.open",
+  quick_bounce: "entry.recommendation.feedback.outcome.quick_bounce",
+  read_complete: "entry.recommendation.feedback.outcome.read_complete",
+} as const
+
+const RECOMMENDATION_FEEDBACK_ALIGNMENT_KEY_BY_CODE = {
+  aligned: "entry.recommendation.feedback.alignment.aligned",
+  not_enough_data: "entry.recommendation.feedback.alignment.not_enough_data",
+  overranked: "entry.recommendation.feedback.alignment.overranked",
+  underranked: "entry.recommendation.feedback.alignment.underranked",
+} as const
+
 const qualityScoreHoverCardStyle = {
   backgroundColor: "rgb(var(--color-materialOpaque))",
   boxShadow:
@@ -174,6 +189,12 @@ const RecommendationDetails = ({ diagnostic }: { diagnostic: RecommendationDiagn
     return key ? t(key) : reason.label
   }
 
+  const { feedback } = diagnostic
+  const { latestOutcome } = feedback
+  const latestOutcomeLabel = latestOutcome
+    ? t(RECOMMENDATION_FEEDBACK_OUTCOME_KEY_BY_CODE[latestOutcome])
+    : t("entry.recommendation.feedback.outcome.none")
+
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-2 text-xs leading-snug text-text">
       <SectionTitle>{t("entry.recommendation.title")}</SectionTitle>
@@ -205,6 +226,43 @@ const RecommendationDetails = ({ diagnostic }: { diagnostic: RecommendationDiagn
           finalScore: diagnostic.finalScore === null ? "—" : diagnostic.finalScore.toFixed(3),
           stateScore: formatSignedScore(diagnostic.stateScore),
         })}
+      </div>
+
+      <div className="rounded-md bg-fill-secondary/60 px-2.5 py-2 text-[11px] text-text-secondary">
+        <div className="mb-1 font-medium text-text-secondary">
+          {t("entry.recommendation.feedback.title")}
+        </div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
+          <span>{t("entry.recommendation.feedback.exposure")}</span>
+          <span className="text-right tabular-nums text-text">
+            {feedback.exposureCount > 0
+              ? t("entry.recommendation.feedback.exposure_count", {
+                  count: feedback.exposureCount,
+                })
+              : feedback.exposed
+                ? t("entry.recommendation.feedback.exposed_without_impression")
+                : t("entry.recommendation.feedback.not_exposed")}
+          </span>
+          <span>{t("entry.recommendation.feedback.outcome_label")}</span>
+          <span className="text-right text-text">{latestOutcomeLabel}</span>
+          <span>{t("entry.recommendation.feedback.delta")}</span>
+          <span
+            className={cn(
+              "text-right tabular-nums",
+              feedback.qualityDelta > 0
+                ? "text-green"
+                : feedback.qualityDelta < 0
+                  ? "text-orange"
+                  : "text-text-tertiary",
+            )}
+          >
+            {formatSignedScore(feedback.qualityDelta)}
+          </span>
+          <span>{t("entry.recommendation.feedback.alignment_label")}</span>
+          <span className="text-right text-text">
+            {t(RECOMMENDATION_FEEDBACK_ALIGNMENT_KEY_BY_CODE[feedback.alignment])}
+          </span>
+        </div>
       </div>
     </div>
   )

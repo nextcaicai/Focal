@@ -2,6 +2,7 @@ import { FeedViewType, getView } from "@follow/constants"
 import { useScrollMarkReadGracePeriod, useTitle } from "@follow/hooks"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { getScrollMarkReadRangeState } from "@follow/shared/scroll-mark-read"
+import { behaviorEventSyncService } from "@follow/store/behavior-event/store"
 import { useEntry } from "@follow/store/entry/hooks"
 import { useFeedById } from "@follow/store/feed/hooks"
 import { useSubscriptionByFeedId } from "@follow/store/subscription/hooks"
@@ -99,6 +100,7 @@ function EntryColumnContent() {
     feedId: routeFeedId,
     isPendingEntry,
     isCollection,
+    smartFeed,
   } = useRouteParams()
 
   const entriesIds = rawEntriesIds
@@ -193,6 +195,23 @@ function EntryColumnContent() {
   const { handleRenderMarkRead, handleScrollMarkRead } = useEntryMarkReadHandler(entriesIds, {
     pauseScrollMarkRead,
   })
+  const recordRecommendedImpressions = useCallback(
+    (range: Range) => {
+      if (!LOCAL_RSS_MODE || smartFeed !== "recommended") return
+
+      const endIndex = Math.min(range.endIndex, entriesIds.length - 1)
+      for (let index = range.startIndex; index <= endIndex; index += 1) {
+        const entryId = entriesIds[index]
+        if (!entryId) continue
+
+        void behaviorEventSyncService.recordImpression(entryId, {
+          source: "list",
+          reason: "recommended",
+        })
+      }
+    },
+    [entriesIds, smartFeed],
+  )
 
   const flushScrollMarkRead = useCallback(
     (currentStartIndex: number) => {
@@ -241,6 +260,8 @@ function EntryColumnContent() {
   const renderAsRead = useGeneralSettingKey("renderMarkUnread")
   const handleRangeChange = useCallback(
     (e: Range) => {
+      recordRecommendedImpressions(e)
+
       if (latestRangeStartIndexRef.current === e.startIndex) {
         return
       }
@@ -263,7 +284,14 @@ function EntryColumnContent() {
       // For gird, render as mark read logic
       handleRenderMarkRead?.(e, isInteracted.current)
     },
-    [flushScrollMarkRead, handleRenderMarkRead, isScrollResetPending, renderAsRead, view],
+    [
+      flushScrollMarkRead,
+      handleRenderMarkRead,
+      isScrollResetPending,
+      recordRecommendedImpressions,
+      renderAsRead,
+      view,
+    ],
   )
 
   const fetchNextPage = useCallback(() => {

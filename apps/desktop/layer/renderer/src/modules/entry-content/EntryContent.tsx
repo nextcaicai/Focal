@@ -61,6 +61,8 @@ const contentVariants = {
 }
 const getDefaultTranslationDisplayMode = (): TranslationDisplayMode =>
   getGeneralSettings().translationMode
+const QUICK_BOUNCE_MAX_DURATION_MS = 10_000
+const QUICK_BOUNCE_MAX_PROGRESS = 0.25
 
 const EntryContentImpl: Component<EntryContentProps> = ({
   entryId,
@@ -366,12 +368,36 @@ function useEntryReadingBehaviorEvents(
   enabled: boolean,
 ) {
   const openedAtRef = useRef(Date.now())
+  const maxProgressRef = useRef(0)
+  const readCompletedRef = useRef(false)
 
   useEffect(() => {
     if (!LOCAL_RSS_MODE || !enabled) return
 
     openedAtRef.current = Date.now()
+    maxProgressRef.current = 0
+    readCompletedRef.current = false
     void behaviorEventSyncService.recordOpen(entryId, { source: "reader" })
+  }, [enabled, entryId])
+
+  useEffect(() => {
+    if (!LOCAL_RSS_MODE || !enabled) return
+
+    return () => {
+      const durationMs = Date.now() - openedAtRef.current
+      if (
+        durationMs > QUICK_BOUNCE_MAX_DURATION_MS ||
+        maxProgressRef.current >= QUICK_BOUNCE_MAX_PROGRESS ||
+        readCompletedRef.current
+      ) {
+        return
+      }
+
+      void behaviorEventSyncService.recordQuickBounce(entryId, {
+        source: "reader",
+        durationMs,
+      })
+    }
   }, [enabled, entryId])
 
   useEffect(() => {
@@ -388,6 +414,7 @@ function useEntryReadingBehaviorEvents(
         Math.min(1, (scroller.scrollTop + scroller.clientHeight) / scroller.scrollHeight),
       )
       const durationMs = Date.now() - openedAtRef.current
+      maxProgressRef.current = Math.max(maxProgressRef.current, progress)
 
       void behaviorEventSyncService.recordReadProgress(entryId, progress, {
         source: "reader",
@@ -395,6 +422,7 @@ function useEntryReadingBehaviorEvents(
       })
 
       if (progress >= 0.95) {
+        readCompletedRef.current = true
         void behaviorEventSyncService.recordReadComplete(entryId, {
           source: "reader",
           durationMs,

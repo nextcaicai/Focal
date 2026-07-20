@@ -64,6 +64,24 @@ vi.mock("react-i18next", async (importOriginal) => {
     "entry.quality_score.mvp.positive": "Strengths",
     "entry.quality_score.mvp.title": "Quality score {{score}}",
     "entry.recommendation.diagnostics": "Diagnostics: final {{finalScore}}, state {{stateScore}}",
+    "entry.recommendation.feedback.alignment.aligned": "Aligned",
+    "entry.recommendation.feedback.alignment_label": "Calibration",
+    "entry.recommendation.feedback.alignment.not_enough_data": "Pending",
+    "entry.recommendation.feedback.alignment.overranked": "Over-ranked",
+    "entry.recommendation.feedback.alignment.underranked": "Under-ranked",
+    "entry.recommendation.feedback.delta": "Quality delta",
+    "entry.recommendation.feedback.exposed_without_impression": "Seen",
+    "entry.recommendation.feedback.exposure": "Exposure",
+    "entry.recommendation.feedback.exposure_count": "{{count}}x",
+    "entry.recommendation.feedback.not_exposed": "Not exposed",
+    "entry.recommendation.feedback.outcome.impression": "Exposed",
+    "entry.recommendation.feedback.outcome_label": "Outcome",
+    "entry.recommendation.feedback.outcome.none": "No feedback yet",
+    "entry.recommendation.feedback.outcome.not_interested": "Not interested",
+    "entry.recommendation.feedback.outcome.open": "Opened",
+    "entry.recommendation.feedback.outcome.quick_bounce": "Quick bounce",
+    "entry.recommendation.feedback.outcome.read_complete": "Read complete",
+    "entry.recommendation.feedback.title": "Feedback calibration",
     "entry.recommendation.included": "Included in Recommended",
     "entry.recommendation.reason.quality_score": "Strong content quality",
     "entry.recommendation.reason.state_priority": "Unread or saved state raises priority",
@@ -153,6 +171,17 @@ describe("EntryQualityScoreBadge", () => {
       entryId: "entry-1",
       filterReason: null,
       finalScore: 0.82,
+      feedback: {
+        alignment: "overranked",
+        exposed: true,
+        exposureCount: 2,
+        latestOutcome: "quick_bounce",
+        notInterested: false,
+        opened: true,
+        qualityDelta: -0.5,
+        quickBounced: true,
+        readCompleted: false,
+      },
       included: true,
       rank: null,
       reasons: [
@@ -187,6 +216,11 @@ describe("EntryQualityScoreBadge", () => {
     expect(container.textContent).toContain("Strong content quality")
     expect(container.textContent).toContain("Unread or saved state raises priority")
     expect(container.textContent).toContain("Diagnostics: final 0.820, state +0.060")
+    expect(container.textContent).toContain("Feedback calibration")
+    expect(container.textContent).toContain("2x")
+    expect(container.textContent).toContain("Quick bounce")
+    expect(container.textContent).toContain("-0.500")
+    expect(container.textContent).toContain("Over-ranked")
     expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", true)
   })
 

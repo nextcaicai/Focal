@@ -1,10 +1,10 @@
 import { behaviorEventService } from "@follow/database/services/behavior-event"
 import type { BehaviorEventMetadata, BehaviorEventType } from "@follow/shared/behavior-events"
+import { isBehaviorEventProfileSignal } from "@follow/shared/behavior-events"
 import {
-  getBehaviorEventPolarity,
-  isBehaviorEventProfileSignal,
-} from "@follow/shared/behavior-events"
-import { INTEREST_CLUSTER_IDS, updateInterestCluster } from "@follow/shared/interest-profile"
+  selectInterestClusterForUpdate,
+  updateInterestCluster,
+} from "@follow/shared/interest-profile"
 
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
@@ -137,17 +137,19 @@ class BehaviorEventSyncService {
   }
 
   private async updateInterestProfile(vector: number[], eventType: BehaviorEventType) {
-    const polarity = getBehaviorEventPolarity(eventType)
-    const clusterId =
-      polarity === "positive" ? INTEREST_CLUSTER_IDS.positive : INTEREST_CLUSTER_IDS.negative
-    const existing = interestClusterActions.getCluster(clusterId) ?? null
+    const target = selectInterestClusterForUpdate({
+      clusters: interestClusterActions.getAllClusters(),
+      vector,
+      eventType,
+    })
     const updated = updateInterestCluster({
-      cluster: existing,
+      cluster: target.cluster,
+      id: target.id,
       vector,
       eventType,
     })
 
-    await interestClusterActions.upsertMany([{ id: clusterId, data: updated }])
+    await interestClusterActions.upsertMany([{ id: updated.id, data: updated }])
   }
 
   recordOpen(entryId: string, metadata?: BehaviorEventMetadata) {
@@ -156,6 +158,14 @@ class BehaviorEventSyncService {
     }
 
     return this.record(entryId, "open", metadata)
+  }
+
+  recordImpression(entryId: string, metadata?: BehaviorEventMetadata) {
+    if (!shouldRecordImpressionEvent(useBehaviorEventStore.getState().events, entryId)) {
+      return Promise.resolve()
+    }
+
+    return this.record(entryId, "impression", metadata)
   }
 
   recordMarkRead(entryId: string, metadata?: BehaviorEventMetadata) {
@@ -207,6 +217,10 @@ class BehaviorEventSyncService {
   }
 
   recordQuickBounce(entryId: string, metadata?: BehaviorEventMetadata) {
+    if (hasRecordedBehaviorEvent(entryId, "quick_bounce")) {
+      return Promise.resolve()
+    }
+
     return this.record(entryId, "quick_bounce", metadata)
   }
 
@@ -228,6 +242,7 @@ class BehaviorEventSyncService {
 export const behaviorEventSyncService = new BehaviorEventSyncService()
 
 const READ_PROGRESS_TIERS = [0.25, 0.5, 0.75] as const
+const IMPRESSION_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000
 const OPEN_DEDUPE_WINDOW_MS = 5 * 60 * 1000
 
 type ReadProgressTier = (typeof READ_PROGRESS_TIERS)[number]
@@ -260,7 +275,23 @@ function hasRecordedBehaviorEvent(entryId: string, eventType: BehaviorEventType)
 }
 
 function shouldRecomputeEntryRank(eventType: BehaviorEventType): boolean {
-  return eventType !== "open"
+  return isBehaviorEventProfileSignal(eventType)
+}
+
+export function shouldRecordImpressionEvent(
+  events: readonly BehaviorEvent[],
+  entryId: string,
+  now = new Date(),
+): boolean {
+  return !events.some((event) => {
+    if (event.entryId !== entryId || event.eventType !== "impression") return false
+
+    const createdAt = new Date(event.createdAt).getTime()
+    if (Number.isNaN(createdAt)) return false
+
+    const elapsedMs = now.getTime() - createdAt
+    return elapsedMs >= 0 && elapsedMs < IMPRESSION_DEDUPE_WINDOW_MS
+  })
 }
 
 export function shouldRecordOpenEvent(

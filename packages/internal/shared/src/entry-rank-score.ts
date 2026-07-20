@@ -1,3 +1,4 @@
+import type { BehaviorEventType } from "./behavior-events"
 import type { EntryQualityScoreRecord } from "./entry-quality-score"
 import type { InterestCluster } from "./interest-profile"
 import { computeInterestComponents } from "./interest-profile"
@@ -42,6 +43,10 @@ export interface EntryRankComponents {
   freshness_component: number
   interest_component: number
   negative_interest_penalty: number
+  matched_positive_cluster_id?: string | null
+  matched_positive_cluster_similarity?: number | null
+  matched_negative_cluster_id?: string | null
+  matched_negative_cluster_similarity?: number | null
   base_score: number
 }
 
@@ -269,6 +274,10 @@ export function composeRankBase(input: RankComposerInput): EntryRankRecord {
       freshness_component: freshnessComponent,
       interest_component: 0,
       negative_interest_penalty: 0,
+      matched_positive_cluster_id: null,
+      matched_positive_cluster_similarity: null,
+      matched_negative_cluster_id: null,
+      matched_negative_cluster_similarity: null,
       base_score: baseScore,
     },
     reasons: buildReasons(input.qualityRecord, qualityComponent, freshnessComponent),
@@ -288,10 +297,14 @@ export function composeRankBase(input: RankComposerInput): EntryRankRecord {
 
 export function composeRankWithInterest(input: RankInterestComposerInput): EntryRankRecord {
   const base = composeRankBase(input)
-  const { interest_component, negative_interest_penalty } = computeInterestComponents(
-    input.embedding,
-    input.clusters ?? [],
-  )
+  const {
+    interest_component,
+    negative_interest_penalty,
+    positive_cluster_id,
+    positive_cluster_similarity,
+    negative_cluster_id,
+    negative_cluster_similarity,
+  } = computeInterestComponents(input.embedding, input.clusters ?? [])
 
   const baseScore = clampRankScore(
     base.components.quality_component +
@@ -310,6 +323,10 @@ export function composeRankWithInterest(input: RankInterestComposerInput): Entry
       ...base.components,
       interest_component,
       negative_interest_penalty,
+      matched_positive_cluster_id: positive_cluster_id,
+      matched_positive_cluster_similarity: positive_cluster_similarity,
+      matched_negative_cluster_id: negative_cluster_id,
+      matched_negative_cluster_similarity: negative_cluster_similarity,
       base_score: baseScore,
     },
     reasons: [
@@ -377,41 +394,81 @@ export interface DiversifyRecommendedEntryIdsInput {
   maxPerKey?: number
 }
 
+export interface RecommendedDiversityRule {
+  getDiversityKey: (entryId: string) => string | null | undefined
+  windowSize?: number
+  maxPerKey?: number
+}
+
+export interface DiversifyRecommendedEntryIdsByRulesInput {
+  entryIds: string[]
+  rules: RecommendedDiversityRule[]
+}
+
+export function diversifyRecommendedEntryIdsByRules({
+  entryIds,
+  rules,
+}: DiversifyRecommendedEntryIdsByRulesInput): string[] {
+  const activeRules = rules
+    .map((rule) => ({
+      ...rule,
+      windowSize: rule.windowSize ?? RECOMMENDED_DIVERSITY_WINDOW_SIZE,
+      maxPerKey: rule.maxPerKey ?? RECOMMENDED_DIVERSITY_MAX_PER_KEY,
+    }))
+    .filter((rule) => rule.windowSize > 0 && rule.maxPerKey > 0)
+
+  if (entryIds.length <= 1 || activeRules.length === 0) return [...entryIds]
+
+  const remaining = [...entryIds]
+  const result: string[] = []
+  const resultKeysByRule: Array<Array<string | null | undefined>> = activeRules.map(() => [])
+
+  const canUseRuleKey = (
+    key: string | null | undefined,
+    resultKeys: Array<string | null | undefined>,
+    rule: Required<RecommendedDiversityRule>,
+  ) => {
+    if (!key) return true
+
+    const recentKeys = resultKeys.slice(-rule.windowSize)
+    let count = 0
+    for (const recentKey of recentKeys) {
+      if (recentKey === key) count += 1
+    }
+
+    return count < rule.maxPerKey
+  }
+
+  const canUseEntry = (entryId: string) =>
+    activeRules.every((rule, index) =>
+      canUseRuleKey(rule.getDiversityKey(entryId), resultKeysByRule[index] ?? [], rule),
+    )
+
+  while (remaining.length > 0) {
+    const nextIndex = remaining.findIndex(canUseEntry)
+    const [entryId] = remaining.splice(nextIndex === -1 ? 0 : nextIndex, 1)
+
+    if (!entryId) continue
+
+    result.push(entryId)
+    activeRules.forEach((rule, index) => {
+      resultKeysByRule[index]?.push(rule.getDiversityKey(entryId))
+    })
+  }
+
+  return result
+}
+
 export function diversifyRecommendedEntryIds({
   entryIds,
   getDiversityKey,
   windowSize = RECOMMENDED_DIVERSITY_WINDOW_SIZE,
   maxPerKey = RECOMMENDED_DIVERSITY_MAX_PER_KEY,
 }: DiversifyRecommendedEntryIdsInput): string[] {
-  if (entryIds.length <= 1 || windowSize <= 0 || maxPerKey <= 0) return [...entryIds]
-
-  const remaining = [...entryIds]
-  const result: string[] = []
-  const resultKeys: Array<string | null | undefined> = []
-
-  const canUseKey = (key: string | null | undefined) => {
-    if (!key) return true
-
-    const recentKeys = resultKeys.slice(-windowSize)
-    let count = 0
-    for (const recentKey of recentKeys) {
-      if (recentKey === key) count += 1
-    }
-
-    return count < maxPerKey
-  }
-
-  while (remaining.length > 0) {
-    const nextIndex = remaining.findIndex((entryId) => canUseKey(getDiversityKey(entryId)))
-    const [entryId] = remaining.splice(nextIndex === -1 ? 0 : nextIndex, 1)
-
-    if (!entryId) continue
-
-    result.push(entryId)
-    resultKeys.push(getDiversityKey(entryId))
-  }
-
-  return result
+  return diversifyRecommendedEntryIdsByRules({
+    entryIds,
+    rules: [{ getDiversityKey, windowSize, maxPerKey }],
+  })
 }
 
 export interface RecommendedEntryCandidateInput {
@@ -480,6 +537,38 @@ export function filterRecommendedEntryIds({
 export interface RecommendationDiagnosticInput extends RecommendedEntryCandidateInput {
   entryId: string
   getBaseRank: (entryId: string) => EntryRankRecord | undefined
+  feedbackEvents?: RecommendationFeedbackEvent[]
+}
+
+export type RecommendationFeedbackOutcome =
+  | "impression"
+  | "open"
+  | "quick_bounce"
+  | "not_interested"
+  | "read_complete"
+  | null
+
+export type RecommendationFeedbackAlignment =
+  | "not_enough_data"
+  | "aligned"
+  | "overranked"
+  | "underranked"
+
+export interface RecommendationFeedbackEvent {
+  eventType: BehaviorEventType
+  createdAt: string | Date
+}
+
+export interface RecommendationFeedbackCalibration {
+  exposureCount: number
+  exposed: boolean
+  opened: boolean
+  quickBounced: boolean
+  notInterested: boolean
+  readCompleted: boolean
+  latestOutcome: RecommendationFeedbackOutcome
+  qualityDelta: number
+  alignment: RecommendationFeedbackAlignment
 }
 
 export interface RecommendationDiagnostic {
@@ -491,6 +580,75 @@ export interface RecommendationDiagnostic {
   stateScore: number
   finalScore: number | null
   reasons: EntryRecommendationReason[]
+  feedback: RecommendationFeedbackCalibration
+}
+
+const FEEDBACK_OUTCOME_DELTA: Record<Exclude<RecommendationFeedbackOutcome, null>, number> = {
+  impression: 0,
+  open: 0,
+  quick_bounce: -0.5,
+  not_interested: -1,
+  read_complete: 1,
+}
+
+const FEEDBACK_OUTCOME_EVENT_TYPES = new Set<BehaviorEventType>([
+  "impression",
+  "open",
+  "quick_bounce",
+  "not_interested",
+  "read_complete",
+])
+
+const parseEventTime = (value: string | Date) => {
+  const date = value instanceof Date ? value : new Date(value)
+  const time = date.getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+export function computeRecommendationFeedbackCalibration({
+  events,
+  finalScore,
+}: {
+  events: RecommendationFeedbackEvent[]
+  finalScore: number | null
+}): RecommendationFeedbackCalibration {
+  const feedbackEvents = events
+    .filter((event) => FEEDBACK_OUTCOME_EVENT_TYPES.has(event.eventType))
+    .sort((left, right) => parseEventTime(left.createdAt) - parseEventTime(right.createdAt))
+
+  const exposureCount = feedbackEvents.filter((event) => event.eventType === "impression").length
+  const opened = feedbackEvents.some((event) => event.eventType === "open")
+  const quickBounced = feedbackEvents.some((event) => event.eventType === "quick_bounce")
+  const notInterested = feedbackEvents.some((event) => event.eventType === "not_interested")
+  const readCompleted = feedbackEvents.some((event) => event.eventType === "read_complete")
+  const exposed = exposureCount > 0 || opened || quickBounced || notInterested || readCompleted
+
+  const latestOutcome =
+    (feedbackEvents.at(-1)?.eventType as
+      | Exclude<RecommendationFeedbackOutcome, null>
+      | undefined) ?? null
+  const qualityDelta = latestOutcome ? FEEDBACK_OUTCOME_DELTA[latestOutcome] : 0
+
+  let alignment: RecommendationFeedbackAlignment = "not_enough_data"
+  if (finalScore !== null && latestOutcome) {
+    if (qualityDelta > 0) {
+      alignment = finalScore >= 0.5 ? "aligned" : "underranked"
+    } else if (qualityDelta < 0) {
+      alignment = finalScore >= 0.5 ? "overranked" : "aligned"
+    }
+  }
+
+  return {
+    exposureCount,
+    exposed,
+    opened,
+    quickBounced,
+    notInterested,
+    readCompleted,
+    latestOutcome,
+    qualityDelta,
+    alignment,
+  }
 }
 
 function stateRecommendationReason(stateScore: number): EntryRecommendationReason {
@@ -544,6 +702,7 @@ function legacyRecommendationReasons(record: EntryRankRecord): EntryRecommendati
 export function explainRecommendedEntryCandidate({
   entryId,
   entryIds,
+  feedbackEvents = [],
   getBaseRank,
   ...input
 }: RecommendationDiagnosticInput): RecommendationDiagnostic {
@@ -565,6 +724,10 @@ export function explainRecommendedEntryCandidate({
   const reasons = filterReason
     ? [...baseReasons, filterRecommendationReason(filterReason)]
     : [...baseReasons, stateRecommendationReason(stateScore)]
+  const feedback = computeRecommendationFeedbackCalibration({
+    events: feedbackEvents,
+    finalScore,
+  })
 
   return {
     entryId,
@@ -575,5 +738,6 @@ export function explainRecommendedEntryCandidate({
     stateScore,
     finalScore,
     reasons: reasons.slice(0, 6),
+    feedback,
   }
 }

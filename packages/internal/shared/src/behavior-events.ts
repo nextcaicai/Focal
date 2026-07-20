@@ -1,4 +1,5 @@
 export type BehaviorEventType =
+  | "impression"
   | "open"
   | "mark_read"
   | "read_progress"
@@ -17,6 +18,7 @@ export interface BehaviorEventMetadata {
 }
 
 export const BEHAVIOR_EVENT_TYPES = [
+  "impression",
   "open",
   "mark_read",
   "read_progress",
@@ -29,6 +31,7 @@ export const BEHAVIOR_EVENT_TYPES = [
 ] as const satisfies readonly BehaviorEventType[]
 
 export const BEHAVIOR_EVENT_WEIGHTS: Record<BehaviorEventType, number> = {
+  impression: 0,
   open: 0,
   mark_read: 0,
   read_progress: 1.2,

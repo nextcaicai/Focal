@@ -1,10 +1,12 @@
 import { FeedViewType } from "@follow/constants"
+import { updateInterestCluster } from "@follow/shared/interest-profile"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useEntryStore } from "../entry/store"
 import type { EntryModel } from "../entry/types"
 import { useEntryEmbeddingStore } from "../entry-embedding/store"
 import { useEntryQualityScoreStore } from "../entry-quality-score/store"
+import { useInterestClusterStore } from "../interest-cluster/store"
 import { entryRankScoreSyncService, useEntryRankScoreStore } from "./store"
 
 const { upsertScoreMock } = vi.hoisted(() => ({
@@ -70,6 +72,7 @@ describe("entryRankScoreSyncService", () => {
     })
     useEntryQualityScoreStore.setState({ data: {} })
     useEntryEmbeddingStore.setState({ data: {}, hydrated: true })
+    useInterestClusterStore.setState({ data: {} })
     useEntryRankScoreStore.setState({ data: {} })
   })
 
@@ -90,5 +93,39 @@ describe("entryRankScoreSyncService", () => {
     expect(Object.keys(useEntryRankScoreStore.getState().data)).toEqual(["entry-1", "entry-2"])
     expect(updateCount).toBe(1)
     expect(upsertScoreMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("stores the matched positive interest cluster on recomputed rank records", async () => {
+    const cluster = updateInterestCluster({
+      cluster: null,
+      id: "cluster-positive-2",
+      vector: [1, 0],
+      eventType: "favorite",
+    })
+
+    useInterestClusterStore.setState({
+      data: {
+        [cluster.id]: cluster,
+      },
+    })
+    useEntryEmbeddingStore.setState({
+      data: {
+        "entry-1": {
+          preset: "custom",
+          provider: "test",
+          model: "test",
+          dimension: 2,
+          vector: [1, 0],
+          embedded_at: "2026-01-01T00:00:00.000Z",
+        },
+      },
+      hydrated: true,
+    })
+
+    await entryRankScoreSyncService.recomputeForEntry("entry-1", { force: true })
+
+    expect(
+      useEntryRankScoreStore.getState().data["entry-1"]?.components.matched_positive_cluster_id,
+    ).toBe("cluster-positive-2")
   })
 })

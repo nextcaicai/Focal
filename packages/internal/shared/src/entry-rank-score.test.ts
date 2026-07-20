@@ -4,7 +4,9 @@ import type { EntryQualityScoreRecord } from "./entry-quality-score"
 import {
   composeRankBase,
   composeRankWithInterest,
+  computeRecommendationFeedbackCalibration,
   diversifyRecommendedEntryIds,
+  diversifyRecommendedEntryIdsByRules,
   explainRecommendedEntryCandidate,
   filterRecommendedEntryIds,
   getEntryFinalRankScore,
@@ -84,6 +86,7 @@ describe("composeRankWithInterest", () => {
 
     expect(record.context).toBe("interest")
     expect(record.components.interest_component).toBeGreaterThan(0)
+    expect(record.components.matched_positive_cluster_id).toBe(cluster.id)
     expect(record.components.base_score).toBeGreaterThan(record.components.quality_component)
     expect(
       record.explanation?.recommendation_reasons.some((reason) => reason.code === "interest_match"),
@@ -189,6 +192,113 @@ describe("diversifyRecommendedEntryIds", () => {
     })
 
     expect(diversified).toEqual(["a1", "unknown-1", "unknown-2", "a2", "b1"])
+  })
+
+  it("can apply interest and source coverage rules in one pass", () => {
+    const interestKeys = new Map([
+      ["interest-a-source-a-1", "interest:a"],
+      ["interest-a-source-b-1", "interest:a"],
+      ["interest-b-source-a-1", "interest:b"],
+      ["interest-c-source-c-1", "interest:c"],
+    ])
+    const sourceKeys = new Map([
+      ["interest-a-source-a-1", "feed:a"],
+      ["interest-a-source-b-1", "feed:b"],
+      ["interest-b-source-a-1", "feed:a"],
+      ["interest-c-source-c-1", "feed:c"],
+    ])
+
+    const diversified = diversifyRecommendedEntryIdsByRules({
+      entryIds: [
+        "interest-a-source-a-1",
+        "interest-a-source-b-1",
+        "interest-b-source-a-1",
+        "interest-c-source-c-1",
+      ],
+      rules: [
+        {
+          getDiversityKey: (entryId) => interestKeys.get(entryId),
+          windowSize: 3,
+          maxPerKey: 1,
+        },
+        {
+          getDiversityKey: (entryId) => sourceKeys.get(entryId),
+          windowSize: 3,
+          maxPerKey: 1,
+        },
+      ],
+    })
+
+    expect(diversified).toEqual([
+      "interest-a-source-a-1",
+      "interest-c-source-c-1",
+      "interest-a-source-b-1",
+      "interest-b-source-a-1",
+    ])
+  })
+})
+
+describe("computeRecommendationFeedbackCalibration", () => {
+  it("treats recommendation impressions as exposure without positive feedback", () => {
+    const calibration = computeRecommendationFeedbackCalibration({
+      events: [
+        {
+          eventType: "impression",
+          createdAt: "2026-06-08T10:00:00.000Z",
+        },
+      ],
+      finalScore: 0.8,
+    })
+
+    expect(calibration).toMatchObject({
+      alignment: "not_enough_data",
+      exposed: true,
+      exposureCount: 1,
+      latestOutcome: "impression",
+      qualityDelta: 0,
+    })
+  })
+
+  it("flags high-scoring negative outcomes as overranked", () => {
+    const calibration = computeRecommendationFeedbackCalibration({
+      events: [
+        {
+          eventType: "impression",
+          createdAt: "2026-06-08T10:00:00.000Z",
+        },
+        {
+          eventType: "quick_bounce",
+          createdAt: "2026-06-08T10:01:00.000Z",
+        },
+      ],
+      finalScore: 0.82,
+    })
+
+    expect(calibration).toMatchObject({
+      alignment: "overranked",
+      latestOutcome: "quick_bounce",
+      qualityDelta: -0.5,
+      quickBounced: true,
+    })
+  })
+
+  it("flags low-scoring read completion as under-ranked", () => {
+    const calibration = computeRecommendationFeedbackCalibration({
+      events: [
+        {
+          eventType: "read_complete",
+          createdAt: "2026-06-08T10:05:00.000Z",
+        },
+      ],
+      finalScore: 0.42,
+    })
+
+    expect(calibration).toMatchObject({
+      alignment: "underranked",
+      latestOutcome: "read_complete",
+      qualityDelta: 1,
+      readCompleted: true,
+    })
   })
 })
 

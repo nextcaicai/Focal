@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   computeInterestComponents,
   cosineSimilarity,
+  createInterestClusterId,
   INTEREST_CLUSTER_IDS,
+  selectInterestClusterForUpdate,
   updateInterestCluster,
 } from "./interest-profile"
 
@@ -50,6 +52,60 @@ describe("updateInterestCluster", () => {
   })
 })
 
+describe("selectInterestClusterForUpdate", () => {
+  it("reuses a nearby cluster for the same polarity", () => {
+    const cluster = updateInterestCluster({
+      cluster: null,
+      vector: [1, 0],
+      eventType: "favorite",
+    })
+
+    const target = selectInterestClusterForUpdate({
+      clusters: [cluster],
+      vector: [0.98, 0.02],
+      eventType: "read_complete",
+    })
+
+    expect(target.cluster?.id).toBe(INTEREST_CLUSTER_IDS.positive)
+    expect(target.id).toBe(INTEREST_CLUSTER_IDS.positive)
+  })
+
+  it("creates a new cluster id when the signal is a different interest direction", () => {
+    const cluster = updateInterestCluster({
+      cluster: null,
+      vector: [1, 0],
+      eventType: "favorite",
+    })
+
+    const target = selectInterestClusterForUpdate({
+      clusters: [cluster],
+      vector: [0, 1],
+      eventType: "read_complete",
+    })
+
+    expect(target.cluster).toBeNull()
+    expect(target.id).toBe("cluster-positive-2")
+  })
+
+  it("keeps legacy cluster ids as the first slot when creating follow-up ids", () => {
+    expect(
+      createInterestClusterId("positive", [
+        updateInterestCluster({
+          cluster: null,
+          vector: [1, 0],
+          eventType: "favorite",
+        }),
+        updateInterestCluster({
+          cluster: null,
+          id: "cluster-positive-2",
+          vector: [0, 1],
+          eventType: "read_complete",
+        }),
+      ]),
+    ).toBe("cluster-positive-3")
+  })
+})
+
 describe("computeInterestComponents", () => {
   it("boosts rank when embedding matches positive cluster", () => {
     const cluster = updateInterestCluster({
@@ -61,6 +117,7 @@ describe("computeInterestComponents", () => {
     const result = computeInterestComponents([1, 0, 0], [cluster])
     expect(result.interest_component).toBeGreaterThan(0)
     expect(result.negative_interest_penalty).toBe(0)
+    expect(result.positive_cluster_id).toBe(INTEREST_CLUSTER_IDS.positive)
   })
 
   it("applies penalty when embedding matches negative cluster", () => {
@@ -72,5 +129,6 @@ describe("computeInterestComponents", () => {
 
     const result = computeInterestComponents([1, 0, 0], [cluster])
     expect(result.negative_interest_penalty).toBeGreaterThan(0)
+    expect(result.negative_cluster_id).toBe(INTEREST_CLUSTER_IDS.negative)
   })
 })

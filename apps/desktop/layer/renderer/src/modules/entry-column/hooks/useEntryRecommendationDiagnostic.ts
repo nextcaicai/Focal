@@ -72,6 +72,7 @@ export const useEntryRecommendationDiagnostic = (
         read: Boolean(entry.read),
         starred: Boolean(starred),
       }),
+      feedbackEvents: behaviorEvents,
       getReadCompletedAt: () => getLatestEventDate(behaviorEvents, "read_complete"),
       getStarredAt: () => parseDate(starredAt),
       getNotInterestedAt: () => getLatestEventDate(behaviorEvents, "not_interested"),
