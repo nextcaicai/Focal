@@ -4,6 +4,7 @@ import type { EntryQualityScoreRecord } from "./entry-quality-score"
 import {
   composeRankBase,
   composeRankWithInterest,
+  diversifyRecommendedEntryIds,
   explainRecommendedEntryCandidate,
   filterRecommendedEntryIds,
   getEntryFinalRankScore,
@@ -149,6 +150,45 @@ describe("sortEntryIdsByRank", () => {
     ).toBeLessThan(
       getEntryFinalRankScore(record, getEntryStateScore({ read: false, starred: false })),
     )
+  })
+})
+
+describe("diversifyRecommendedEntryIds", () => {
+  it("spreads repeated diversity keys while preserving the ranked input as much as possible", () => {
+    const diversityKeys = new Map([
+      ["a1", "feed:a"],
+      ["a2", "feed:a"],
+      ["a3", "feed:a"],
+      ["b1", "feed:b"],
+      ["c1", "feed:c"],
+      ["a4", "feed:a"],
+    ])
+
+    const diversified = diversifyRecommendedEntryIds({
+      entryIds: ["a1", "a2", "a3", "b1", "c1", "a4"],
+      getDiversityKey: (entryId) => diversityKeys.get(entryId),
+      windowSize: 3,
+      maxPerKey: 1,
+    })
+
+    expect(diversified).toEqual(["a1", "b1", "c1", "a2", "a3", "a4"])
+  })
+
+  it("allows entries without diversity keys to fill diversity gaps", () => {
+    const diversityKeys = new Map([
+      ["a1", "feed:a"],
+      ["a2", "feed:a"],
+      ["b1", "feed:b"],
+    ])
+
+    const diversified = diversifyRecommendedEntryIds({
+      entryIds: ["a1", "unknown-1", "a2", "unknown-2", "b1"],
+      getDiversityKey: (entryId) => diversityKeys.get(entryId),
+      windowSize: 2,
+      maxPerKey: 1,
+    })
+
+    expect(diversified).toEqual(["a1", "unknown-1", "unknown-2", "a2", "b1"])
   })
 })
 

@@ -89,6 +89,8 @@ export const RANK_STATE_READ = -0.08
 
 export const RECOMMENDED_MIN_QUALITY_SCORE = 50
 export const RECOMMENDED_UNSCORED_GRACE_HOURS = 24
+export const RECOMMENDED_DIVERSITY_WINDOW_SIZE = 3
+export const RECOMMENDED_DIVERSITY_MAX_PER_KEY = 1
 
 const MS_PER_HOUR = 60 * 60 * 1000
 
@@ -366,6 +368,50 @@ export function sortEntryIdsByRank({
 
     return leftId.localeCompare(rightId)
   })
+}
+
+export interface DiversifyRecommendedEntryIdsInput {
+  entryIds: string[]
+  getDiversityKey: (entryId: string) => string | null | undefined
+  windowSize?: number
+  maxPerKey?: number
+}
+
+export function diversifyRecommendedEntryIds({
+  entryIds,
+  getDiversityKey,
+  windowSize = RECOMMENDED_DIVERSITY_WINDOW_SIZE,
+  maxPerKey = RECOMMENDED_DIVERSITY_MAX_PER_KEY,
+}: DiversifyRecommendedEntryIdsInput): string[] {
+  if (entryIds.length <= 1 || windowSize <= 0 || maxPerKey <= 0) return [...entryIds]
+
+  const remaining = [...entryIds]
+  const result: string[] = []
+  const resultKeys: Array<string | null | undefined> = []
+
+  const canUseKey = (key: string | null | undefined) => {
+    if (!key) return true
+
+    const recentKeys = resultKeys.slice(-windowSize)
+    let count = 0
+    for (const recentKey of recentKeys) {
+      if (recentKey === key) count += 1
+    }
+
+    return count < maxPerKey
+  }
+
+  while (remaining.length > 0) {
+    const nextIndex = remaining.findIndex((entryId) => canUseKey(getDiversityKey(entryId)))
+    const [entryId] = remaining.splice(nextIndex === -1 ? 0 : nextIndex, 1)
+
+    if (!entryId) continue
+
+    result.push(entryId)
+    resultKeys.push(getDiversityKey(entryId))
+  }
+
+  return result
 }
 
 export interface RecommendedEntryCandidateInput {

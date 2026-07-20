@@ -1,5 +1,6 @@
 import { FeedViewType } from "@follow/constants"
 import type { EntryQualityScoreRecord } from "@follow/shared/entry-quality-score"
+import { composeRankBase } from "@follow/shared/entry-rank-score"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { useBehaviorEventStore } from "../behavior-event/store"
@@ -30,10 +31,12 @@ const qualityRecord = (score: number): EntryQualityScoreRecord => ({
 const entry = ({
   id,
   publishedAt,
+  feedId = "feed-1",
   read = false,
 }: {
   id: string
   publishedAt: string
+  feedId?: string
   read?: boolean
 }): EntryModel => ({
   id,
@@ -53,7 +56,7 @@ const entry = ({
   attachments: null,
   extra: null,
   language: null,
-  feedId: "feed-1",
+  feedId,
   inboxHandle: null,
   read,
   sources: null,
@@ -141,5 +144,52 @@ describe("sortEntryIdsByRecommended", () => {
         { now },
       ),
     ).toEqual(["high"])
+  })
+
+  it("spreads top recommended entries across feeds after rank sorting", () => {
+    const now = new Date("2026-06-08T10:00:00.000Z")
+    const entries = [
+      entry({ id: "feed-a-1", publishedAt: now.toISOString(), feedId: "feed-a" }),
+      entry({ id: "feed-a-2", publishedAt: now.toISOString(), feedId: "feed-a" }),
+      entry({ id: "feed-a-3", publishedAt: now.toISOString(), feedId: "feed-a" }),
+      entry({ id: "feed-b-1", publishedAt: now.toISOString(), feedId: "feed-b" }),
+      entry({ id: "feed-c-1", publishedAt: now.toISOString(), feedId: "feed-c" }),
+    ]
+    const rankScores: Record<string, number> = {
+      "feed-a-1": 90,
+      "feed-a-2": 89,
+      "feed-a-3": 88,
+      "feed-b-1": 87,
+      "feed-c-1": 86,
+    }
+
+    useEntryStore.setState({
+      data: Object.fromEntries(entries.map((item) => [item.id, item])),
+      entryIdSet: new Set(entries.map((item) => item.id)),
+    })
+    useEntryQualityScoreStore.setState({
+      data: Object.fromEntries(
+        entries.map((item) => [item.id, qualityRecord(rankScores[item.id] ?? 80)]),
+      ),
+    })
+    useEntryRankScoreStore.setState({
+      data: Object.fromEntries(
+        entries.map((item) => [
+          item.id,
+          composeRankBase({
+            publishedAt: item.publishedAt,
+            qualityRecord: qualityRecord(rankScores[item.id] ?? 80),
+            now,
+          }),
+        ]),
+      ),
+    })
+
+    expect(
+      sortEntryIdsByRecommended(
+        entries.map((item) => item.id),
+        { now },
+      ),
+    ).toEqual(["feed-a-1", "feed-b-1", "feed-c-1", "feed-a-2", "feed-a-3"])
   })
 })

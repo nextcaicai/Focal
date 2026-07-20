@@ -1,6 +1,10 @@
 import type { BehaviorEventType } from "@follow/shared/behavior-events"
 import type { EntryTimelineSortMode } from "@follow/shared/entry-rank-score"
-import { filterRecommendedEntryIds, sortEntryIdsByRank } from "@follow/shared/entry-rank-score"
+import {
+  diversifyRecommendedEntryIds,
+  filterRecommendedEntryIds,
+  sortEntryIdsByRank,
+} from "@follow/shared/entry-rank-score"
 
 import { useBehaviorEventStore } from "../behavior-event/store"
 import { getEntryCollections } from "../collection/getter"
@@ -39,6 +43,15 @@ export function sortEntryIdsByPublishDate(a: string, b: string) {
   return entryB.publishedAt.getTime() - entryA.publishedAt.getTime()
 }
 
+const getRecommendedEntryDiversityKey = (entryId: string) => {
+  const entry = getEntryFromStore(entryId)
+  if (!entry) return
+
+  if (entry.feedId) return `feed:${entry.feedId}`
+  if (entry.inboxHandle) return `inbox:${entry.inboxHandle}`
+  if (entry.authorUrl) return `author:${entry.authorUrl}`
+}
+
 export function sortEntryIdsByRecommended(entryIds: string[], options?: { now?: Date }) {
   const context = getEntryRankSortContext()
   const recommendedEntryIds = filterRecommendedEntryIds({
@@ -53,11 +66,16 @@ export function sortEntryIdsByRecommended(entryIds: string[], options?: { now?: 
     getNotInterestedAt: (entryId) => getLatestBehaviorEventAt(entryId, "not_interested"),
   })
 
-  return sortEntryIdsByRank({
+  const sortedEntryIds = sortEntryIdsByRank({
     entryIds: recommendedEntryIds,
     getBaseRank: context.getBaseRank,
     getPublishedAt: context.getPublishedAt,
     getEntryState: context.getEntryState,
+  })
+
+  return diversifyRecommendedEntryIds({
+    entryIds: sortedEntryIds,
+    getDiversityKey: getRecommendedEntryDiversityKey,
   })
 }
 
