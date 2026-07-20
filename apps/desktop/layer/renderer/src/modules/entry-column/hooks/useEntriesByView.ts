@@ -453,14 +453,14 @@ const useLocalEntries = (): UseEntriesReturn => {
 
   useEffect(() => {
     setPage(0)
-  }, [
-    view,
-    feedId,
-    recommendedTimelineEnabled,
-    selectedStarredGroupId,
-    librarySearchActive,
-    librarySearchEntryIds,
-  ])
+  }, [view, feedId, recommendedTimelineEnabled, selectedStarredGroupId, librarySearchActive])
+
+  // Inactive search can still produce a new empty result array when RSS entries are added.
+  // Reset only for active search updates so background refreshes keep the loaded pages.
+  useEffect(() => {
+    if (!librarySearchActive) return
+    setPage(0)
+  }, [librarySearchActive, librarySearchEntryIds])
 
   return {
     entriesIds: entries,
