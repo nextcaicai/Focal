@@ -572,6 +572,7 @@
   "sidebar.select_sort_method": "选择排序方法",
   "sidebar.smart_feeds.all_unread": "全部未读",
   "sidebar.smart_feeds.read_later": "稍后读",
+  "sidebar.smart_feeds.recommended": "推荐",
   "sidebar.smart_feeds.title": "智能订阅",
   "sidebar.timeline_tabs.customize": "自定义视图标签...",
   "sidebar.timeline_tabs.drag_tab": "拖动时间线标签",

@@ -572,6 +572,7 @@
   "sidebar.select_sort_method": "Select a sort method",
   "sidebar.smart_feeds.all_unread": "All Unread",
   "sidebar.smart_feeds.read_later": "Read Later",
+  "sidebar.smart_feeds.recommended": "Recommended",
   "sidebar.smart_feeds.title": "Smart Feeds",
   "sidebar.timeline_tabs.customize": "Customize View Tabs...",
   "sidebar.timeline_tabs.drag_tab": "Drag timeline tab",

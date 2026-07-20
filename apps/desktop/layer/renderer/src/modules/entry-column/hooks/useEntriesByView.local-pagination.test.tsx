@@ -6,6 +6,8 @@ import type { Root } from "react-dom/client"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest"
 
+import { SMART_FEED_RECOMMENDED } from "~/lib/timeline-scope"
+
 import { useEntriesByView } from "./useEntriesByView"
 
 type TestEntry = {
@@ -22,7 +24,11 @@ const testState = vi.hoisted(() => ({
   sourceIds: [] as string[],
   librarySearchActive: false,
   librarySearchEntryIds: [] as string[],
+  recommendedTimelineEnabled: false,
+  routeFeedId: "feed-1",
 }))
+
+const sortEntryIdsByRecommendedMock = vi.hoisted(() => vi.fn((entryIds: string[]) => entryIds))
 
 const atoms = vi.hoisted(() => ({
   aiTimeline: Symbol("aiTimeline"),
@@ -42,6 +48,10 @@ vi.mock("@follow/shared/constants", async (importOriginal) => {
 
 vi.mock("@follow/store/behavior-event/hooks", () => ({
   useReadLaterEntryList: () => [],
+}))
+
+vi.mock("@follow/store/behavior-event/store", () => ({
+  useBehaviorEventStore: (selector: (state: { events: [] }) => unknown) => selector({ events: [] }),
 }))
 
 vi.mock("@follow/store/collection/hooks", () => ({
@@ -68,7 +78,11 @@ vi.mock("@follow/store/entry/hooks", () => ({
   useEntryIdsByFeedIds: () => [],
   useEntryIdsByInboxId: () => [],
   useEntryIdsByListId: () => [],
-  useEntryIdsByView: () => [],
+  useEntryIdsByView: () => testState.sourceIds,
+}))
+
+vi.mock("@follow/store/entry/sort", () => ({
+  sortEntryIdsByRecommended: (entryIds: string[]) => sortEntryIdsByRecommendedMock(entryIds),
 }))
 
 vi.mock("@follow/store/entry/store", () => {
@@ -106,6 +120,11 @@ vi.mock("@follow/store/entry-rank-score/store", () => ({
     selector({ data: {} }),
 }))
 
+vi.mock("@follow/store/entry-quality-score/store", () => ({
+  useEntryQualityScoreStore: (selector: (state: { data: Record<string, never> }) => unknown) =>
+    selector({ data: {} }),
+}))
+
 vi.mock("@follow/store/entry-tags/store", () => ({
   useEntryAiTagsStore: (selector: (state: { data: Record<string, never> }) => unknown) =>
     selector({ data: {} }),
@@ -137,6 +156,7 @@ vi.mock("jotai", async (importOriginal) => {
       if (atom === atoms.myTopics) return []
       if (atom === atoms.selectedStarredGroup) return null
       if (atom === atoms.starredGroupAssignments) return {}
+      if (atom === atoms.recommendedTimeline) return testState.recommendedTimelineEnabled
       return false
     },
   }
@@ -165,7 +185,7 @@ vi.mock("~/hooks/biz/useQueryEmbeddingVector", () => ({
 
 vi.mock("~/hooks/biz/useRouteParams", () => ({
   useRouteParams: () => ({
-    feedId: "feed-1",
+    feedId: testState.routeFeedId,
     inboxId: undefined,
     isCollection: false,
     listId: undefined,
@@ -181,7 +201,7 @@ vi.mock("~/hooks/biz/useRouteParams", () => ({
     }) => unknown,
   ) =>
     selector({
-      feedId: "feed-1",
+      feedId: testState.routeFeedId,
       inboxId: undefined,
       isCollection: false,
       listId: undefined,
@@ -266,6 +286,10 @@ describe("useEntriesByView local pagination", () => {
     entriesResult = undefined
     testState.librarySearchActive = false
     testState.librarySearchEntryIds = []
+    testState.recommendedTimelineEnabled = false
+    testState.routeFeedId = "feed-1"
+    sortEntryIdsByRecommendedMock.mockReset()
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
     vi.restoreAllMocks()
   })
 
@@ -331,5 +355,29 @@ describe("useEntriesByView local pagination", () => {
     })
 
     expect(entriesResult?.entriesIds).toHaveLength(30)
+  })
+
+  test("uses recommended sorting for the dedicated Recommended smart feed", async () => {
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+      entryIds.slice().reverse().slice(0, 2),
+    )
+
+    const Consumer = () => {
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<Consumer />)
+    })
+
+    expect(sortEntryIdsByRecommendedMock).toHaveBeenCalledWith(["entry-0", "entry-1", "entry-2"])
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1"])
   })
 })

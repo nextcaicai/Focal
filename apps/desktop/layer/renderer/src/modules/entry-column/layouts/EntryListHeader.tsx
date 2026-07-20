@@ -6,6 +6,7 @@ import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { DEFAULT_SUMMARIZE_TIMELINE_SHORTCUT_ID } from "@follow/shared/settings/defaults"
 import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
+import { useEntryIdsByView } from "@follow/store/entry/hooks"
 import { useEntryStore } from "@follow/store/entry/store"
 import {
   useEmbeddingCoverageStats,
@@ -43,6 +44,7 @@ import { ROUTE_ENTRY_PENDING } from "~/constants"
 import { useFeature } from "~/hooks/biz/useFeature"
 import { useFollow } from "~/hooks/biz/useFollow"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
+import { useRecommendedEntryIds } from "~/hooks/biz/useRecommendedEntryIds"
 import { getRouteParams, useRouteParams } from "~/hooks/biz/useRouteParams"
 import { useLoginModal } from "~/hooks/common"
 import { useSendAIShortcut } from "~/modules/ai-chat/hooks/useSendAIShortcut"
@@ -204,6 +206,7 @@ export const EntryListHeader: FC = () => {
   const renderTimelineModeSwitch = () => {
     if (!LOCAL_RSS_MODE) return null
     if (smartFeed === "readLater") return null
+    if (smartFeed === "recommended") return null
 
     return (
       <div
@@ -377,6 +380,21 @@ const countUnreadEntryIds = (
   return unread
 }
 
+const useRecommendedUnreadCount = (enabled: boolean) => {
+  const hidePrivateSubscriptionsInTimeline = useGeneralSettingKey(
+    "hidePrivateSubscriptionsInTimeline",
+  )
+  const allEntryIds = useEntryIdsByView(FeedViewType.All, hidePrivateSubscriptionsInTimeline) ?? []
+  const recommendedEntryIds = useRecommendedEntryIds(allEntryIds, enabled)
+
+  return useEntryStore(
+    useCallback(
+      (state) => (enabled ? countUnreadEntryIds(state, recommendedEntryIds) : 0),
+      [enabled, recommendedEntryIds],
+    ),
+  )
+}
+
 const useCurrentTimelineUnreadCount = () => {
   const routeParams = useRouteParams()
   const { feedId, folderName, inboxId, isAllFeeds, isCollection, listId, smartFeed, view } =
@@ -405,6 +423,7 @@ const useCurrentTimelineUnreadCount = () => {
   const readLaterUnread = useEntryStore(
     useCallback((state) => countUnreadEntryIds(state, readLaterEntryIds), [readLaterEntryIds]),
   )
+  const recommendedUnread = useRecommendedUnreadCount(smartFeed === "recommended")
   const smartFeedDateUnread = useEntryStore(
     useCallback(
       (state) => {
@@ -435,6 +454,7 @@ const useCurrentTimelineUnreadCount = () => {
 
   if (isCollection) return collectionUnread
   if (smartFeed === "unread") return allUnread
+  if (smartFeed === "recommended") return recommendedUnread
   if (smartFeed === "starred") return collectionUnread
   if (smartFeed === "readLater") return readLaterUnread
   if (smartFeed === "today" || smartFeed === "yesterday") return smartFeedDateUnread

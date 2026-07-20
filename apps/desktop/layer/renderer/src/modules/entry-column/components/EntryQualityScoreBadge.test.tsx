@@ -11,7 +11,7 @@ import { EntryQualityScoreBadge } from "./EntryQualityScoreBadge"
 const testState = vi.hoisted(() => ({
   librarySearchActive: false,
   recommended: false,
-  routeSmartFeed: undefined as "readLater" | undefined,
+  routeSmartFeed: undefined as "recommended" | "readLater" | undefined,
   diagnostic: null as RecommendationDiagnostic | null,
 }))
 
@@ -102,8 +102,9 @@ vi.mock("~/atoms/settings/general", () => ({
 }))
 
 vi.mock("~/hooks/biz/useRouteParams", () => ({
-  useRouteParamsSelector: (selector: (route: { smartFeed?: "readLater" }) => unknown) =>
-    selector({ smartFeed: testState.routeSmartFeed }),
+  useRouteParamsSelector: (
+    selector: (route: { smartFeed?: "recommended" | "readLater" }) => unknown,
+  ) => selector({ smartFeed: testState.routeSmartFeed }),
 }))
 
 vi.mock("../hooks/useEntryRecommendationDiagnostic", () => ({
@@ -196,6 +197,39 @@ describe("EntryQualityScoreBadge", () => {
     expect(container.textContent).toContain("Strong content quality")
     expect(container.textContent).toContain("Unread or saved state raises priority")
     expect(container.textContent).toContain("Diagnostics: final 0.820, state +0.060")
+    expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", true)
+  })
+
+  test("shows recommendation details for the dedicated recommended queue", async () => {
+    testState.routeSmartFeed = "recommended"
+    useEntryRecommendationDiagnosticMock.mockReturnValue({
+      candidate: true,
+      entryId: "entry-1",
+      filterReason: null,
+      finalScore: 0.82,
+      included: true,
+      rank: null,
+      reasons: [
+        {
+          code: "quality_score",
+          impact: "positive",
+          label: "Content quality score 82",
+          type: "quality",
+          value: 82,
+        },
+      ],
+      stateScore: 0.06,
+    } satisfies RecommendationDiagnostic)
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<EntryQualityScoreBadge entryId="entry-1" />)
+    })
+
+    expect(container.textContent).toContain("Recommendation")
     expect(useEntryRecommendationDiagnosticMock).toHaveBeenCalledWith("entry-1", true)
   })
 

@@ -67,6 +67,9 @@ export const useFeedHeaderTitle = () => {
   if (smartFeed === "unread") {
     return t("sidebar.smart_feeds.all_unread")
   }
+  if (smartFeed === "recommended") {
+    return t("sidebar.smart_feeds.recommended")
+  }
   if (smartFeed === "readLater") {
     return t("sidebar.smart_feeds.read_later")
   }

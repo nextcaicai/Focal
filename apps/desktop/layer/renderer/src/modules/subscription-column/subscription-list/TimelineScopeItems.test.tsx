@@ -5,9 +5,22 @@ import type { Root } from "react-dom/client"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest"
 
-import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import {
+  SMART_FEED_READ_LATER,
+  SMART_FEED_RECOMMENDED,
+  SMART_FEED_TODAY,
+  SMART_FEED_UNREAD,
+} from "~/lib/timeline-scope"
 
 import { TimelineScopeItems } from "./TimelineScopeItems"
+
+vi.mock("@follow/shared/constants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@follow/shared/constants")>()
+  return {
+    ...actual,
+    LOCAL_RSS_MODE: true,
+  }
+})
 
 vi.mock("@follow/store/collection/hooks", () => ({
   useAllCollectionEntryList: () => ["entry-starred-unread", "entry-starred-read"],
@@ -50,8 +63,22 @@ vi.mock("@follow/store/entry/store", () => ({
           publishedAt: new Date("2026-06-09T00:00:00.000Z"),
           read: true,
         },
+        "entry-recommended-unread": {
+          id: "entry-recommended-unread",
+          publishedAt: new Date("2026-06-08T00:00:00.000Z"),
+          read: false,
+        },
+        "entry-recommended-read": {
+          id: "entry-recommended-read",
+          publishedAt: new Date("2026-06-07T00:00:00.000Z"),
+          read: true,
+        },
       },
     }),
+}))
+
+vi.mock("@follow/store/entry/hooks", () => ({
+  useEntryIdsByView: () => ["entry-recommended-unread", "entry-recommended-read"],
 }))
 
 vi.mock("@follow/store/unread/hooks", () => ({
@@ -60,6 +87,10 @@ vi.mock("@follow/store/unread/hooks", () => ({
 
 vi.mock("~/hooks/biz/useNavigateEntry", () => ({
   useNavigateEntry: () => vi.fn(),
+}))
+
+vi.mock("~/hooks/biz/useRecommendedEntryIds", () => ({
+  useRecommendedEntryIds: (entryIds: string[], enabled: boolean) => (enabled ? entryIds : []),
 }))
 
 vi.mock("~/hooks/biz/useRouteParams", () => ({
@@ -105,6 +136,7 @@ vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>()
   const labels: Record<string, string> = {
     "sidebar.smart_feeds.all_unread": "All Unread",
+    "sidebar.smart_feeds.recommended": "Recommended",
     "sidebar.smart_feeds.read_later": "Read Later",
     "sidebar.smart_feeds.title": "Smart Feeds",
     "time.today": "Today",
@@ -167,7 +199,7 @@ describe("TimelineScopeItems", () => {
     vi.useRealTimers()
   })
 
-  test("starts smart feeds with Today and omits the duplicate All scope", async () => {
+  test("starts smart feeds with Recommended and omits the duplicate All scope", async () => {
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -176,7 +208,13 @@ describe("TimelineScopeItems", () => {
       root!.render(<TimelineScopeItems />)
     })
 
-    expect(getScopeLabels(container)).toEqual(["Today", "All Unread", "Read Later", "Starred"])
+    expect(getScopeLabels(container)).toEqual([
+      "Recommended",
+      "Today",
+      "All Unread",
+      "Read Later",
+      "Starred",
+    ])
   })
 
   test.each([
@@ -210,6 +248,32 @@ describe("TimelineScopeItems", () => {
 
     expect(
       getScopeIcon(container, SMART_FEED_UNREAD).classList.contains("i-lucide-scroll-text"),
+    ).toBe(true)
+  })
+
+  test("shows the unread recommended count", async () => {
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<TimelineScopeItems />)
+    })
+
+    expect(getScopeText(container, SMART_FEED_RECOMMENDED)).toBe("Recommended1")
+  })
+
+  test("uses sparkles for Recommended", async () => {
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<TimelineScopeItems />)
+    })
+
+    expect(
+      getScopeIcon(container, SMART_FEED_RECOMMENDED).classList.contains("i-lucide-sparkles"),
     ).toBe(true)
   })
 

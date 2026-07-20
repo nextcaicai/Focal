@@ -95,7 +95,7 @@ const headerState = vi.hoisted(() => ({
 const routeState = vi.hoisted(() => ({
   feedId: "collections",
   isCollection: true,
-  smartFeed: undefined as "readLater" | undefined,
+  smartFeed: undefined as "recommended" | "readLater" | undefined,
 }))
 
 vi.mock("@follow/store/collection/hooks", () => ({
@@ -106,6 +106,10 @@ vi.mock("@follow/store/collection/hooks", () => ({
 vi.mock("@follow/store/entry/store", () => ({
   useEntryStore: (selector: (state: { data: typeof unreadState.entries }) => unknown) =>
     selector({ data: unreadState.entries }),
+}))
+
+vi.mock("@follow/store/entry/hooks", () => ({
+  useEntryIdsByView: () => Object.keys(unreadState.entries),
 }))
 
 vi.mock("@follow/store/subscription/selectors", () => ({
@@ -142,6 +146,7 @@ vi.mock("react-i18next", async (importOriginal) => {
     "entry_list_header.recommended_timeline": "Recommended timeline",
     "entry_list_header.refetch": "Refetch",
     "entry_list_header.show_unread_only": "Show Unread Only",
+    "entry_list_header.unread": "unread",
   }
 
   return {
@@ -225,6 +230,11 @@ vi.mock("~/hooks/biz/useRouteParams", () => ({
     isCollection: routeState.isCollection,
     smartFeed: routeState.smartFeed,
   }),
+}))
+
+vi.mock("~/hooks/biz/useRecommendedEntryIds", () => ({
+  useRecommendedEntryIds: (entryIds: string[], enabled: boolean) =>
+    enabled ? entryIds.filter((entryId) => entryId.includes("recommended")) : entryIds,
 }))
 
 vi.mock("~/hooks/common", () => ({
@@ -385,5 +395,28 @@ describe("EntryListHeader", () => {
     })
 
     expect(container.querySelector("[role='group']")).toBeNull()
+  })
+
+  test("hides timeline mode switch for the recommended queue and counts recommended unread", async () => {
+    headerState.title = "Recommended"
+    routeState.feedId = "smart-recommended"
+    routeState.isCollection = false
+    routeState.smartFeed = "recommended"
+    unreadState.entries = {
+      "entry-recommended-read": { read: true },
+      "entry-recommended-unread": { read: false },
+      "entry-other-unread": { read: false },
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root!.render(<EntryListHeader />)
+    })
+
+    expect(container.querySelector("[role='group']")).toBeNull()
+    expect(container.textContent).toContain("1 unread")
   })
 })

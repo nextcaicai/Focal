@@ -219,7 +219,9 @@ export const EntryQualityScoreBadge = ({ entryId }: { entryId: string }) => {
   const librarySearchActive = useLibrarySearchActive()
   const smartFeed = useRouteParamsSelector((route) => route.smartFeed)
   const showRecommendationDetails =
-    recommendedTimelineEnabled && !librarySearchActive && smartFeed !== "readLater"
+    (recommendedTimelineEnabled || smartFeed === "recommended") &&
+    !librarySearchActive &&
+    smartFeed !== "readLater"
   const recommendationDiagnostic = useEntryRecommendationDiagnostic(
     entryId,
     Boolean(qualityScoreEnabled && record && showRecommendationDetails),

@@ -1,5 +1,8 @@
+import { FeedViewType } from "@follow/constants"
+import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList } from "@follow/store/collection/hooks"
+import { useEntryIdsByView } from "@follow/store/entry/hooks"
 import { useEntryStore } from "@follow/store/entry/store"
 import { useUnreadAll } from "@follow/store/unread/hooks"
 import { cn } from "@follow/utils"
@@ -13,8 +16,14 @@ import { useTranslation } from "react-i18next"
 import { useLibrarySearchActive } from "~/atoms/library-search"
 import { FEED_COLLECTION_LIST, ROUTE_VIEW_ALL } from "~/constants"
 import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
+import { useRecommendedEntryIds } from "~/hooks/biz/useRecommendedEntryIds"
 import { useRouteParamsSelector } from "~/hooks/biz/useRouteParams"
-import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import {
+  SMART_FEED_READ_LATER,
+  SMART_FEED_RECOMMENDED,
+  SMART_FEED_TODAY,
+  SMART_FEED_UNREAD,
+} from "~/lib/timeline-scope"
 
 import { SidebarSearchInput } from "../SidebarSearchInput"
 import { feedColumnStyles } from "../styles"
@@ -156,6 +165,8 @@ const useSmartFeedUnreadCounts = () => {
   const allUnread = useUnreadAll()
   const collectionEntryIds = useAllCollectionEntryList()
   const readLaterEntryIds = useReadLaterEntryList()
+  const allEntryIds = useEntryIdsByView(FeedViewType.All, false) ?? []
+  const recommendedEntryIds = useRecommendedEntryIds(allEntryIds, LOCAL_RSS_MODE)
 
   const starredUnreadCount = useEntryStore(
     useCallback((state) => countUnreadEntries(state, collectionEntryIds), [collectionEntryIds]),
@@ -163,6 +174,12 @@ const useSmartFeedUnreadCounts = () => {
 
   const readLaterUnreadCount = useEntryStore(
     useCallback((state) => countUnreadEntries(state, readLaterEntryIds), [readLaterEntryIds]),
+  )
+  const recommendedUnreadCount = useEntryStore(
+    useCallback(
+      (state) => (LOCAL_RSS_MODE ? countUnreadEntries(state, recommendedEntryIds) : 0),
+      [recommendedEntryIds],
+    ),
   )
 
   const todayUnreadCount = useEntryStore((state) => {
@@ -181,6 +198,7 @@ const useSmartFeedUnreadCounts = () => {
 
   return {
     readLater: readLaterUnreadCount,
+    recommended: recommendedUnreadCount,
     today: todayUnreadCount,
     starred: starredUnreadCount,
     unread: allUnread,
@@ -221,6 +239,16 @@ export const TimelineScopeItems = memo(() => {
             onRequestExpand={expandBrowseSection}
             isActive={librarySearchActive}
           />
+          {LOCAL_RSS_MODE && (
+            <ScopeItem
+              feedId={SMART_FEED_RECOMMENDED}
+              icon="i-lucide-sparkles"
+              iconClassName="text-purple"
+              isActive={smartItemActive(SMART_FEED_RECOMMENDED)}
+              title={t("sidebar.smart_feeds.recommended")}
+              unread={counts.recommended}
+            />
+          )}
           <ScopeItem
             feedId={SMART_FEED_TODAY}
             icon={todayIcon}

@@ -2,6 +2,8 @@ import { FeedViewType } from "@follow/constants"
 import { getEntryIdsByBehaviorEventType } from "@follow/store/behavior-event/hooks"
 import { useBehaviorEventStore } from "@follow/store/behavior-event/store"
 import { useCollectionStore } from "@follow/store/collection/store"
+import { getEntryIdsByView } from "@follow/store/entry/getter"
+import { sortEntryIdsByRecommended } from "@follow/store/entry/sort"
 import { useEntryStore } from "@follow/store/entry/store"
 import { getCategoryFeedIds } from "@follow/store/subscription/getter"
 import { unreadSyncService } from "@follow/store/unread/store"
@@ -137,6 +139,18 @@ export const markAllByRoute = async (
   if (smartFeed === "readLater") {
     const entryIds = filterEntryIdsByMarkAllFilter(
       getEntryIdsByBehaviorEventType(useBehaviorEventStore.getState().events, "read_later"),
+      time,
+    )
+
+    if (entryIds.length > 0) {
+      await unreadSyncService.markEntriesAsRead(entryIds)
+    }
+    return
+  }
+
+  if (smartFeed === "recommended") {
+    const entryIds = filterEntryIdsByMarkAllFilter(
+      sortEntryIdsByRecommended(getEntryIdsByView(view, excludePrivate) ?? []),
       time,
     )
 

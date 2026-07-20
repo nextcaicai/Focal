@@ -543,6 +543,7 @@
   "sidebar.select_sort_method": "Sélectionner une méthode de tri",
   "sidebar.smart_feeds.all_unread": "Tous les non lus",
   "sidebar.smart_feeds.read_later": "Lire plus tard",
+  "sidebar.smart_feeds.recommended": "Recommandé",
   "sidebar.smart_feeds.title": "Flux intelligents",
   "sidebar.timeline_tabs.customize": "Personnaliser les onglets de vue...",
   "sidebar.timeline_tabs.drag_tab": "Faire glisser l'onglet de la chronologie",

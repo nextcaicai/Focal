@@ -2,7 +2,6 @@ import { FeedViewType, getView } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
-import { useCollectionStore } from "@follow/store/collection/store"
 import { isOnboardingEntryUrl } from "@follow/store/constants/onboarding"
 import {
   useEntriesQuery,
@@ -12,14 +11,12 @@ import {
   useEntryIdsByListId,
   useEntryIdsByView,
 } from "@follow/store/entry/hooks"
-import { sortEntryIdsByRecommended } from "@follow/store/entry/sort"
 import { entryActions, entrySyncServices, useEntryStore } from "@follow/store/entry/store"
 import type { UseEntriesReturn } from "@follow/store/entry/types"
 import { fallbackReturn } from "@follow/store/entry/utils"
 import { SEMANTIC_TOPIC_MIN_SCORE } from "@follow/store/entry-embedding/semantic-search"
 import { useEmbeddingJobStatusStore } from "@follow/store/entry-embedding/status-store"
 import { useEntryEmbeddingStore } from "@follow/store/entry-embedding/store"
-import { useEntryRankScoreStore } from "@follow/store/entry-rank-score/store"
 import { useEntryAiTagsStore } from "@follow/store/entry-tags/store"
 import { useFolderFeedsByFeedId } from "@follow/store/subscription/hooks"
 import { unreadSyncService } from "@follow/store/unread/store"
@@ -36,6 +33,7 @@ import { useActionLanguage, useGeneralSettingKey } from "~/atoms/settings/genera
 import { ROUTE_FEED_PENDING } from "~/constants/app"
 import { useFeature } from "~/hooks/biz/useFeature"
 import { useQueryEmbeddingVector } from "~/hooks/biz/useQueryEmbeddingVector"
+import { useRecommendedEntryIds } from "~/hooks/biz/useRecommendedEntryIds"
 import { useRouteParams } from "~/hooks/biz/useRouteParams"
 import {
   getMyTopicIdFromFeedId,
@@ -170,19 +168,6 @@ const sortEntryIdsByPublishedAtDesc = (entryIds: string[]) => {
   })
 }
 
-export const getRankRevisionForEntryIds = (
-  records: ReturnType<typeof useEntryRankScoreStore.getState>["data"],
-  entryIds: string[],
-) =>
-  entryIds
-    .map((entryId) => {
-      const record = records[entryId]
-      return record
-        ? `${entryId}:${record.computed_at}:${record.components.base_score}`
-        : `${entryId}:-`
-    })
-    .join("|")
-
 const useSemanticTopicRefreshKey = (enabled: boolean) => {
   const embeddingHydrated = useEntryEmbeddingStore((state) => (enabled ? state.hydrated : false))
   const embeddingProcessing = useEmbeddingJobStatusStore((state) =>
@@ -248,6 +233,11 @@ const useLocalEntries = (): UseEntriesReturn => {
     "hidePrivateSubscriptionsInTimeline",
   )
   const recommendedTimelineEnabled = useAtomValue(recommendedTimelineEnabledAtom)
+  const isRecommendedScope = smartFeed === "recommended"
+  const recommendedListEnabled =
+    (recommendedTimelineEnabled || isRecommendedScope) &&
+    !librarySearchActive &&
+    smartFeed !== "readLater"
 
   const folderIds = useFolderFeedsByFeedId({
     feedId: isVirtualScope ? undefined : feedId,
@@ -371,26 +361,6 @@ const useLocalEntries = (): UseEntriesReturn => {
     ),
   )
 
-  const rankRevision = useEntryRankScoreStore(
-    useCallback(
-      (state) => {
-        if (!recommendedTimelineEnabled || librarySearchActive) return ""
-        return getRankRevisionForEntryIds(state.data, allEntries)
-      },
-      [allEntries, librarySearchActive, recommendedTimelineEnabled],
-    ),
-  )
-  const collectionRevision = useCollectionStore(
-    useCallback(
-      (state) => {
-        if (!recommendedTimelineEnabled || librarySearchActive) return ""
-        return Object.keys(state.collections).sort().join("|")
-      },
-      [librarySearchActive, recommendedTimelineEnabled],
-    ),
-  )
-  const rankingRevision = `${collectionRevision}:${rankRevision}`
-
   useEffect(() => {
     stickyVisibleStateRef.current = {
       queryKey: localQueryKey,
@@ -398,31 +368,24 @@ const useLocalEntries = (): UseEntriesReturn => {
     }
   }, [allEntries, effectiveUnreadOnly, localQueryKey])
 
+  const latestEntries = useMemo(() => {
+    if (!allEntries?.length) return allEntries ?? []
+
+    return smartFeed === "readLater"
+      ? allEntries
+      : isVirtualScope
+        ? sortEntryIdsByPublishedAtDesc(allEntries)
+        : allEntries
+  }, [allEntries, isVirtualScope, smartFeed])
+
+  const recommendedEntries = useRecommendedEntryIds(latestEntries, recommendedListEnabled)
+
   const sortedEntries = useMemo(() => {
     // Library search takes over the middle column list while active.
     if (librarySearchActive) return librarySearchEntryIds
 
-    void rankingRevision
-
-    if (!allEntries?.length) return allEntries ?? []
-    const latestEntries =
-      smartFeed === "readLater"
-        ? allEntries
-        : isVirtualScope
-          ? sortEntryIdsByPublishedAtDesc(allEntries)
-          : allEntries
-    if (!recommendedTimelineEnabled || smartFeed === "readLater") return latestEntries
-
-    return sortEntryIdsByRecommended(latestEntries)
-  }, [
-    allEntries,
-    isVirtualScope,
-    librarySearchActive,
-    librarySearchEntryIds,
-    rankingRevision,
-    recommendedTimelineEnabled,
-    smartFeed,
-  ])
+    return recommendedEntries
+  }, [librarySearchActive, librarySearchEntryIds, recommendedEntries])
 
   const [page, setPage] = useState(0)
   const pageSize = 30

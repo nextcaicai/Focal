@@ -5,7 +5,12 @@ import { unreadSyncService } from "@follow/store/unread/store"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { jotaiStore } from "~/lib/jotai"
-import { SMART_FEED_READ_LATER, SMART_FEED_TODAY, SMART_FEED_UNREAD } from "~/lib/timeline-scope"
+import {
+  SMART_FEED_READ_LATER,
+  SMART_FEED_RECOMMENDED,
+  SMART_FEED_TODAY,
+  SMART_FEED_UNREAD,
+} from "~/lib/timeline-scope"
 import {
   selectedStarredGroupAtom,
   STARRED_GROUP_ALL,
@@ -13,6 +18,20 @@ import {
 } from "~/modules/starred-groups/store"
 
 import { markAllByRoute } from "./useMarkAll"
+
+const getEntryIdsByViewMock = vi.hoisted(() =>
+  vi.fn((_view: FeedViewType, _excludePrivate: boolean | undefined): string[] => []),
+)
+const sortEntryIdsByRecommendedMock = vi.hoisted(() => vi.fn((entryIds: string[]) => entryIds))
+
+vi.mock("@follow/store/entry/getter", () => ({
+  getEntryIdsByView: (view: FeedViewType, excludePrivate: boolean | undefined) =>
+    getEntryIdsByViewMock(view, excludePrivate),
+}))
+
+vi.mock("@follow/store/entry/sort", () => ({
+  sortEntryIdsByRecommended: (entryIds: string[]) => sortEntryIdsByRecommendedMock(entryIds),
+}))
 
 vi.mock("@follow/store/subscription/getter", () => ({
   getCategoryFeedIds: () => [],
@@ -36,6 +55,10 @@ describe("markAllByRoute", () => {
     vi.clearAllMocks()
     useBehaviorEventStore.setState({ events: [] })
     useCollectionStore.setState({ collections: {} })
+    getEntryIdsByViewMock.mockReset()
+    getEntryIdsByViewMock.mockReturnValue([])
+    sortEntryIdsByRecommendedMock.mockReset()
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
     jotaiStore.set(selectedStarredGroupAtom, STARRED_GROUP_ALL)
     jotaiStore.set(starredGroupAssignmentsAtom, {})
   })
@@ -181,6 +204,22 @@ describe("markAllByRoute", () => {
     })
 
     expect(unreadSyncService.markEntriesAsRead).toHaveBeenCalledWith(["entry-2", "entry-1"])
+    expect(unreadSyncService.markBatchAsRead).not.toHaveBeenCalled()
+  })
+
+  it("marks recommended entries as read without treating recommended as a real feed id", async () => {
+    getEntryIdsByViewMock.mockReturnValue(["low", "high", "dismissed"])
+    sortEntryIdsByRecommendedMock.mockReturnValue(["high"])
+
+    await markAllByRoute({
+      feedId: SMART_FEED_RECOMMENDED,
+      view: FeedViewType.All,
+      smartFeed: "recommended",
+    })
+
+    expect(getEntryIdsByViewMock).toHaveBeenCalledWith(FeedViewType.All, false)
+    expect(sortEntryIdsByRecommendedMock).toHaveBeenCalledWith(["low", "high", "dismissed"])
+    expect(unreadSyncService.markEntriesAsRead).toHaveBeenCalledWith(["high"])
     expect(unreadSyncService.markBatchAsRead).not.toHaveBeenCalled()
   })
 

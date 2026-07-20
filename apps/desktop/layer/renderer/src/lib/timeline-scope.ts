@@ -6,17 +6,25 @@ import { FEED_COLLECTION_LIST } from "~/constants"
 export const SMART_FEED_TODAY = "smart-today"
 export const SMART_FEED_YESTERDAY = "smart-yesterday"
 export const SMART_FEED_UNREAD = "smart-unread"
+export const SMART_FEED_RECOMMENDED = "smart-recommended"
 export const SMART_FEED_READ_LATER = "smart-read-later"
 
 export const TOPIC_FEED_PREFIX = "topic-"
 export const MYTOPIC_FEED_PREFIX = "mytopic-"
 
-export type SmartFeedScope = "today" | "yesterday" | "unread" | "readLater" | "starred"
+export type SmartFeedScope =
+  | "today"
+  | "yesterday"
+  | "unread"
+  | "recommended"
+  | "readLater"
+  | "starred"
 
 const SMART_FEED_BY_ID: Record<string, SmartFeedScope> = {
   [SMART_FEED_TODAY]: "today",
   [SMART_FEED_YESTERDAY]: "yesterday",
   [SMART_FEED_UNREAD]: "unread",
+  [SMART_FEED_RECOMMENDED]: "recommended",
   [SMART_FEED_READ_LATER]: "readLater",
   [FEED_COLLECTION_LIST]: "starred",
 }

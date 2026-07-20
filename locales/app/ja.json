@@ -572,6 +572,7 @@
   "sidebar.select_sort_method": "並べ替え方法を選択",
   "sidebar.smart_feeds.all_unread": "すべての未読",
   "sidebar.smart_feeds.read_later": "後で読む",
+  "sidebar.smart_feeds.recommended": "おすすめ",
   "sidebar.smart_feeds.title": "スマートフィード",
   "sidebar.timeline_tabs.customize": "ビュータブをカスタマイズ...",
   "sidebar.timeline_tabs.drag_tab": "タイムラインタブをドラッグ",
