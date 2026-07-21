@@ -93,6 +93,15 @@ vi.mock("~/hooks/biz/useRecommendedEntryIds", () => ({
   useRecommendedEntryIds: (entryIds: string[], enabled: boolean) => (enabled ? entryIds : []),
 }))
 
+vi.mock("react-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router")>()
+  return {
+    ...actual,
+    useLocation: () => ({ pathname: "/timeline/view-0/all" }),
+    useNavigate: () => vi.fn(),
+  }
+})
+
 vi.mock("~/hooks/biz/useRouteParams", () => ({
   useRouteParamsSelector: (selector: (params: { feedId: string }) => string) =>
     selector({ feedId: "" }),
@@ -139,6 +148,7 @@ vi.mock("react-i18next", async (importOriginal) => {
     "sidebar.smart_feeds.recommended": "Recommended",
     "sidebar.smart_feeds.read_later": "Read Later",
     "sidebar.smart_feeds.title": "Smart Feeds",
+    "storyline.title": "Storylines",
     "time.today": "Today",
     "words.all": "All",
     "words.starred": "Starred",
@@ -209,6 +219,7 @@ describe("TimelineScopeItems", () => {
     })
 
     expect(getScopeLabels(container)).toEqual([
+      "Storylines",
       "Recommended",
       "Today",
       "All Unread",

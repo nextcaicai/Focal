@@ -17,8 +17,9 @@ type EmbeddingProviderConfig = {
   preset: EntryEmbeddingRecord["preset"]
 }
 
-const resolveEmbeddingProviderConfig = (): EmbeddingProviderConfig | null => {
-  const embeddingSettings = getAISettings().embedding
+const resolveEmbeddingProviderConfig = (
+  embeddingSettings = getAISettings().embedding,
+): EmbeddingProviderConfig | null => {
   if (!embeddingSettings?.enabled || !embeddingSettings.provider) {
     return null
   }
@@ -40,6 +41,9 @@ const resolveEmbeddingProviderConfig = (): EmbeddingProviderConfig | null => {
     preset: provider.preset,
   }
 }
+
+export const isLocalEmbeddingConfigured = (embeddingSettings = getAISettings().embedding) =>
+  !!resolveEmbeddingProviderConfig(embeddingSettings)
 
 const buildEmbeddingRecord = (
   vector: number[],

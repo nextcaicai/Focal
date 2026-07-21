@@ -12,6 +12,7 @@ import { atomWithStorage } from "jotai/utils"
 import type { ReactNode } from "react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useLocation, useNavigate } from "react-router"
 
 import { useLibrarySearchActive } from "~/atoms/library-search"
 import { FEED_COLLECTION_LIST, ROUTE_VIEW_ALL } from "~/constants"
@@ -146,6 +147,35 @@ const ScopeItem = ({
   )
 }
 
+const StorylineScopeItem = () => {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  return (
+    <button
+      type="button"
+      data-sub="scope-storylines"
+      data-active={location.pathname.startsWith("/storylines")}
+      className={cn(
+        "group/scope mt-1 flex h-8 w-full shrink-0 gap-2 px-2.5 text-left",
+        feedColumnStyles.item,
+      )}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (!location.pathname.startsWith("/storylines")) {
+          navigate("/storylines")
+        }
+      }}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <i className="i-focal-route size-4 shrink-0 text-orange" />
+        <span className="truncate">{t("storyline.title")}</span>
+      </div>
+    </button>
+  )
+}
+
 const countUnreadEntries = (
   state: ReturnType<typeof useEntryStore.getState>,
   entryIds: readonly string[],
@@ -239,6 +269,7 @@ export const TimelineScopeItems = memo(() => {
             onRequestExpand={expandBrowseSection}
             isActive={librarySearchActive}
           />
+          <StorylineScopeItem />
           {LOCAL_RSS_MODE && (
             <ScopeItem
               feedId={SMART_FEED_RECOMMENDED}
