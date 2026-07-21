@@ -148,7 +148,6 @@ vi.mock("react-i18next", async (importOriginal) => {
     "sidebar.smart_feeds.recommended": "Recommended",
     "sidebar.smart_feeds.read_later": "Read Later",
     "sidebar.smart_feeds.title": "Smart Feeds",
-    "storyline.title": "Storylines",
     "time.today": "Today",
     "words.all": "All",
     "words.starred": "Starred",
@@ -219,7 +218,6 @@ describe("TimelineScopeItems", () => {
     })
 
     expect(getScopeLabels(container)).toEqual([
-      "Storylines",
       "Recommended",
       "Today",
       "All Unread",

@@ -106,11 +106,6 @@
       "require": "./src/reset.ts",
       "import": "./src/reset.ts"
     },
-    "./storyline/*": {
-      "types": "./src/modules/storyline/*.ts",
-      "require": "./src/modules/storyline/*.ts",
-      "import": "./src/modules/storyline/*.ts"
-    },
     "./subscription/*": {
       "types": "./src/modules/subscription/*.ts",
       "require": "./src/modules/subscription/*.ts",
