@@ -68,6 +68,7 @@
   "discover.import.successfulItems": "成功項目",
   "discover.import.untitled_feed": "未命名訂閱源",
   "discover.import.validation.file_too_large": "你的 OPML 檔案必須小於 500KB。",
+  "discover.import.validation.invalid_content": "這個 OPML 檔案無效，或不包含 RSS 訂閱源。",
   "discover.import.validation.invalid_format": "你的 OPML 檔案必須是 OPML 或 XML 格式。",
   "discover.inbox.actions": "操作",
   "discover.inbox.description": "你可以透過電子信箱和 Webhooks 在收件匣接收資訊。",

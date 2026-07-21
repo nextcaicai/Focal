@@ -68,6 +68,7 @@
   "discover.import.successfulItems": "Éléments réussis",
   "discover.import.untitled_feed": "Flux sans titre",
   "discover.import.validation.file_too_large": "Votre fichier OPML doit faire moins de 500 Ko.",
+  "discover.import.validation.invalid_content": "Ce fichier OPML est invalide ou ne contient aucun flux RSS.",
   "discover.import.validation.invalid_format": "Votre fichier OPML doit etre au format OPML ou XML.",
   "discover.inbox.actions": "Actions",
   "discover.inbox.description": "Vous pouvez recevoir des informations par email et webhooks via la boîte de réception.",

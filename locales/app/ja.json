@@ -68,6 +68,7 @@
   "discover.import.successfulItems": "成功したアイテム",
   "discover.import.untitled_feed": "無題のフィード",
   "discover.import.validation.file_too_large": "OPML ファイルは 500KB 未満である必要があります。",
+  "discover.import.validation.invalid_content": "この OPML ファイルは無効か、RSS フィードが含まれていません。",
   "discover.import.validation.invalid_format": "OPML ファイルは OPML または XML 形式である必要があります。",
   "discover.inbox.actions": "アクション",
   "discover.inbox.description": "情報は email か webhooks を通して受信箱に配信されます。",

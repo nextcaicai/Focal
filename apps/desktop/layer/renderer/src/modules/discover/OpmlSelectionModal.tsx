@@ -3,9 +3,9 @@ import { Checkbox } from "@follow/components/ui/checkbox/index.jsx"
 import { Input } from "@follow/components/ui/input/index.js"
 import { ScrollArea } from "@follow/components/ui/scroll-area/index.js"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@follow/components/ui/tooltip/index.jsx"
+import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { subscriptionSyncService } from "@follow/store/subscription/store"
 import { cn } from "@follow/utils/utils"
-import type { ExtractResponseData, SubscriptionParseOpmlResponse } from "@follow-app/client-sdk"
 import { useMutation } from "@tanstack/react-query"
 import Fuse from "fuse.js"
 import { useCallback, useMemo, useState } from "react"
@@ -16,6 +16,8 @@ import { useCurrentModal } from "~/components/ui/modal/stacked/hooks"
 import { followClient } from "~/lib/api-client"
 import { toastFetchError } from "~/lib/error-parser"
 
+import type { ParsedOpmlData } from "./opml"
+import { importLocalOpmlSubscriptions } from "./opml"
 import type { ParsedFeedItem } from "./types"
 
 export const OpmlSelectionModal = ({
@@ -23,7 +25,7 @@ export const OpmlSelectionModal = ({
 
   file,
 }: {
-  parsedData: ExtractResponseData<SubscriptionParseOpmlResponse>
+  parsedData: ParsedOpmlData
 
   file: File
 }) => {
@@ -31,6 +33,10 @@ export const OpmlSelectionModal = ({
 
   const importMutation = useMutation({
     mutationFn: async (selectedItems: ParsedFeedItem[]) => {
+      if (LOCAL_RSS_MODE) {
+        return importLocalOpmlSubscriptions(selectedItems)
+      }
+
       const formData = new FormData()
 
       formData.append("file", file)

@@ -68,6 +68,7 @@
   "discover.import.successfulItems": "Successful Items",
   "discover.import.untitled_feed": "Untitled Feed",
   "discover.import.validation.file_too_large": "Your OPML file must be less than 500KB.",
+  "discover.import.validation.invalid_content": "This OPML file is invalid or contains no RSS subscriptions.",
   "discover.import.validation.invalid_format": "Your OPML file must be in OPML or XML format.",
   "discover.inbox.actions": "Actions",
   "discover.inbox.description": "You can receive information via email and webhooks through the inbox.",

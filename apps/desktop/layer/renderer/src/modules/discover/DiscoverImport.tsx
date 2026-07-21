@@ -2,11 +2,13 @@ import { Button } from "@follow/components/ui/button/index.js"
 import { CollapseCss, CollapseCssGroup } from "@follow/components/ui/collapse/index.js"
 import { DropZone } from "@follow/components/ui/drop-zone/index.js"
 import { Form, FormControl, FormField, FormItem } from "@follow/components/ui/form/index.jsx"
+import { LOCAL_RSS_MODE } from "@follow/shared/constants"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import { Fragment, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { Trans, useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { z } from "zod"
 
 import { Media } from "~/components/ui/media/Media"
@@ -14,9 +16,14 @@ import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { followClient } from "~/lib/api-client"
 import { toastFetchError } from "~/lib/error-parser"
 
+import { InvalidOpmlError, parseLocalOpml } from "./opml"
 import { OpmlSelectionModal } from "./OpmlSelectionModal"
 
 const parseOpmlFile = async (file: File) => {
+  if (LOCAL_RSS_MODE) {
+    return parseLocalOpml(await file.text())
+  }
+
   const data = await followClient.api.subscriptions.parseOpml(await file.arrayBuffer())
 
   return data.data
@@ -29,9 +36,15 @@ const createFormSchema = (fileTooLargeMessage: string, invalidFormatMessage: str
       .refine((file) => file.size < 500_000, {
         message: fileTooLargeMessage,
       })
-      .refine((file) => file.name.endsWith(".opml") || file.name.endsWith(".xml"), {
-        message: invalidFormatMessage,
-      }),
+      .refine(
+        (file) => {
+          const fileName = file.name.toLowerCase()
+          return fileName.endsWith(".opml") || fileName.endsWith(".xml")
+        },
+        {
+          message: invalidFormatMessage,
+        },
+      ),
   })
 
 type FormData = z.infer<ReturnType<typeof createFormSchema>>
@@ -55,6 +68,11 @@ export function DiscoverImport() {
   const parseOpmlMutation = useMutation({
     mutationFn: parseOpmlFile,
     async onError(err) {
+      if (err instanceof InvalidOpmlError) {
+        toast.error(t("discover.import.validation.invalid_content"))
+        return
+      }
+
       toastFetchError(err)
     },
   })
