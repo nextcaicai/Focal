@@ -1,6 +1,9 @@
 import { FeedViewType, getView } from "@follow/constants"
 import { LOCAL_RSS_MODE } from "@follow/shared/constants"
-import { useReadLaterEntryList } from "@follow/store/behavior-event/hooks"
+import {
+  useEntryIdsByBehaviorEventType,
+  useReadLaterEntryList,
+} from "@follow/store/behavior-event/hooks"
 import { useAllCollectionEntryList, useCollectionEntryList } from "@follow/store/collection/hooks"
 import { isOnboardingEntryUrl } from "@follow/store/constants/onboarding"
 import {
@@ -56,9 +59,21 @@ import {
 import { useLibrarySearchEntryIds } from "~/store/search/library-search"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
+import {
+  beginRecommendedTimelineRefresh,
+  finishRecommendedTimelineRefresh,
+  useStableRecommendedTimelineEntryIds,
+} from "../recommended-timeline-session"
 import { getVisibleLocalEntryIds } from "./filter-local-entry-ids"
 import { getKeywordTopicSemanticScoresSnapshot } from "./semantic-topic-scores"
 import { useIsPreviewFeed } from "./useIsPreviewFeed"
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    // Hook order changes in this aggregator require remounting its mounted consumers.
+    globalThis.location.reload()
+  })
+}
 
 const useRemoteEntries = (): UseEntriesReturn => {
   const { feedId, view, inboxId, listId } = useRouteParams()
@@ -164,6 +179,41 @@ const sortEntryIdsByPublishedAtDesc = (entryIds: string[]) => {
 
     if (!entryA || !entryB) return 0
     return entryB.publishedAt.getTime() - entryA.publishedAt.getTime()
+  })
+}
+
+const finishRecommendedRefreshAfterRender = (refreshId: number) => {
+  if (typeof globalThis.requestAnimationFrame === "function") {
+    globalThis.requestAnimationFrame(() => finishRecommendedTimelineRefresh(refreshId))
+    return
+  }
+
+  globalThis.setTimeout(() => finishRecommendedTimelineRefresh(refreshId), 0)
+}
+
+const trackRecommendedTimelineRefresh = <T>(promise: Promise<T>, refreshId: number | null) => {
+  if (refreshId !== null) {
+    const finishRefresh = () => finishRecommendedRefreshAfterRender(refreshId)
+    void promise.then(finishRefresh, finishRefresh)
+  }
+  return promise
+}
+
+const waitForLocalRssRefreshIdle = () => {
+  if (!localRssRefreshScheduler.getState().isRefreshing) return Promise.resolve()
+
+  return new Promise<void>((resolve) => {
+    const unsubscribe = localRssRefreshScheduler.subscribe(() => {
+      if (localRssRefreshScheduler.getState().isRefreshing) return
+
+      unsubscribe()
+      resolve()
+    })
+
+    if (!localRssRefreshScheduler.getState().isRefreshing) {
+      unsubscribe()
+      resolve()
+    }
   })
 }
 
@@ -374,13 +424,21 @@ const useLocalEntries = (): UseEntriesReturn => {
   }, [allEntries, isVirtualScope, smartFeed])
 
   const recommendedEntries = useRecommendedEntryIds(latestEntries, recommendedListEnabled)
+  const notInterestedEntryIds = useEntryIdsByBehaviorEventType("not_interested")
+  const stableRecommendedEntries = useStableRecommendedTimelineEntryIds({
+    active: isRecommendedScope,
+    immediateRemovalEntryIds: notInterestedEntryIds,
+    latestEntryIds: recommendedEntries,
+    sourceEntryIds: latestEntries,
+    suspended: librarySearchActive,
+  })
 
   const sortedEntries = useMemo(() => {
     // Library search takes over the middle column list while active.
     if (librarySearchActive) return librarySearchEntryIds
 
-    return recommendedEntries
-  }, [librarySearchActive, librarySearchEntryIds, recommendedEntries])
+    return stableRecommendedEntries
+  }, [librarySearchActive, librarySearchEntryIds, stableRecommendedEntries])
 
   const [page, setPage] = useState(0)
   const pageSize = 30
@@ -436,7 +494,7 @@ const useLocalEntries = (): UseEntriesReturn => {
 }
 
 export const useEntriesByView = ({ onReset }: { onReset?: () => void }) => {
-  const { view, listId, isCollection } = useRouteParams()
+  const { view, listId, isCollection, feedId } = useRouteParams()
   const actionLanguage = useActionLanguage()
   const selectedStarredGroupId = useAtomValue(selectedStarredGroupAtom)
   const starredGroupAssignments = useAtomValue(starredGroupAssignmentsAtom)
@@ -520,17 +578,25 @@ export const useEntriesByView = ({ onReset }: { onReset?: () => void }) => {
 
     type: LOCAL_RSS_MODE || !remoteQuery.isReady ? ("local" as const) : ("remote" as const),
     refetch: useCallback(() => {
+      const refreshesRecommendedTimeline = getSmartFeedScope(feedId) === "recommended"
+      const recommendedTimelineRefreshId = refreshesRecommendedTimeline
+        ? beginRecommendedTimelineRefresh()
+        : null
+
       if (LOCAL_RSS_MODE) {
         const promise = localRssRefreshScheduler
           .runRefresh("manual")
+          .then(async (result) => {
+            if (result.skipped) await waitForLocalRssRefreshIdle()
+          })
           .then(() => localQuery.refetch())
-        return promise
+        return trackRecommendedTimelineRefresh(promise, recommendedTimelineRefreshId)
       }
 
       const promise = query.refetch()
       unreadSyncService.resetFromRemote()
-      return promise
-    }, [localQuery, query]),
+      return trackRecommendedTimelineRefresh(promise, recommendedTimelineRefreshId)
+    }, [feedId, localQuery, query]),
     entriesIds: entryIds,
     groupedCounts,
     isFetching: LOCAL_RSS_MODE ? localQuery.isFetching : remoteQuery.isFetching,

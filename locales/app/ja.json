@@ -311,6 +311,7 @@
   "entry_list_header.masonry": "メイソンリー",
   "entry_list_header.masonry_column": "メイソンリー列",
   "entry_list_header.preview_mode": "プレビューモード",
+  "entry_list_header.recommendations_updated_action": "おすすめを更新しました · 表示",
   "entry_list_header.refetch": "再取得",
   "entry_list_header.refresh": "更新",
   "entry_list_header.show_all": "すべて表示",

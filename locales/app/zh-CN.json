@@ -311,6 +311,7 @@
   "entry_list_header.masonry": "瀑布流布局",
   "entry_list_header.masonry_column": "布局列数",
   "entry_list_header.preview_mode": "预览模式",
+  "entry_list_header.recommendations_updated_action": "推荐已更新 · 查看",
   "entry_list_header.refetch": "刷新",
   "entry_list_header.refresh": "刷新",
   "entry_list_header.show_all": "显示全部",

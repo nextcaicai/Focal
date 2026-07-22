@@ -37,7 +37,9 @@ import { useSnapEntryIdList } from "./hooks/useEntryIdListSnap"
 import { useEntryMarkReadHandler } from "./hooks/useEntryMarkReadHandler"
 import { useNavigateFirstEntry } from "./hooks/useNavigateFirstEntry"
 import { EntryListHeader } from "./layouts/EntryListHeader"
+import { RecommendedTimelineUpdateNotice } from "./layouts/RecommendedTimelineUpdateNotice"
 import { EntryEmptyList, EntryList } from "./list"
+import { requestRecommendedTimelineUpdate } from "./recommended-timeline-session"
 import { shouldScrollTimelineToTopOnRefreshStateChange } from "./refresh-reset"
 import { shouldSuspendMarkReadForScrollReset } from "./scroll-reset"
 import { EntryRootStateContext } from "./store/EntryColumnContext"
@@ -86,6 +88,10 @@ function EntryColumnContent() {
     runScrollToTop()
     globalThis.requestAnimationFrame?.(runScrollToTop)
   }, [resetScrollInteractionState])
+  const handleRecommendedTimelineUpdate = useCallback(() => {
+    requestRecommendedTimelineUpdate()
+    scrollTimelineToTop()
+  }, [scrollTimelineToTop])
   // Register reset handler to keep scroll behavior when data resets
   useEffect(() => {
     actions.setOnReset(scrollTimelineToTop)
@@ -322,6 +328,7 @@ function EntryColumnContent() {
         (!feed || feed?.type === "feed") && <AddFeedHelper />}
 
       <EntryListHeader />
+      <RecommendedTimelineUpdateNotice onView={handleRecommendedTimelineUpdate} />
 
       <EntryColumnWrapper
         ref={scrollAreaRef}

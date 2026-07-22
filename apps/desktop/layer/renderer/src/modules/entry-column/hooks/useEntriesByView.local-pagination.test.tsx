@@ -1,5 +1,6 @@
 /* eslint-disable @eslint-react/hooks-extra/ensure-custom-hooks-using-other-hooks, @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocked hooks keep production export names */
 import { FeedViewType } from "@follow/constants"
+import { useBehaviorEventStore } from "@follow/store/behavior-event/store"
 import * as React from "react"
 import { act } from "react"
 import type { Root } from "react-dom/client"
@@ -8,6 +9,7 @@ import { afterEach, beforeAll, describe, expect, test, vi } from "vitest"
 
 import { SMART_FEED_RECOMMENDED } from "~/lib/timeline-scope"
 
+import { resetRecommendedTimelineSession } from "../recommended-timeline-session"
 import { useEntriesByView } from "./useEntriesByView"
 
 type TestEntry = {
@@ -28,6 +30,11 @@ const testState = vi.hoisted(() => ({
 }))
 
 const sortEntryIdsByRecommendedMock = vi.hoisted(() => vi.fn((entryIds: string[]) => entryIds))
+const runLocalRssRefreshMock = vi.hoisted(() => vi.fn(async () => ({ skipped: false })))
+const localRssRefreshState = vi.hoisted(() => ({
+  isRefreshing: false,
+  listener: null as (() => void) | null,
+}))
 
 const atoms = vi.hoisted(() => ({
   aiTimeline: Symbol("aiTimeline"),
@@ -43,14 +50,6 @@ vi.mock("@follow/shared/constants", async (importOriginal) => {
     LOCAL_RSS_MODE: true,
   }
 })
-
-vi.mock("@follow/store/behavior-event/hooks", () => ({
-  useReadLaterEntryList: () => [],
-}))
-
-vi.mock("@follow/store/behavior-event/store", () => ({
-  useBehaviorEventStore: (selector: (state: { events: [] }) => unknown) => selector({ events: [] }),
-}))
 
 vi.mock("@follow/store/collection/hooks", () => ({
   useAllCollectionEntryList: () => [],
@@ -214,7 +213,14 @@ vi.mock("~/modules/entry-enrichment/trigger", () => ({
 
 vi.mock("~/modules/local-rss/refresh-scheduler", () => ({
   localRssRefreshScheduler: {
-    runRefresh: vi.fn(),
+    getState: () => ({ isRefreshing: localRssRefreshState.isRefreshing }),
+    runRefresh: runLocalRssRefreshMock,
+    subscribe: (listener: () => void) => {
+      localRssRefreshState.listener = listener
+      return () => {
+        if (localRssRefreshState.listener === listener) localRssRefreshState.listener = null
+      }
+    },
   },
 }))
 
@@ -267,6 +273,7 @@ describe("useEntriesByView local pagination", () => {
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
     if (root) {
       await act(async () => {
         root?.unmount()
@@ -280,6 +287,12 @@ describe("useEntriesByView local pagination", () => {
     testState.librarySearchActive = false
     testState.librarySearchEntryIds = []
     testState.routeFeedId = "feed-1"
+    useBehaviorEventStore.setState({ events: [] })
+    resetRecommendedTimelineSession()
+    localRssRefreshState.isRefreshing = false
+    localRssRefreshState.listener = null
+    runLocalRssRefreshMock.mockReset()
+    runLocalRssRefreshMock.mockResolvedValue({ skipped: false })
     sortEntryIdsByRecommendedMock.mockReset()
     sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
     vi.restoreAllMocks()
@@ -371,5 +384,236 @@ describe("useEntriesByView local pagination", () => {
 
     expect(sortEntryIdsByRecommendedMock).toHaveBeenCalledWith(["entry-0", "entry-1", "entry-2"])
     expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1"])
+  })
+
+  test("keeps the Recommended order stable until the user refreshes the timeline", async () => {
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
+
+    const Consumer = ({ revision }: { revision: number }) => {
+      void revision
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<Consumer revision={0} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-0", "entry-1", "entry-2"])
+
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+      entryIds.slice().reverse(),
+    )
+    await act(async () => {
+      root?.render(<Consumer revision={1} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-0", "entry-1", "entry-2"])
+
+    await act(async () => {
+      await entriesResult?.refetch()
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
+  })
+
+  test("applies Recommended ordering produced while a manual refresh is running", async () => {
+    let finishRefresh: FrameRequestCallback | undefined
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      finishRefresh = callback
+      return 1
+    })
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
+
+    const Consumer = ({ revision }: { revision: number }) => {
+      void revision
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<Consumer revision={0} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-0", "entry-1", "entry-2"])
+
+    runLocalRssRefreshMock.mockImplementation(async () => {
+      sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+        entryIds.slice().reverse(),
+      )
+      root?.render(<Consumer revision={1} />)
+      return { skipped: false }
+    })
+
+    await act(async () => {
+      await entriesResult?.refetch()
+    })
+
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
+
+    await act(async () => {
+      finishRefresh?.(0)
+    })
+    sortEntryIdsByRecommendedMock.mockImplementation(() => ["entry-1", "entry-0", "entry-2"])
+    await act(async () => {
+      root?.render(<Consumer revision={2} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
+  })
+
+  test("keeps a newer Recommended refresh active when an earlier refresh finishes", async () => {
+    const finishRefreshCallbacks: FrameRequestCallback[] = []
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      finishRefreshCallbacks.push(callback)
+      return finishRefreshCallbacks.length
+    })
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+
+    const Consumer = ({ revision }: { revision: number }) => {
+      void revision
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<Consumer revision={0} />)
+    })
+
+    let resolveFirstRefresh: ((result: { skipped: false }) => void) | undefined
+    let resolveSecondRefresh: ((result: { skipped: false }) => void) | undefined
+    runLocalRssRefreshMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ skipped: false }>((resolve) => {
+            resolveFirstRefresh = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ skipped: false }>((resolve) => {
+            resolveSecondRefresh = resolve
+          }),
+      )
+
+    let firstRefresh: Promise<unknown> | undefined
+    let secondRefresh: Promise<unknown> | undefined
+    await act(async () => {
+      firstRefresh = entriesResult?.refetch()
+      secondRefresh = entriesResult?.refetch()
+    })
+    await act(async () => {
+      resolveFirstRefresh?.({ skipped: false })
+      await firstRefresh
+    })
+    await act(async () => {
+      finishRefreshCallbacks[0]?.(0)
+    })
+
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+      entryIds.slice().reverse(),
+    )
+    await act(async () => {
+      root?.render(<Consumer revision={1} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
+
+    await act(async () => {
+      resolveSecondRefresh?.({ skipped: false })
+      await secondRefresh
+    })
+  })
+
+  test("waits for an in-flight RSS refresh before locking the Recommended order again", async () => {
+    const finishRefreshCallbacks: FrameRequestCallback[] = []
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      finishRefreshCallbacks.push(callback)
+      return finishRefreshCallbacks.length
+    })
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+    localRssRefreshState.isRefreshing = true
+    runLocalRssRefreshMock.mockResolvedValue({ skipped: true })
+
+    const Consumer = ({ revision }: { revision: number }) => {
+      void revision
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<Consumer revision={0} />)
+    })
+
+    let refresh: Promise<unknown> | undefined
+    await act(async () => {
+      refresh = entriesResult?.refetch()
+    })
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+      entryIds.slice().reverse(),
+    )
+    await act(async () => {
+      root?.render(<Consumer revision={1} />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
+
+    await act(async () => {
+      localRssRefreshState.isRefreshing = false
+      localRssRefreshState.listener?.()
+      await refresh
+    })
+    expect(finishRefreshCallbacks).toHaveLength(1)
+  })
+
+  test("refreshes the Recommended snapshot after the timeline was unmounted for ten minutes", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-07-22T00:00:00Z"))
+    replaceEntries(3)
+    testState.routeFeedId = SMART_FEED_RECOMMENDED
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) => entryIds)
+
+    const Consumer = () => {
+      entriesResult = useEntriesByView({})
+      return null
+    }
+
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<Consumer />)
+    })
+    expect(entriesResult?.entriesIds).toEqual(["entry-0", "entry-1", "entry-2"])
+
+    await act(async () => {
+      root?.unmount()
+    })
+    root = null
+
+    vi.setSystemTime(new Date("2026-07-22T00:11:00Z"))
+    sortEntryIdsByRecommendedMock.mockImplementation((entryIds: string[]) =>
+      entryIds.slice().reverse(),
+    )
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<Consumer />)
+    })
+
+    expect(entriesResult?.entriesIds).toEqual(["entry-2", "entry-1", "entry-0"])
   })
 })
